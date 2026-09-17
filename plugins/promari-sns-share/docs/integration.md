@@ -4,7 +4,7 @@
 
 ```html
 <head>
-  <script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 </head>
 <body>
   <article>...</article>
@@ -23,7 +23,7 @@
 
 ```html
 <script type="module"
-  src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"
+  src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"
   integrity="sha384-..." crossorigin="anonymous"></script>
 ```
 
@@ -104,7 +104,7 @@ The plugin has been tested with WordPress 6.x.
 
 ```tsx
 // For example, in app/layout.tsx.
-<Script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js" strategy="afterInteractive" />
+<Script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js" strategy="afterInteractive" />
 
 // Article component.
 export const ShareBar = ({ url, title }: { url: string; title: string }) => (

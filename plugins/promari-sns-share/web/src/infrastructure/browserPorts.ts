@@ -29,6 +29,8 @@ export const toastNotifier = (root: ShadowRoot): NotifierPort => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return {
     notify: (text, anchor) => {
+      const status = root.querySelector('.status');
+      if (status) { status.textContent = text; return; }
       toast ??= Object.assign(root.appendChild(document.createElement('div')), { className: 't' });
       toast.setAttribute('role', 'status');
       toast.textContent = text;

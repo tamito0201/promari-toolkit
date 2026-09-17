@@ -10,7 +10,7 @@ HTML page or install the WordPress plugin for server-rendered buttons.
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 <promari-sns-share></promari-sns-share>
 ```
 
@@ -38,7 +38,7 @@ and less loading overhead.
 ### A. Any website: Web Components and CDN
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 
 <!-- Defaults: Facebook / X / LINE plus five secondary channels -->
 <promari-sns-share></promari-sns-share>
@@ -53,7 +53,7 @@ and less loading overhead.
 <promari-sns-share config='{"text":{"hashtags":["promari"],"via":"promari_jp"},"utm":{"enabled":true},"behavior":{"popup":false}}'></promari-sns-share>
 ```
 
-Pin `@promari-sns-share-v1.0.0` to select this component's release independently.
+Pin `@promari-sns-share-v1.1.0` to select this component's release independently.
 Release tags are immutable. `tools/publish.sh` prints an installation snippet
 with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 
@@ -173,3 +173,19 @@ or later, and PHP 8.1 or later. See [Contributing](CONTRIBUTING.md).
 
 MIT. The SVG logos are trademarks of their respective owners; follow each
 owner's brand guidelines when using them.
+
+### Circular sharing with likes
+
+```html
+<promari-sns-share variant="circle" like caption="この気づきを、誰かにも。"
+  services="x,line,facebook,copy,native" secondary="hatena,linkedin,email"></promari-sns-share>
+```
+
+The component renders the complete reaction row, including the like button.
+Listen for `promari-sns-share-like` (`detail.liked` is the requested state), persist
+the change in your host application, then call
+`element.setLikeState({liked, count, busy: false, message: ''})` with the confirmed
+server state. Initialize this state after the custom element is defined. Likes
+remain disabled until the host initializes them. No persistence endpoint or
+credentials are embedded in the public library. On devices without Web Share,
+the share button opens the additional destinations.
