@@ -2,6 +2,11 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.0
+
+- Add circular sharing controls with an overflow menu and host-managed like state.
+- Keep reaction persistence outside the Web Component and expose a typed state method and like request event.
+
 ## [1.0.0] - 2026-09-17
 
 ### Added
