@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["promari-sns-share-v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sns-share:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+      - run: pnpm install --frozen-lockfile
+      - name: Verify Promari SNS Share
+        run: pnpm --filter @promari/sns-share verify
+      - name: Check PHP syntax
+        run: find plugins/promari-sns-share/plugin -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null

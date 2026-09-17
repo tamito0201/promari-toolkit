@@ -1,0 +1,28 @@
+{
+  "name": "@promari/sns-share",
+  "version": "1.0.0",
+  "description": "Promari SNS Share: configurable social sharing for Web Components and WordPress",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "${PYTHON:-python3} tools/config.py --config config/share_config.example.toml --write",
+    "check": "${PYTHON:-python3} tools/config.py --config config/share_config.example.toml --check",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test 'web/test/**/*.test.ts'",
+    "test:py": "${PYTHON:-python3} -m unittest discover -s tools/tests -v",
+    "test:php": "php tools/tests/render_test.php",
+    "verify": "pnpm run generate && pnpm run typecheck && pnpm test && pnpm run test:py && pnpm run test:php && pnpm run check",
+    "generate": "${PYTHON:-python3} tools/config.py --config config/share_config.example.toml --generate",
+    "pretypecheck": "pnpm run generate",
+    "pretest": "pnpm run generate"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

@@ -1,0 +1,126 @@
+# Promari SNS Share configuration template. Read with Python 3.13+ tomllib (TOML 1.0).
+# Copy to the target site, for example <site-repository>/.config/share_config.toml, and edit the values.
+# Relative paths use the parent of .config/ or config/; otherwise they use the configuration directory.
+#
+#   Apply: python3 tools/config.py --config <this-file> --write
+#          -> WordPress plugin and assets/config/share.json, when plugin_output is set
+#          -> dist/promari-sns-share.min.js for CDN hosting, when web_output is set
+#   Validate: use --check instead of --write to detect stale outputs in CI or pre-commit checks.
+#   Inspect: use --print to show the effective configuration.
+#
+# Design rules:
+#   - Neither the plugin nor the Web Component reads TOML directly; both consume generated outputs.
+#   - Unknown keys or services, incorrect types, and out-of-range values are errors (fail closed).
+#   - Do not store tokens or passwords here; these are public appearance and placement settings.
+#   - Add a ServiceInterface implementation in plugin/src/Service/ when introducing a service.
+#     The generator extracts the Web Component catalog from PHP to avoid duplicated metadata.
+version = 1 # Configuration format version; currently only integer 1 is supported.
+
+[workflow]
+target = "." # Target Git root; relative to the repository containing this configuration.
+plugin_output = "" # WordPress plugin output directory, e.g. public_html/wp-content/plugins/promari-sns-share. Empty disables output.
+web_output = "dist" # Minified Web Component output directory, e.g. dist. Empty disables output; CDN hosting is recommended.
+web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
+web_version = "1.0.0" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
+
+# ==========================================================================================
+# [share] What to display, where to display it, and how it should look.
+# ==========================================================================================
+[share]
+# Primary buttons with official-style appearance, brand colors, and labels; ordered left to right.
+# Available services: facebook / x / line / hatena / linkedin / email / copy / native
+services = ["facebook", "x", "line"]
+heading = "SHARE" # Small heading beside or above the buttons. Empty hides it; never shown in the floating bar.
+
+[share.labels]
+# Labels: visible on primary buttons; tooltips and accessible names on secondary buttons. Omitted values use service defaults. The defaults below are Japanese; use any language.
+facebook = "シェア"
+x = "ポスト"
+line = "シェア"
+hatena = "はてなブックマーク"
+linkedin = "LinkedIn"
+email = "メールで送る"
+copy = "URLをコピー"
+native = "その他の共有"
+
+# Optional per-button overrides. Entire sections may be omitted; empty strings inherit defaults.
+[share.buttons.facebook]
+color = "" # Brand color override (#rrggbb). Empty uses the official #1877F2.
+label_style = "" # icon_text / icon / text. Empty inherits appearance.label_style.
+tooltip = "" # Tooltip and accessible name. Empty uses the configured label.
+floating = true # Whether to include the button in the floating bar.
+[share.buttons.x]
+color = ""
+label_style = ""
+tooltip = ""
+floating = true
+[share.buttons.line]
+color = ""
+label_style = ""
+tooltip = ""
+floating = true
+
+[share.appearance]
+size = "small" # small: 20px high / large: 28px high, matching official widget sizes.
+label_style = "icon_text" # Primary content: icon_text = logo and label; icon = logo only; text = label only.
+shape = "official" # Corners: official = pill for X, 3px for others; pill = all pills; rounded = 6px; square = no rounding.
+gap_px = 6 # Gap between buttons in pixels, 0–40.
+font_family = 'Helvetica, Arial, "Hiragino Sans", "Noto Sans JP", sans-serif' # Label font (CSS font-family).
+heading_position = "left" # Heading position: left, top, or none.
+secondary_size_px = 28 # Secondary icon diameter in pixels, 20–48.
+secondary_style = "mono" # Secondary style: mono = gray with brand color on hover; brand = always brand color; outline = border only.
+
+[share.text]
+# Shared text template. Placeholders: {title} (page title), {site} (site name), {url}.
+title_template = "{title}" # Text used by X, LINE, and email subjects.
+hashtags = [] # X hashtags without #, e.g. ["promari", "WordPress"].
+via = "" # X attribution without @, e.g. "promari_jp". Empty omits it.
+
+[share.utm]
+# Append utm_* to shared URLs. {service} expands to the service identifier; empty values are omitted.
+enabled = false
+source = "{service}"
+medium = "social"
+campaign = "share"
+content = ""
+
+[share.behavior]
+open_in_new_tab = true # False opens links in the current tab, for primary and secondary open actions.
+popup = true # Open a small window like official widgets; normal links work without JavaScript.
+popup_width = 600 # Popup width in pixels, 300–1200.
+popup_height = 500 # Popup height in pixels, 300–1000.
+nofollow = true # Add rel="nofollow" to share links.
+
+[share.placements]
+# Enabled placements. Template tags and shortcodes remain available independently of these settings.
+post_types = ["post"] # Post types for automatic insertion and the floating bar, e.g. ["post", "news"]. Empty disables automatic insertion.
+article_top = true # Before article content through the_content.
+article_bottom = true # After article content through the_content.
+sidebar = true # Register the Promari SNS Share widget under Appearance > Widgets.
+floating = true # Mobile floating bar at the bottom or top; appears after scrolling, hidden at desktop widths.
+floating_position = "bottom" # bottom / top
+floating_after_px = 400 # Scroll distance before the bar appears, in pixels, 100–5000.
+floating_secondary_max = 3 # Maximum secondary channels in the floating bar, 0–8.
+floating_hide_near_end = true # Hide the floating bar near the page end.
+floating_services = [] # Primary floating-bar services. Empty inherits share.services.
+
+[share.secondary]
+# Secondary channels shown as small icons after the primary buttons, in key order.
+hatena = true # Hatena Bookmark.
+linkedin = true # LinkedIn
+email = true # Send by email (mailto).
+copy = true # Copy the URL to the clipboard; falls back to a link without JavaScript.
+native = true # Native share sheet (Web Share API); shown only where navigator.share is available.
+
+[share.tracking]
+# Tracking contract: observe this attribute (value = service identifier) or the JavaScript CustomEvent.
+attribute = "data-share" # Button attribute name; must start with data-.
+event_name = "promari-sns-share" # Click CustomEvent name, observable on document; detail: {service, url, placement}.
+
+[share.messages]
+copied = "URLをコピーしました" # Toast after successfully copying the URL.
+group_label = "この記事をシェアする" # Accessible name of the button group (aria-label).
+
+[share.style]
+accent = "#54347e" # Heading, focus outline, and copy-success color (site brand), #rrggbb.
+floating_background = "rgba(255,255,255,.96)" # Floating-bar background (CSS color).

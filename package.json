@@ -1,0 +1,12 @@
+{
+  "name": "promari-toolkit",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "verify": "pnpm -r --if-present run verify"
+  },
+  "engines": {
+    "node": ">=24.16.0"
+  }
+}

@@ -1,0 +1,19 @@
+[project]
+name = "promari-sns-share-tools"
+version = "1.0.0"
+description = "Configuration generator and tests for Promari SNS Share; Python standard library only"
+requires-python = ">=3.13"
+license = "MIT"
+
+[tool.ruff]
+line-length = 160
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"] # Japanese UI strings intentionally contain full-width characters.
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["tools"]
