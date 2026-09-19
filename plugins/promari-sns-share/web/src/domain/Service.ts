@@ -1,5 +1,5 @@
 /**
- * Service entities containing logos, colors, and URL specifications extracted from PHP. URL construction is pure.
+ * 共有先の意味とURL構築だけを保持する。表示用メタデータはapplication側で結合する。
  */
 import type { Catalog, RequestField, Service, ServiceSpec, ShareRequest } from './types.ts';
 
@@ -23,17 +23,14 @@ export const buildUrl = (endpoint: string, params: Readonly<Record<string, Reque
   return endpoint + (pairs.length ? `?${pairs.join('&')}` : '');
 };
 
-export const createService = (spec: ServiceSpec): Service => {
+export const createService = ({ key, action, endpoint, params }: ServiceSpec): Service => {
   const service: Service = {
-    key: spec.key,
-    label: spec.label,
-    color: spec.color,
-    icon: spec.icon,
-    action: spec.action,
+    key,
+    action,
     /**
  * Return the share dialog URL, or the page URL for copy and native sharing.
  */
-    shareUrl: (request: ShareRequest) => (spec.endpoint ? buildUrl(spec.endpoint, spec.params, request) : request.url),
+    shareUrl: (request: ShareRequest) => (endpoint ? buildUrl(endpoint, params, request) : request.url),
   };
   return Object.freeze(service);
 };

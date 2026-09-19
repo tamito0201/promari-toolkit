@@ -8,20 +8,21 @@ import type { Ports } from './ports.ts';
 export interface ClickContext {
   readonly button: ButtonViewModel;
   readonly placement: string;
-  readonly anchor?: Element | null;
+  /** 描画層で解決する通知先の識別子。DOMノードは渡さない。 */
+  readonly notificationTarget?: string;
   preventDefault(): void;
 }
 
 export type ClickHandler = (context: ClickContext) => Promise<void>;
 
 export const handleShareClick = (ports: Ports, messages: { readonly copied: string }): ClickHandler =>
-  async ({ button, placement, anchor, preventDefault }) => {
+  async ({ button, placement, notificationTarget, preventDefault }) => {
     switch (decideClick(button)) {
       case 'copy': {
         preventDefault();
         try {
           await ports.clipboard.write(button.url);
-          ports.notifier.notify(messages.copied, anchor);
+          ports.notifier.notify(messages.copied, notificationTarget);
         } catch {
           ports.clipboard.fallback?.(button.url);
         }

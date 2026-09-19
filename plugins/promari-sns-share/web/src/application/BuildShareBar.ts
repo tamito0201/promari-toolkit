@@ -1,8 +1,11 @@
 /**
  * Build a button view model from configuration and page context without accessing the DOM.
  */
+import type { LabelStyle, ShareConfig } from './config.ts';
+import type { DisplayCatalog, DisplayService } from './ServiceCatalog.ts';
+export type { Placement } from '../domain/types.ts';
 import { createShareRequest, withUrl } from '../domain/ShareRequest.ts';
-import { Action, type Catalog, type LabelStyle, type Placement, type Service, type ShareConfig, type ShareRequest } from '../domain/types.ts';
+import { Action, type Placement, type ShareRequest } from '../domain/types.ts';
 import { fillTemplate, selectServices, utmUrl } from '../domain/policies.ts';
 
 export type Tier = 'primary' | 'secondary';
@@ -46,9 +49,9 @@ const override = <T extends string | boolean>(config: ShareConfig, key: string, 
   return value === undefined || value === '' ? fallback : (value as T);
 };
 
-const toButton = (config: ShareConfig, request: ShareRequest, tier: Tier) => (service: Service): ButtonViewModel => {
+const toButton = (config: ShareConfig, request: ShareRequest, tier: Tier) => (service: DisplayService): ButtonViewModel => {
   const { key } = service;
-  const label = config.labels[key] ?? service.label;
+  const label = config.labels[key] ?? service.appearance.label;
   const href = service.shareUrl(withUrl(request, utmUrl(request.url, config.utm, key)));
   const isOpen = service.action === Action.Open;
   const popup = isOpen && config.behavior.popup && !href.startsWith('mailto:');
@@ -58,8 +61,8 @@ const toButton = (config: ShareConfig, request: ShareRequest, tier: Tier) => (se
     href,
     label,
     tooltip: override(config, key, 'tooltip', label),
-    color: override(config, key, 'color', service.color),
-    icon: service.icon,
+    color: override(config, key, 'color', service.appearance.color),
+    icon: service.appearance.icon,
     action: service.action,
     labelStyle: tier === 'primary' ? override<LabelStyle>(config, key, 'label_style', config.appearance.label_style) : 'icon',
     newTab: isOpen && config.behavior.open_in_new_tab,
@@ -70,7 +73,7 @@ const toButton = (config: ShareConfig, request: ShareRequest, tier: Tier) => (se
   });
 };
 
-export const buildShareBar = ({ catalog }: { catalog: Catalog }, config: ShareConfig, input: BuildInput): ShareBarViewModel => {
+export const buildShareBar = ({ catalog }: { catalog: DisplayCatalog }, config: ShareConfig, input: BuildInput): ShareBarViewModel => {
   const { url, title, site, placement, canNativeShare } = input;
   const request = createShareRequest({
     url,
