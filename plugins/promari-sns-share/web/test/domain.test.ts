@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createCatalog, UnknownServiceError } from '../src/domain/Service.ts';
 import { createShareRequest } from '../src/domain/ShareRequest.ts';
-import { appendQuery, decideClick, fillTemplate, selectServices, utmUrl } from '../src/domain/policies.ts';
+import { appendQuery, canOpenInPopup, decideClick, fillTemplate, selectServices, utmUrl } from '../src/domain/policies.ts';
 import type { ServiceDefinition } from '../src/application/ServiceCatalog.ts';
 import type { ShareConfig } from '../src/application/config.ts';
 import { Action } from '../src/domain/types.ts';
@@ -37,10 +37,18 @@ export const CONFIG: ShareConfig = {
 describe('policies', () => {
   it('テンプレートを展開する', () => {
     assert.equal(fillTemplate('{title} | {site} {url}', { url: 'U', title: 'T', site: 'S' }), 'T | S U');
+    // 置換した結果は走査し直さない。題名の {site} は題名のまま残る（PHP の strtr と同じ）。
+    assert.equal(fillTemplate('{title} | {site}', { url: 'U', title: '特集{site}', site: 'S' }), '特集{site} | S');
   });
   it('フラグメントを保って query を足す', () => {
     assert.equal(appendQuery('https://a.jp/p?x=1#h', { a: 'b c' }), 'https://a.jp/p?x=1&a=b%20c#h');
     assert.equal(appendQuery('https://a.jp/p', { a: '1' }), 'https://a.jp/p?a=1');
+    // encodeURIComponent が残す ! ' ( ) * も符号化する（PHP の rawurlencode と同じ）。
+    assert.equal(appendQuery('https://a.jp/p', { 'k!': "v'(*)" }), 'https://a.jp/p?k%21=v%27%28%2A%29');
+  });
+  it('mailto は小窓で開かない', () => {
+    assert.equal(canOpenInPopup('mailto:someone@a.jp?subject=x'), false);
+    assert.equal(canOpenInPopup('https://a.jp/'), true);
   });
   it('utm は enabled のときだけ・空の項目は付けない・{service} を置換する', () => {
     assert.equal(utmUrl('https://a.jp/', { ...CONFIG.utm, enabled: false }, 'x'), 'https://a.jp/');
@@ -73,6 +81,9 @@ describe('Service / Catalog', () => {
     assert.equal(x!.shareUrl(request), 'https://twitter.com/intent/tweet?url=https%3A%2F%2Fa.jp%2F%3Fq%3D1&text=a%20b%2Bc&hashtags=p%2Cq&via=v');
     const empty = createShareRequest({ url: 'https://a.jp/', title: '', text: '' });
     assert.equal(x!.shareUrl(empty), 'https://twitter.com/intent/tweet?url=https%3A%2F%2Fa.jp%2F');
+    // encodeURIComponent は ! ' ( ) * を残すので、PHP と食い違わないよう補って符号化する。
+    const tricky = createShareRequest({ url: 'https://a.jp/', title: '', text: "a!b'c(d)e*f" });
+    assert.equal(x!.shareUrl(tricky), 'https://twitter.com/intent/tweet?url=https%3A%2F%2Fa.jp%2F&text=a%21b%27c%28d%29e%2Af');
   });
   it('endpoint の無いサービスはページ URL を返す', () => {
     const [copy] = createCatalog(SPECS).resolve(['copy']);

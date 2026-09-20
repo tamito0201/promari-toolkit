@@ -21,6 +21,7 @@ array_map(
     [
         'Domain/Action.php',
         'Domain/Placement.php',
+        'Domain/SharePolicy.php',
         'Domain/ShareRequest.php',
         'Contracts/ConfigInterface.php',
         'Contracts/ServiceInterface.php',

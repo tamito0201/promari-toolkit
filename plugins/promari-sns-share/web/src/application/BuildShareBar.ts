@@ -6,7 +6,7 @@ import type { DisplayCatalog, DisplayService } from './ServiceCatalog.ts';
 export type { Placement } from '../domain/types.ts';
 import { createShareRequest, withUrl } from '../domain/ShareRequest.ts';
 import { Action, type Placement, type ShareRequest } from '../domain/types.ts';
-import { fillTemplate, selectServices, utmUrl } from '../domain/policies.ts';
+import { canOpenInPopup, fillTemplate, selectServices, utmUrl } from '../domain/policies.ts';
 
 export type Tier = 'primary' | 'secondary';
 
@@ -54,7 +54,7 @@ const toButton = (config: ShareConfig, request: ShareRequest, tier: Tier) => (se
   const label = config.labels[key] ?? service.appearance.label;
   const href = service.shareUrl(withUrl(request, utmUrl(request.url, config.utm, key)));
   const isOpen = service.action === Action.Open;
-  const popup = isOpen && config.behavior.popup && !href.startsWith('mailto:');
+  const popup = isOpen && config.behavior.popup && canOpenInPopup(href);
   return Object.freeze({
     key,
     tier,

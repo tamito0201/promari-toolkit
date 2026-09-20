@@ -13,6 +13,7 @@ use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
 use PromariSnsShare\Domain\Placement;
 use PromariSnsShare\Domain\ShareRequest;
+use PromariSnsShare\Domain\SharePolicy;
 use PromariSnsShare\Share\TextFormatter;
 
 final class ButtonRenderer implements RendererInterface
@@ -64,7 +65,7 @@ final class ButtonRenderer implements RendererInterface
         $href = $service->shareUrl($this->formatter->forService($request, $key));
         $action = $service->action();
         $isOpen = $action === Action::Open;
-        $popup = $isOpen && $c->get('behavior.popup') === true && !str_starts_with($href, 'mailto:');
+        $popup = $isOpen && $c->get('behavior.popup') === true && SharePolicy::canOpenInPopup($href);
 
         $attrs = array_filter([
             'class' => "pm-share__btn pm-share__btn--$tier pm-share__btn--$key pm-share__btn--label-$labelStyle",

@@ -42,7 +42,8 @@ export interface ShareRequest {
 }
 
 /**
- * A service entity that constructs share URLs.
+ * 共有URLを組み立てる値オブジェクト。key が同じなら振る舞いも同じで、
+ * 状態も同一性も持たないため、DDD でいう Entity ではない。
  */
 export interface Service {
   readonly key: string;
