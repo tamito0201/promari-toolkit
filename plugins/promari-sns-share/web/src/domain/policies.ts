@@ -1,6 +1,7 @@
 /**
  * Pure policies for button selection, shared text, and URL parameters. Keep these consistent with PHP formatting and selection rules.
  */
+import { encodeComponent } from './encoding.ts';
 import { Action, type Catalog, type Placement, type SelectionConfig, type UtmConfig } from './types.ts';
 
 export interface PageInfo {
@@ -10,10 +11,13 @@ export interface PageInfo {
 }
 
 /**
- * Expand the title, site, and URL placeholders.
+ * Expand the title, site, and URL placeholders in a single pass, matching PHP strtr.
+ * 置換した結果は走査し直さない。題名に {site} が含まれても、それは題名のまま残る。
  */
-export const fillTemplate = (template: string, { url, title, site }: PageInfo): string =>
-  template.replaceAll('{title}', title).replaceAll('{site}', site).replaceAll('{url}', url);
+export const fillTemplate = (template: string, { url, title, site }: PageInfo): string => {
+  const values: Readonly<Record<string, string>> = { '{title}': title, '{site}': site, '{url}': url };
+  return template.replace(/\{(?:title|site|url)\}/g, (placeholder) => values[placeholder] ?? placeholder);
+};
 
 /**
  * Append query parameters while preserving fragments.
@@ -21,7 +25,7 @@ export const fillTemplate = (template: string, { url, title, site }: PageInfo): 
 export const appendQuery = (url: string, params: Readonly<Record<string, string>>): string => {
   const hash = url.indexOf('#');
   const [base, fragment] = hash >= 0 ? [url.slice(0, hash), url.slice(hash + 1)] : [url, undefined];
-  const query = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  const query = Object.entries(params).map(([k, v]) => `${encodeComponent(k)}=${encodeComponent(v)}`).join('&');
   return `${base}${base.includes('?') ? '&' : '?'}${query}${fragment === undefined ? '' : `#${fragment}`}`;
 };
 
@@ -60,6 +64,12 @@ export const selectServices = (
     secondary: isFloating ? visible.slice(0, floating.secondaryMax) : visible,
   };
 };
+
+/**
+ * 小窓で開ける共有先か。mailto: はメールソフトへ渡すので、窓を開いても何も残らない。
+ * PHP 側の SharePolicy::canOpenInPopup と同じ判断をここに置く。
+ */
+export const canOpenInPopup = (href: string): boolean => !href.startsWith('mailto:');
 
 export type ClickDecision = 'copy' | 'native' | 'popup' | 'follow';
 

@@ -17,7 +17,8 @@ export type ClickHandler = (context: ClickContext) => Promise<void>;
 
 export const handleShareClick = (ports: Ports, messages: { readonly copied: string }): ClickHandler =>
   async ({ button, placement, notificationTarget, preventDefault }) => {
-    switch (decideClick(button)) {
+    const decision = decideClick(button);
+    switch (decision) {
       case 'copy': {
         preventDefault();
         try {
@@ -39,6 +40,11 @@ export const handleShareClick = (ports: Ports, messages: { readonly copied: stri
       }
       case 'follow':
         break; // Let the browser follow the link.
+      default: {
+        // ClickDecision を増やしたらここでコンパイルが止まる。黙って素通りさせない。
+        const unhandled: never = decision;
+        throw new Error(`promari-sns-share: 未対応のクリック操作です: ${String(unhandled)}`);
+      }
     }
     ports.tracker.track({ service: button.key, url: button.url, placement });
   };

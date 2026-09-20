@@ -1,6 +1,7 @@
 /**
  * 共有先の意味とURL構築だけを保持する。表示用メタデータはapplication側で結合する。
  */
+import { encodeComponent } from './encoding.ts';
 import type { Catalog, RequestField, Service, ServiceSpec, ShareRequest } from './types.ts';
 
 const FIELD: Readonly<Record<RequestField, (r: ShareRequest) => string>> = {
@@ -19,7 +20,7 @@ export const buildUrl = (endpoint: string, params: Readonly<Record<string, Reque
   const pairs = Object.entries(params)
     .map(([name, field]) => [name, FIELD[field](request)] as const)
     .filter(([, value]) => value !== '')
-    .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`);
+    .map(([name, value]) => `${encodeComponent(name)}=${encodeComponent(value)}`);
   return endpoint + (pairs.length ? `?${pairs.join('&')}` : '');
 };
 
