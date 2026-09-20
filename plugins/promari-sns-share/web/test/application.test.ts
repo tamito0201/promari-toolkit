@@ -6,14 +6,22 @@ import { describe, it } from 'node:test';
 import { buildShareBar } from '../src/application/BuildShareBar.ts';
 import { handleShareClick } from '../src/application/HandleShareClick.ts';
 import type { Ports, TrackDetail } from '../src/application/ports.ts';
-import { createCatalog } from '../src/domain/Service.ts';
+import { createDisplayCatalog } from '../src/application/ServiceCatalog.ts';
 import { deepMerge, readConfig } from '../src/infrastructure/AttributeConfig.ts';
 import { CONFIG, SPECS } from './domain.test.ts';
 
-const catalog = createCatalog(SPECS);
+const catalog = createDisplayCatalog(SPECS);
 const input = { url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', placement: 'inline' as const, canNativeShare: false };
 
 describe('buildShareBar', () => {
+  it('表示用カタログは同じ共有先を公開し、表示メタデータを不変に保つ', () => {
+    assert.deepEqual(catalog.keys(), SPECS.map(s => s.key));
+    assert.equal(catalog.has('missing'), false);
+    const service = catalog.resolve(['x'])[0]!;
+    assert.deepEqual(service.appearance, { label: SPECS[0]!.label, color: SPECS[0]!.color, icon: SPECS[0]!.icon });
+    assert.ok(Object.isFrozen(service.appearance));
+    assert.throws(() => catalog.resolve(['missing']));
+  });
   it('主役と補助のビューモデルを作り、文言・色・UTM・popup を設定どおりに写す', () => {
     const vm = buildShareBar({ catalog }, CONFIG, input);
     assert.equal(vm.heading, 'SHARE');
@@ -59,11 +67,35 @@ describe('handleShareClick', () => {
     assert.equal(prevented, true);
     assert.deepEqual(tracked, [{ service: 'copy', url: 'https://a.jp/post/', placement: 'inline' }]);
   });
+  it('非同期の成功を待ち、DOMを使わず通知先の識別子を渡す', async () => {
+    let finish!: () => void;
+    const notices: [string, string | undefined][] = [];
+    const { ports: p } = ports({
+      clipboard: { write: () => new Promise<void>(resolve => { finish = resolve; }) },
+      notifier: { notify: (text, target) => { notices.push([text, target]); } },
+    });
+    const b = button('copy').secondary.find(x => x.key === 'copy')!;
+    const pending = handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', notificationTarget: 'target-2', preventDefault: () => undefined });
+    assert.deepEqual(notices, []);
+    finish();
+    await pending;
+    assert.deepEqual(notices, [['コピーしました', 'target-2']]);
+  });
   it('clipboard が失敗したら fallback', async () => {
     const { calls, ports: p } = ports({ clipboard: { write: async () => { throw new Error('denied'); }, fallback: (t) => calls.push(`fallback:${t}`) } });
     const b = button('copy').secondary.find((x) => x.key === 'copy')!;
     await handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', preventDefault: () => undefined });
     assert.deepEqual(calls, ['fallback:https://a.jp/post/']);
+  });
+  it('端末共有の成功と拒否で、従来どおり操作イベントを一度だけ通知する', async () => {
+    for (const reject of [false, true]) {
+      const { ports: p, tracked } = ports({ sharer: { available: true, share: async () => { if (reject) throw new Error('cancel'); } } });
+      let prevented = false;
+      const b = button('native').secondary.find(x => x.key === 'native')!;
+      await handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+      assert.equal(prevented, true);
+      assert.deepEqual(tracked, [{ service: 'native', url: input.url, placement: 'inline' }]);
+    }
   });
   it('popup が開けなければ既定動作（リンク遷移）に任せる', async () => {
     const { ports: p } = ports({ popup: { open: () => false } });

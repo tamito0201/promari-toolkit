@@ -1,7 +1,7 @@
 /**
  * Browser implementations of application ports. Analytics are dispatched to the host page without sending telemetry requests.
  */
-import type { ClipboardPort, NotifierPort, PopupPort, SharerPort, TrackDetail, TrackerPort } from '../application/ports.ts';
+import type { ClipboardPort, PopupPort, SharerPort, TrackDetail, TrackerPort } from '../application/ports.ts';
 
 export const browserClipboard = (): ClipboardPort => ({
   write: (text) => (navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(new Error('clipboard unavailable'))),
@@ -20,27 +20,6 @@ export const popupWindow = (): PopupPort => ({
     return window.open(href, 'promari-sns-share', `width=${width},height=${height},left=${left},top=${top},noopener,noreferrer`) !== null;
   },
 });
-
-/**
- * Show a toast inside the supplied ShadowRoot.
- */
-export const toastNotifier = (root: ShadowRoot): NotifierPort => {
-  let toast: HTMLDivElement | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return {
-    notify: (text, anchor) => {
-      const status = root.querySelector('.status');
-      if (status) { status.textContent = text; return; }
-      toast ??= Object.assign(root.appendChild(document.createElement('div')), { className: 't' });
-      toast.setAttribute('role', 'status');
-      toast.textContent = text;
-      toast.classList.add('on');
-      anchor?.classList.add('done');
-      clearTimeout(timer);
-      timer = setTimeout(() => { toast?.classList.remove('on'); anchor?.classList.remove('done'); }, 1800);
-    },
-  };
-};
 
 /**
  * Emit a bubbling, composed CustomEvent that crosses the Shadow DOM boundary.

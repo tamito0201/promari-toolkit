@@ -1,7 +1,7 @@
 /**
  * Read element attributes into configuration. JSON config overrides individual attributes, which override defaults. Invalid JSON is reported to the console.
  */
-import type { DeepPartial, ShareConfig } from '../domain/types.ts';
+import type { DeepPartial, ShareConfig } from '../application/config.ts';
 
 const csv = (value: string): string[] => value.split(',').map((s) => s.trim()).filter(Boolean);
 const bool = (value: string): boolean => !['false', '0', 'off', 'no'].includes(value.trim().toLowerCase());

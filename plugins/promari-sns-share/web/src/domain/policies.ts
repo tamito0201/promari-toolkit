@@ -1,7 +1,7 @@
 /**
  * Pure policies for button selection, shared text, and URL parameters. Keep these consistent with PHP formatting and selection rules.
  */
-import { Action, type Catalog, type Placement, type ShareConfig } from './types.ts';
+import { Action, type Catalog, type Placement, type SelectionConfig, type UtmConfig } from './types.ts';
 
 export interface PageInfo {
   readonly url: string;
@@ -28,7 +28,7 @@ export const appendQuery = (url: string, params: Readonly<Record<string, string>
 /**
  * Add UTM parameters when enabled and expand the service placeholder.
  */
-export const utmUrl = (url: string, utm: ShareConfig['utm'], service: string): string => {
+export const utmUrl = (url: string, utm: UtmConfig, service: string): string => {
   if (!utm.enabled) return url;
   const params = Object.fromEntries(
     (['source', 'medium', 'campaign', 'content'] as const)
@@ -47,7 +47,7 @@ export interface Selection {
  * Select primary and secondary services for the placement and device capabilities. Native sharing requires navigator.share. Floating bars honor service overrides, exclusions, and the secondary limit.
  */
 export const selectServices = (
-  { services, secondary, buttons, floating }: ShareConfig,
+  { services, secondary, buttons, floating }: SelectionConfig,
   { placement, canNativeShare, catalog }: { placement: Placement; canNativeShare: boolean; catalog: Catalog },
 ): Selection => {
   const isFloating = placement === 'floating';

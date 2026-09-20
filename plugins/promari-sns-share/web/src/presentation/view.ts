@@ -2,7 +2,6 @@
  * Render a view model as HTML without domain decisions.
  */
 import type { ButtonViewModel, ShareBarViewModel } from '../application/BuildShareBar.ts';
-import { Action } from '../domain/types.ts';
 
 const ESCAPES: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 export const escapeHtml = (value: string): string => value.replace(/[&<>"]/g, (c) => ESCAPES[c] ?? c);
@@ -25,7 +24,7 @@ const button = (trackAttribute: string) => (b: ButtonViewModel): string =>
     'aria-label': b.tooltip,
     style: `--b:${b.color}`,
     target: b.newTab ? '_blank' : null,
-    rel: b.action === Action.Open ? ['noopener', 'noreferrer', b.nofollow ? 'nofollow' : null].filter(Boolean).join(' ') : null,
+    rel: b.action === 'open' ? ['noopener', 'noreferrer', b.nofollow ? 'nofollow' : null].filter(Boolean).join(' ') : null,
   })}>${b.labelStyle !== 'text' ? `<i>${b.icon}</i>` : ''}${b.labelStyle !== 'icon' ? `<span>${escapeHtml(b.label)}</span>` : ''}</a>`;
 
 export const renderHtml = (vm: ShareBarViewModel, trackAttribute: string, css: string): string => {

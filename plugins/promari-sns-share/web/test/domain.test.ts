@@ -6,10 +6,12 @@ import { describe, it } from 'node:test';
 import { createCatalog, UnknownServiceError } from '../src/domain/Service.ts';
 import { createShareRequest } from '../src/domain/ShareRequest.ts';
 import { appendQuery, decideClick, fillTemplate, selectServices, utmUrl } from '../src/domain/policies.ts';
-import { Action, type ServiceSpec, type ShareConfig } from '../src/domain/types.ts';
+import type { ServiceDefinition } from '../src/application/ServiceCatalog.ts';
+import type { ShareConfig } from '../src/application/config.ts';
+import { Action } from '../src/domain/types.ts';
 
 const svg = '<svg><path fill="currentColor"/></svg>';
-export const SPECS: readonly ServiceSpec[] = [
+export const SPECS: readonly ServiceDefinition[] = [
   { key: 'x', label: 'ポスト', color: '#000000', icon: svg, action: Action.Open, endpoint: 'https://twitter.com/intent/tweet', params: { url: 'url', text: 'text', hashtags: 'hashtagsCsv', via: 'via' } },
   { key: 'facebook', label: 'シェア', color: '#1877F2', icon: svg, action: Action.Open, endpoint: 'https://www.facebook.com/sharer/sharer.php', params: { u: 'url' } },
   { key: 'copy', label: 'URLをコピー', color: '#5F6368', icon: svg, action: Action.Copy, endpoint: '', params: {} },
@@ -60,6 +62,11 @@ describe('policies', () => {
 });
 
 describe('Service / Catalog', () => {
+  it('ドメインの共有先へ表示用メタデータを持ち込まない', () => {
+    const service = createCatalog(SPECS).resolve(['x'])[0]!;
+    assert.deepEqual(Object.keys(service).sort(), ['action', 'key', 'shareUrl']);
+    assert.ok(Object.isFrozen(service));
+  });
   it('RFC 3986 でエンコードし、空の値は送らない', () => {
     const [x] = createCatalog(SPECS).resolve(['x']);
     const request = createShareRequest({ url: 'https://a.jp/?q=1', title: 'T', text: 'a b+c', hashtags: ['p', 'q'], via: '@v' });

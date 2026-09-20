@@ -3,9 +3,11 @@
  */
 import { buildShareBar, type ButtonViewModel } from '../application/BuildShareBar.ts';
 import { handleShareClick } from '../application/HandleShareClick.ts';
-import type { Catalog, Placement, ShareConfig } from '../domain/types.ts';
-import { OBSERVED_ATTRIBUTES, readConfig } from '../infrastructure/AttributeConfig.ts';
-import { browserClipboard, customEventTracker, pageContext, popupWindow, scrollWatcher, toastNotifier, webShare } from '../infrastructure/browserPorts.ts';
+import type { Placement } from '../application/BuildShareBar.ts';
+import type { ShareConfig } from '../application/config.ts';
+import type { DisplayCatalog } from '../application/ServiceCatalog.ts';
+import type { NotifierPort, Ports } from '../application/ports.ts';
+import { toastNotifier } from './notifier.ts';
 import { buildCss } from './styles.ts';
 import { renderCircle } from './circle.ts';
 import { renderHtml } from './view.ts';
@@ -13,15 +15,25 @@ import { renderHtml } from './view.ts';
 const PLACEMENTS: ReadonlySet<string> = new Set<Placement>(['article_top', 'article_bottom', 'sidebar', 'floating', 'inline']);
 const asPlacement = (value: string | null): Placement => (value && PLACEMENTS.has(value) ? (value as Placement) : 'inline');
 
+/** DOMへの接続を入口から注入する。表示層は接続先の実装をimportしない。 */
+export interface ElementEnvironment {
+  readConfig(): ShareConfig;
+  pageContext(): { readonly url: string; readonly title: string; readonly site: string };
+  canNativeShare(): boolean;
+  ports(notifier: NotifierPort, eventName: string): Ports;
+  watchScroll(config: ShareConfig['floating']): () => void;
+}
 export interface ElementDeps {
-  readonly catalog: Catalog;
-  readonly defaults: ShareConfig;
+  readonly catalog: DisplayCatalog;
+  readonly observedAttributes: readonly string[];
+  connect(element: HTMLElement): ElementEnvironment;
 }
 
-export const defineElement = ({ catalog, defaults }: ElementDeps): void => {
+export const defineElement = ({ catalog, observedAttributes, connect }: ElementDeps): void => {
   class PromariSnsShareElement extends HTMLElement {
-    static get observedAttributes(): readonly string[] { return [...OBSERVED_ATTRIBUTES, 'variant', 'caption', 'like']; }
+    static get observedAttributes(): readonly string[] { return [...observedAttributes, 'variant', 'caption', 'like']; }
 
+    #environment: ElementEnvironment = connect(this);
     #interactions = new AbortController();
     #likeState = { liked: false, count: 0, busy: true, message: '' };
     setLikeState(state: { liked: boolean; count: number; busy?: boolean; message?: string }): void {
@@ -41,14 +53,15 @@ export const defineElement = ({ catalog, defaults }: ElementDeps): void => {
       const status = root?.querySelector('.status');
       if (status) status.textContent = this.#likeState.message;
     }
+    #notificationSequence = 0;
     #buttons = new Map<string, ButtonViewModel>();
     #stopWatching: (() => void) | null = null;
 
     connectedCallback(): void {
       this.#render();
       if (asPlacement(this.getAttribute('placement')) === 'floating') {
-        const { floating } = readConfig(this, defaults);
-        this.#stopWatching = scrollWatcher(this, { after: floating.after, hideNearEnd: floating.hideNearEnd });
+        const { floating } = this.#environment.readConfig();
+        this.#stopWatching = this.#environment.watchScroll(floating);
       }
     }
 
@@ -60,15 +73,15 @@ export const defineElement = ({ catalog, defaults }: ElementDeps): void => {
       this.#interactions.abort();
       this.#interactions = new AbortController();
       const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' });
-      const config = readConfig(this, defaults);
-      const page = pageContext();
+      const config = this.#environment.readConfig();
+      const page = this.#environment.pageContext();
       const placement = asPlacement(this.getAttribute('placement'));
       const vm = buildShareBar({ catalog }, config, {
         url: this.getAttribute('url') || page.url,
         title: this.getAttribute('title') || page.title,
         site: page.site,
         placement,
-        canNativeShare: webShare().available,
+        canNativeShare: this.#environment.canNativeShare(),
       });
       const circle = this.getAttribute('variant') === 'circle';
       root.innerHTML = circle
@@ -98,16 +111,21 @@ export const defineElement = ({ catalog, defaults }: ElementDeps): void => {
       });
       this.#buttons = new Map([...vm.primary, ...vm.secondary].map((b) => [b.key, b]));
       const onClick = handleShareClick(
-        { clipboard: browserClipboard(), sharer: webShare(), popup: popupWindow(), notifier: toastNotifier(root), tracker: customEventTracker(this, config.tracking.event_name) },
+        this.#environment.ports(toastNotifier(root), config.tracking.event_name),
         config.messages,
       );
       root.querySelector(circle ? '.circle' : '.w')?.addEventListener('click', (event) => {
         const anchor = event.composedPath().find((n): n is HTMLAnchorElement | HTMLButtonElement => n instanceof HTMLAnchorElement || n instanceof HTMLButtonElement);
         const button = anchor && this.#buttons.get(anchor.dataset['key'] ?? '');
-        if (button?.action === 'native' && !webShare().available && details) {
+        if (button?.action === 'native' && !this.#environment.canNativeShare() && details) {
           event.preventDefault(); details.open = true; details.querySelector('summary')?.focus(); return;
         }
-        if (button) void onClick({ button, placement, anchor, preventDefault: () => event.preventDefault() });
+        if (button && anchor) {
+          // 同じ共有先が複数ある場合も、押された要素を識別する。
+          const notificationTarget = String(++this.#notificationSequence);
+          anchor.dataset['notificationTarget'] = notificationTarget;
+          void onClick({ button, placement, notificationTarget, preventDefault: () => event.preventDefault() });
+        }
       });
     }
   }

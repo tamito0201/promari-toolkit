@@ -1,7 +1,7 @@
 /**
  * Map configuration to CSS with the same styling rules as PHP Render/Styles.
  */
-import type { SecondaryStyle, Shape, ShareConfig, Size } from '../domain/types.ts';
+import type { SecondaryStyle, Shape, ShareConfig, Size } from '../application/config.ts';
 
 interface Metrics { readonly h: number; readonly f: number; readonly i: number; readonly px: number }
 

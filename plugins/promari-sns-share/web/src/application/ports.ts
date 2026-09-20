@@ -22,7 +22,7 @@ export interface PopupPort {
 }
 
 export interface NotifierPort {
-  notify(text: string, anchor?: Element | null): void;
+  notify(text: string, target?: string): void;
 }
 
 export interface TrackDetail {
