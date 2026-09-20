@@ -29,27 +29,26 @@ flowchart LR
 | Source | Location | Generated outputs |
 |---|---|---|
 | Configuration: what, where, and how to display | `share_config.toml` | `share.json` for the plugin; `generated/defaults.ts` for JavaScript |
-| Services: SVG logos, brand colors, and share URL construction | `plugin/src/Service/*.php` | `generated/catalog.ts` for JavaScript |
+| Services: SVG logos, brand colors, and where to send which fields | `plugin/src/Service/*.php` | `generated/catalog.ts` for JavaScript |
 
 The generator reads PHP classes with regular expressions and extracts `key()`,
-`label()`, `brandColor()`, `icon()`, `action()`, and the
-`$this->build('endpoint', ['k' => $request->url, ...])` form in `shareUrl()`.
-**JavaScript does not maintain a separate copy of service logos or URL rules.**
-PHP changes flow into JavaScript on the next build; `--check` detects drift.
+`label()`, `brandColor()`, `icon()`, `action()`, `endpoint()`, and `params()`.
+Those classes are definitions: they state where to send and which fields to send,
+and are never loaded at runtime. **Share URLs are built in one place, the Web
+Component.** PHP changes flow into JavaScript on the next build; `--check` detects drift.
 
 ## PHP plugin: layered architecture and SOLID
 
 ```text
 plugin/
   promari-sns-share.php          Bootstrap: requires and the promari_sns_share() template tag
-  src/Domain/                Action and Placement enums; readonly ShareRequest value object
-  src/Contracts/             ConfigInterface, ServiceInterface, RendererInterface
+  src/Domain/Placement       Where the element may appear
+  src/Contracts/             ConfigInterface (runtime), ServiceInterface (definitions only)
   src/Config/JsonConfig      Reads generated configuration and fails closed
-  src/Service/               One final class per service; AbstractService builds URLs; ServiceRegistry
-  src/Share/TextFormatter    Template expansion and UTM formatting
-  src/Render/                ButtonRenderer (HTML), Styles (CSS / JavaScript)
+  src/Service/               One final class per service: logo, color, endpoint, and fields.
+                             Read by tools/config.py; not loaded at runtime
   src/Integration/Widget     WordPress sidebar widget
-  src/Plugin.php             Composition root and WordPress hook wiring
+  src/Plugin.php             Decides placement, emits <promari-sns-share>, loads the bundle
 ```
 
 | Principle | Application |
@@ -66,9 +65,9 @@ pipelines.
 
 ## Web Components：依存方向を検査する四層
 
-この節は四層分離の改修版を説明する。公開タグ1.1.0のコードには、applicationの
-`Element`参照とpresentationからinfrastructureへの直接importが残っている。
-改修版のリリースとサイトへの採用が済むまでは、1.1.0の配信例と混同しない。
+共有URLの組み立ては、この四層だけが行う。PHP側は「どこへ、どの項目を送るか」を
+定義として持ち、実行時にURLを作らない。2.0.0でサーバー描画を廃止したためで、
+同じ処理を二か所に持たないぶん、両者の一致を確かめる必要もなくなった。
 
 ```text
 web/src/

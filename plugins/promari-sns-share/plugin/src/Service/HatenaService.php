@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class HatenaService extends AbstractService
+final class HatenaService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,9 +22,18 @@ final class HatenaService extends AbstractService
         return 'はてなブックマーク';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
-        return $this->build('https://b.hatena.ne.jp/entry/panel/', ['url' => $request->url, 'btitle' => $request->title]);
+        return 'https://b.hatena.ne.jp/entry/panel/';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return ['url' => 'url', 'btitle' => 'title'];
     }
 
     public function icon(): string

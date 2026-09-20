@@ -14,6 +14,7 @@ final class JsonConfig implements ConfigInterface
 {
     /** @var array<string,mixed> */
     private readonly array $data;
+    private readonly string $scriptUrl;
 
     public function __construct(string $path)
     {
@@ -22,9 +23,15 @@ final class JsonConfig implements ConfigInterface
         $raw = is_readable($path) ? (string) file_get_contents($path) : '';
         $document = $raw === '' ? null : json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         $share = is_array($document) && ($document['version'] ?? null) === 1 ? ($document['share'] ?? null) : null;
+        $this->scriptUrl = is_array($document) && is_array($document['cdn'] ?? null) ? (string) ($document['cdn']['url'] ?? '') : '';
         $this->data = is_array($share)
             ? $share
             : throw new RuntimeException('シェア設定の生成物が不正です。share_config.toml から config.py --write で再生成してください: ' . $path);
+    }
+
+    public function scriptUrl(): string
+    {
+        return $this->scriptUrl;
     }
 
     public function get(string $path = ''): mixed

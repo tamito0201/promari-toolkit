@@ -1,6 +1,6 @@
 <?php
 /**
- * Service contract. Renderers use these six methods; implementations own URLs, colors, and logos.
+ * Service contract. Definitions only. URL construction lives in the Web Component; PHP never builds share URLs.
  */
 
 declare(strict_types=1);
@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace PromariSnsShare\Contracts;
 
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
 interface ServiceInterface
 {
@@ -23,9 +22,15 @@ interface ServiceInterface
     public function label(): string;
 
     /**
- * Share dialog URL with encoded values from ShareRequest.
+ * Share dialog endpoint, or an empty string for services without a dialog.
  */
-    public function shareUrl(ShareRequest $request): string;
+    public function endpoint(): string;
+
+    /**
+ * Request fields to send, keyed by query parameter name.
+ * @return array<string,string>
+ */
+    public function params(): array;
 
     /**
  * Complete SVG logo using currentColor for CSS-controlled color.

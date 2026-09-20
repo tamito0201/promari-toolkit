@@ -1,6 +1,7 @@
 <?php
 /**
- * Compose components and wire WordPress hooks. Domain, formatting, and rendering remain independent of WordPress integration.
+ * Decide where the share bar appears and emit the custom element. URL construction, styling,
+ * and click behaviour belong to the Web Component; this plugin never builds a share URL.
  */
 
 declare(strict_types=1);
@@ -9,43 +10,22 @@ namespace PromariSnsShare;
 
 use PromariSnsShare\Config\JsonConfig;
 use PromariSnsShare\Contracts\ConfigInterface;
-use PromariSnsShare\Contracts\RendererInterface;
-use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Placement;
-use PromariSnsShare\Render\ButtonRenderer;
-use PromariSnsShare\Render\Styles;
-use PromariSnsShare\Service\ServiceRegistry;
-use PromariSnsShare\Share\TextFormatter;
 
 final class Plugin
 {
     /**
- * Track whether buttons were rendered so scripts are emitted only when needed.
+ * Track whether the element was emitted so the bundle is loaded only when needed.
  */
     private bool $used = false;
 
-    private function __construct(
-        private readonly ConfigInterface $config,
-        private readonly ServiceRegistry $registry,
-        private readonly RendererInterface $renderer,
-        private readonly Styles $styles,
-        private readonly TextFormatter $formatter,
-    ) {
+    private function __construct(private readonly ConfigInterface $config)
+    {
     }
 
     public static function boot(string $configPath): self
     {
-        $config = new JsonConfig($configPath);
-        // Themes and plugins can register additional ServiceInterface implementations.
-        $services = function_exists('apply_filters') ? (array) apply_filters('promari_sns_share_services', ServiceRegistry::builtin()) : ServiceRegistry::builtin();
-        $formatter = new TextFormatter($config);
-        return new self(
-            $config,
-            new ServiceRegistry(array_filter($services, static fn (mixed $s): bool => $s instanceof ServiceInterface)),
-            new ButtonRenderer($config, $formatter),
-            new Styles($config),
-            $formatter,
-        );
+        return new self(new JsonConfig($configPath));
     }
 
     public function config(): ConfigInterface
@@ -53,35 +33,20 @@ final class Plugin
         return $this->config;
     }
 
-    public function registry(): ServiceRegistry
-    {
-        return $this->registry;
-    }
-
     /**
- * Render a button group for template tags, shortcodes, automatic insertion, or widgets.
+ * Emit the custom element for template tags, shortcodes, automatic insertion, or widgets.
+ * Attributes carry the page context only; the component reads the rest from its bundled defaults.
  * @param array{url?:string,title?:string,placement?:string} $args
  */
     public function render(array $args = []): string
     {
         $this->used = true;
         $placement = Placement::parse($args['placement'] ?? null);
-        $request = $this->formatter->request(
-            ($args['url'] ?? '') !== '' ? (string) $args['url'] : $this->currentUrl(),
-            ($args['title'] ?? '') !== '' ? (string) $args['title'] : $this->currentTitle(),
-            function_exists('get_bloginfo') ? (string) get_bloginfo('name') : '',
-        );
-        $floating = $placement === Placement::Floating;
-        $primaryKeys = $floating && (array) $this->config->get('placements.floating_services') !== []
-            ? (array) $this->config->get('placements.floating_services')
-            : (array) $this->config->get('services');
-        $secondaryKeys = $this->enabledSecondary($floating);
-        return $this->renderer->render(
-            $this->registry->resolve($primaryKeys),
-            $this->registry->resolve($floating ? array_slice($secondaryKeys, 0, (int) $this->config->get('placements.floating_secondary_max')) : $secondaryKeys),
-            $request,
-            $placement,
-        );
+        $url = ($args['url'] ?? '') !== '' ? (string) $args['url'] : $this->currentUrl();
+        $title = ($args['title'] ?? '') !== '' ? (string) $args['title'] : $this->currentTitle();
+        return '<promari-sns-share placement="' . esc_attr($placement->value)
+            . '" url="' . esc_attr($url)
+            . '" title="' . esc_attr($title) . '"></promari-sns-share>';
     }
 
     /**
@@ -89,13 +54,13 @@ final class Plugin
  */
     public function register(): void
     {
-        add_action('wp_head', fn () => print('<style id="promari-sns-share-css">' . $this->styles->css() . "</style>\n"), 20);
         add_action('wp_footer', function (): void {
             if ($this->config->get('placements.floating') === true && $this->autoTarget()) {
                 echo $this->render(['placement' => Placement::Floating->value]);
             }
-            if ($this->used) {
-                echo '<script id="promari-sns-share-js">' . $this->styles->js() . "</script>\n";
+            $url = $this->config->scriptUrl();
+            if ($this->used && $url !== '') {
+                echo '<script type="module" id="promari-sns-share-js" src="' . esc_url($url) . '" crossorigin="anonymous"></script>' . "\n";
             }
         }, 30);
         add_shortcode('promari_sns_share', fn ($atts): string => $this->render(shortcode_atts(['url' => '', 'title' => '', 'placement' => 'inline'], (array) $atts, 'promari_sns_share')));
@@ -120,20 +85,6 @@ final class Plugin
     {
         $types = (array) $this->config->get('placements.post_types');
         return function_exists('is_singular') && !is_admin() && !is_feed() && $types !== [] && is_singular($types);
-    }
-
-    /**
- * Enabled secondary services in configured order; floating bars honor per-button exclusions.
- * @return list<string> ON
- */
-    private function enabledSecondary(bool $floating): array
-    {
-        return array_keys(array_filter(
-            (array) $this->config->get('secondary'),
-            fn (mixed $on, string $key): bool => $on === true
-                && (!$floating || !$this->config->has("buttons.$key.floating") || $this->config->get("buttons.$key.floating") === true),
-            ARRAY_FILTER_USE_BOTH
-        ));
     }
 
     private function currentUrl(): string

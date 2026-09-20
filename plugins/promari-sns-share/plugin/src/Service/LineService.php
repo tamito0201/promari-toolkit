@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class LineService extends AbstractService
+final class LineService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,9 +22,18 @@ final class LineService extends AbstractService
         return 'シェア';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
-        return $this->build('https://social-plugins.line.me/lineit/share', ['url' => $request->url, 'text' => $request->text]);
+        return 'https://social-plugins.line.me/lineit/share';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return ['url' => 'url', 'text' => 'text'];
     }
 
     public function icon(): string

@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class CopyService extends AbstractService
+final class CopyService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,9 +22,18 @@ final class CopyService extends AbstractService
         return 'URLをコピー';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
-        return $request->url;
+        return '';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return [];
     }
 
     public function icon(): string

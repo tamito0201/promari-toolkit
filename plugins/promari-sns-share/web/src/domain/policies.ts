@@ -1,5 +1,5 @@
 /**
- * Pure policies for button selection, shared text, and URL parameters. Keep these consistent with PHP formatting and selection rules.
+ * Pure policies for button selection, shared text, and URL parameters.
  */
 import { encodeComponent } from './encoding.ts';
 import { Action, type Catalog, type Placement, type SelectionConfig, type UtmConfig } from './types.ts';
@@ -11,7 +11,7 @@ export interface PageInfo {
 }
 
 /**
- * Expand the title, site, and URL placeholders in a single pass, matching PHP strtr.
+ * Expand the title, site, and URL placeholders in a single pass.
  * 置換した結果は走査し直さない。題名に {site} が含まれても、それは題名のまま残る。
  */
 export const fillTemplate = (template: string, { url, title, site }: PageInfo): string => {
@@ -67,7 +67,6 @@ export const selectServices = (
 
 /**
  * 小窓で開ける共有先か。mailto: はメールソフトへ渡すので、窓を開いても何も残らない。
- * PHP 側の SharePolicy::canOpenInPopup と同じ判断をここに置く。
  */
 export const canOpenInPopup = (href: string): boolean => !href.startsWith('mailto:');
 

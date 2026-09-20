@@ -3,14 +3,14 @@
 Social share buttons for Facebook, X, LINE, Hatena Bookmark, LinkedIn, email,
 copying links, and the device's native share sheet, styled like the official
 widgets **without third-party iframes or SDKs**. Use the Web Component on any
-HTML page or install the WordPress plugin for server-rendered buttons.
+HTML page, or install the WordPress plugin to place it and load the pinned bundle.
 
 [![CI](https://github.com/tamito0201/promari-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/tamito0201/promari-toolkit/actions/workflows/ci.yml)
 [![jsDelivr](https://data.jsdelivr.com/v1/package/gh/tamito0201/promari-toolkit/badge)](https://www.jsdelivr.com/package/gh/tamito0201/promari-toolkit)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 <promari-sns-share></promari-sns-share>
 ```
 
@@ -26,7 +26,7 @@ on supported devices. Labels are configurable; the bundled defaults are Japanese
 | Clicks inside cross-origin iframes are inaccessible to your page | Observe clicks through a `data-share` attribute and a `CustomEvent` |
 | Provider-specific iframe and script permissions in CSP | No provider iframe or SDK permissions needed |
 | Limited control over labels, colors, shapes, and ordering | Configure every option through TOML or element attributes |
-| Widgets appear after remote scripts load | Server-rendered WordPress markup or local Shadow DOM rendering |
+| Widgets appear after remote scripts load | One pinned script; the component renders locally in Shadow DOM |
 
 The default styling follows the official widget dimensions (small: 20px high
 with 11px bold text; large: 28px with 13px text), brand colors, and corner shapes
@@ -38,7 +38,7 @@ and less loading overhead.
 ### A. Any website: Web Components and CDN
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 
 <!-- Defaults: Facebook / X / LINE plus five secondary channels -->
 <promari-sns-share></promari-sns-share>
@@ -53,7 +53,7 @@ and less loading overhead.
 <promari-sns-share config='{"text":{"hashtags":["promari"],"via":"promari_jp"},"utm":{"enabled":true},"behavior":{"popup":false}}'></promari-sns-share>
 ```
 
-Pin `@promari-sns-share-v1.1.0` to select this component's release independently.
+Pin `@promari-sns-share-v2.0.0` to select this component's release independently.
 Release tags are immutable. `tools/publish.sh` prints an installation snippet
 with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 
@@ -62,13 +62,15 @@ with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 ```bash
 git clone https://github.com/tamito0201/promari-toolkit.git
 cp promari-toolkit/plugins/promari-sns-share/config/share_config.example.toml <your-repository>/.config/share_config.toml
-# Set plugin_output = "public_html/wp-content/plugins/promari-sns-share".
+# Set plugin_output, and set web_output and web_url so the plugin can load the bundle.
 python3 promari-toolkit/plugins/promari-sns-share/tools/config.py --config <your-repository>/.config/share_config.toml --write
 wp plugin activate promari-sns-share
 ```
 
-Once activated, buttons are inserted before and after content for the post
-types listed in `post_types`. To place them in a theme template:
+Once activated, the `<promari-sns-share>` element is inserted before and after
+content for the post types listed in `post_types`, and the plugin loads the
+pinned bundle from `web_url`. The plugin decides where the element appears; the
+component builds the share URLs. To place it in a theme template:
 
 ```php
 <?php if (function_exists('promari_sns_share')) promari_sns_share(); ?>

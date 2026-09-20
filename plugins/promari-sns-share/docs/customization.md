@@ -113,8 +113,8 @@ event_name = "share:click"
 The following fictional service illustrates the required structure. Replace
 the example endpoint and SVG path with those of the service you are integrating.
 
-1. Create `plugin/src/Service/ExampleService.php` and implement the six methods
-   required by `ServiceInterface`.
+1. Create `plugin/src/Service/ExampleService.php` and implement the methods
+   required by `ServiceInterface`. The class declares the service; it never builds a URL.
 
 ```php
 <?php
@@ -122,35 +122,34 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class ExampleService extends AbstractService
+final class ExampleService implements ServiceInterface
 {
     public function key(): string { return 'example'; }
     public function label(): string { return 'Save to Example'; }
-    public function shareUrl(ShareRequest $request): string
-    {
-        return $this->build('https://example.com/share', ['url' => $request->url, 'title' => $request->title]);
-    }
+    public function endpoint(): string { return 'https://example.com/share'; }
+    /** @return array<string,string> */
+    public function params(): array { return ['url' => 'url', 'title' => 'title']; }
     public function icon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="..."/></svg>'; }
     public function brandColor(): string { return '#EF4056'; }
     public function action(): Action { return Action::Open; }
 }
 ```
 
-2. Add `new ExampleService()` to `ServiceRegistry::builtin()` to bundle it.
-   For a theme-only extension, add it through the `promari_sns_share_services` filter.
-3. Add `example` to TOML `services` or `secondary`.
-4. Run `python3 tools/config.py --write`. The generator extracts its logo,
-   color, and URL specification from PHP and includes them in the Web Component.
+2. Add `example` to TOML `services` or `secondary`.
+3. Run `python3 tools/config.py --write`. The generator finds every final class in
+   `src/Service/` and includes its logo, color, endpoint, and fields in the bundle.
+   Publish a new version so sites that pin a tag receive it.
 
 Requirements:
 
 - `key()` contains only lowercase English letters and digits.
 - `icon()` starts with `<svg ...>` and uses `fill="currentColor"` for CSS coloring.
 - `brandColor()` returns a `#rrggbb` color.
-- `shareUrl()` uses `$this->build('endpoint', [...])` or `return $request->url;`,
-  the forms recognized by the generator.
+- `endpoint()` returns a string literal, and `params()` returns an array literal
+  mapping query parameter names to request fields (`url`, `title`, `text`, `via`,
+  `site`, `hashtagsCsv`). Both empty means the service has no dialog.
 
 Unsupported formats cause `--write` to fail validation.
