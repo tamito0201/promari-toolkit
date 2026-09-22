@@ -8,7 +8,7 @@ The repository has no shared product version.
 
 | Component | Purpose | Location | Release tags |
 |---|---|---|---|
-| [Promari SNS Share](plugins/promari-sns-share/README.md) | Social sharing for Web Components and WordPress | `plugins/promari-sns-share/` | `promari-sns-share-v1.1.0` |
+| [Promari SNS Share](plugins/promari-sns-share/README.md) | Social sharing for Web Components and WordPress | `plugins/promari-sns-share/` | `promari-sns-share-v2.0.0` |
 
 Website plugins live under `plugins/`. Standalone tools will live under `tools/`
 when they are added; plugin-specific build tools stay with their plugin.
@@ -16,7 +16,7 @@ when they are added; plugin-specific build tools stay with their plugin.
 ## Use Promari SNS Share from the CDN
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v1.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 <promari-sns-share></promari-sns-share>
 ```
 

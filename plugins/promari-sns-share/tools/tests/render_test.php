@@ -50,27 +50,31 @@ $assert = function (bool $ok, string $label) use (&$fail): void {
 $plugin = promari_sns_share_plugin();
 $html = promari_sns_share([], false);
 
-$assert(str_contains($html, 'class="pm-share pm-share--inline pm-share--size-small pm-share--shape-official pm-share--heading-left"'), 'ルート要素に置き場所・外観のクラスが付く');
-$assert(substr_count($html, 'pm-share__btn--primary') === 3, '主役ボタンが 3 つ（facebook / x / line）');
-$assert(substr_count($html, 'pm-share__btn--secondary') === 5, '補助チャネルが 5 つ（hatena / linkedin / email / copy / native）');
-$assert(preg_match('/pm-share__btn--facebook.*?pm-share__btn--x.*?pm-share__btn--line/s', $html) === 1, '並び順が設定どおり');
-$assert(str_contains($html, 'data-share="x"'), '計測属性 data-share が付く');
-$assert(str_contains($html, 'href="https://twitter.com/intent/tweet?url=https%3A%2F%2Fexample.jp%2Fpost%2F%3Fa%3D1%26utm_source%3Dx%26utm_medium%3Dsocial%26utm_campaign%3Dshare&#038;text=Hello%20%26%20World"'), 'X の URL に UTM 付き URL と本文が RFC 3986 で入る');
-$assert(str_contains($html, 'data-pm-share-popup="600x500"'), '小窓の寸法が属性に写る');
-$assert(str_contains($html, 'rel="noopener noreferrer nofollow"'), 'rel に nofollow が付く');
-$assert(preg_match('/pm-share__btn--native[^>]*hidden/', $html) === 1, 'native は hidden で出す（JS が対応端末でだけ表示）');
-$assert(str_contains($html, '<span class="pm-share__label">ポスト</span>'), '文言が labels から入る');
-$assert(!str_contains($html, '<?') && !str_contains($html, "\n<script"), 'HTML に PHP タグや不要なスクリプトが混ざらない');
+$assert(str_contains($html, '<promari-sns-share ') && str_contains($html, '</promari-sns-share>'), 'カスタム要素を出す');
+$assert(str_contains($html, 'placement="inline"'), '置き場所が属性に入る');
+$assert(str_contains($html, 'url="https://example.jp/post/?a=1"'), 'ページの URL が属性に入る');
+$assert(str_contains($html, 'title="Hello &amp; World"'), '題名が属性に入り、エスケープされる');
+$assert(!str_contains($html, '<?') && !str_contains($html, '<script'), 'HTML に PHP タグやスクリプトが混ざらない');
+
+// 共有 URL の組み立ては Web Component だけが行う。サーバー側には一切現れない。
+$assert(!str_contains($html, 'twitter.com') && !str_contains($html, 'facebook.com')
+    && !str_contains($html, 'hatena.ne.jp') && !str_contains($html, 'mailto:'),
+    'サーバーは共有先のエンドポイントを書き出さない');
+$assert(!str_contains($html, 'utm_source') && !str_contains($html, '%3A%2F%2F'),
+    'サーバーは UTM も符号化した URL も作らない');
+$assert(!str_contains($html, '<a '), 'サーバーはリンクを描かない');
 
 $floating = promari_sns_share(['placement' => 'floating'], false);
-$assert(!str_contains($floating, 'pm-share__heading'), '固定バーには見出しを出さない');
-$assert(substr_count($floating, 'pm-share__btn--secondary') === 3, '固定バーの補助は floating_secondary_max（3）まで');
+$assert(str_contains($floating, 'placement="floating"'), '固定バーの置き場所が属性に入る');
+$unknown = promari_sns_share(['placement' => 'nonsense'], false);
+$assert(str_contains($unknown, 'placement="inline"'), '未知の置き場所は inline に落とす');
 
-$css = (new ReflectionProperty($plugin, 'styles'))->getValue($plugin)->css();
-$assert(str_contains($css, '.pm-share__btn--primary{height:20px;') && str_contains($css, 'border-radius:3px}'), 'CSS: small サイズ・公式の角丸');
-$assert(str_contains($css, '.pm-share__btn--x{border-radius:9999px'), 'CSS: X だけ丸型');
-$js = (new ReflectionProperty($plugin, 'styles'))->getValue($plugin)->js();
-$assert(str_contains($js, '"promari-sns-share"') && str_contains($js, 'y>400'), 'JS: イベント名と固定バーの閾値が設定から入る');
+$given = promari_sns_share(['url' => 'https://example.jp/other/', 'title' => 'べつの題'], false);
+$assert(str_contains($given, 'url="https://example.jp/other/"') && str_contains($given, 'title="べつの題"'),
+    '渡した URL と題名をそのまま使う');
+
+$assert($plugin->config()->scriptUrl() === '', '配布先の URL を生成物から読む（この設定では未指定なので空）');
+$assert($plugin->config()->get('placements.floating') === true, '配置の判断に必要な設定を読める');
 
 // Clean up.
 (function (string $dir): void {

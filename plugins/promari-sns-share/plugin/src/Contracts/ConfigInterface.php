@@ -19,4 +19,9 @@ interface ConfigInterface
  * Check whether an optional setting exists.
  */
     public function has(string $path): bool;
+
+    /**
+ * URL of the published Web Component bundle, or an empty string when none is configured.
+ */
+    public function scriptUrl(): string;
 }

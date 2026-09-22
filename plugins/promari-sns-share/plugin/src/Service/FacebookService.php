@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class FacebookService extends AbstractService
+final class FacebookService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,9 +22,18 @@ final class FacebookService extends AbstractService
         return 'シェア';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
-        return $this->build('https://www.facebook.com/sharer/sharer.php', ['u' => $request->url]);
+        return 'https://www.facebook.com/sharer/sharer.php';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return ['u' => 'url'];
     }
 
     public function icon(): string

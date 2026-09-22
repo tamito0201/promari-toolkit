@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class LinkedInService extends AbstractService
+final class LinkedInService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,9 +22,18 @@ final class LinkedInService extends AbstractService
         return 'LinkedIn';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
-        return $this->build('https://www.linkedin.com/sharing/share-offsite/', ['url' => $request->url]);
+        return 'https://www.linkedin.com/sharing/share-offsite/';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return ['u' => 'url'];
     }
 
     public function icon(): string

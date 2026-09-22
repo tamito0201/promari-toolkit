@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class XService extends AbstractService
+final class XService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,10 +22,19 @@ final class XService extends AbstractService
         return 'ポスト';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
         // Use the Twitter intent endpoint for X sharing.
-        return $this->build('https://twitter.com/intent/tweet', ['url' => $request->url, 'text' => $request->text, 'hashtags' => $request->hashtagsCsv(), 'via' => $request->via]);
+        return 'https://twitter.com/intent/tweet';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return ['url' => 'url', 'text' => 'text', 'hashtags' => 'hashtagsCsv', 'via' => 'via'];
     }
 
     public function icon(): string

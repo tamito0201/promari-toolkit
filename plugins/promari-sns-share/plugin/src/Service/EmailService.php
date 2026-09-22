@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace PromariSnsShare\Service;
 
+use PromariSnsShare\Contracts\ServiceInterface;
 use PromariSnsShare\Domain\Action;
-use PromariSnsShare\Domain\ShareRequest;
 
-final class EmailService extends AbstractService
+final class EmailService implements ServiceInterface
 {
     public function key(): string
     {
@@ -22,9 +22,18 @@ final class EmailService extends AbstractService
         return 'メールで送る';
     }
 
-    public function shareUrl(ShareRequest $request): string
+    public function endpoint(): string
     {
-        return $this->build('mailto:', ['subject' => $request->text, 'body' => $request->url]);
+        return 'mailto:';
+    }
+
+    /**
+ * Request fields to send, keyed by query parameter name. Empty for services without a dialog.
+ * @return array<string,string>
+ */
+    public function params(): array
+    {
+        return ['subject' => 'text', 'body' => 'url'];
     }
 
     public function icon(): string

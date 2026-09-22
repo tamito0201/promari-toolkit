@@ -136,21 +136,20 @@ def _php_action(source: str, path: Path) -> Action:
     return Action[match.group(1).upper()]
 
 
-def _php_share_url(source: str, path: Path) -> tuple[str, dict[str, str]]:
-    """Extract endpoint parameters from shareUrl or recognize a page-URL passthrough."""
-    body = re.search(r"function\s+shareUrl\s*\([^)]*\)\s*:\s*string\s*\{(.*?)\n\s*\}", source, re.S)
+def _php_endpoint_params(source: str, path: Path) -> tuple[str, dict[str, str]]:
+    """Read the declared endpoint and request fields. PHP states where to send, never builds the URL."""
+    endpoint = re.search(r"function\s+endpoint\s*\(\)\s*:\s*string\s*\{.*?return\s+'([^']*)'\s*;", source, re.S)
+    if endpoint is None:
+        raise ConfigError(f"{path.name}: endpoint() は `return '…';` の形にしてください")
+    body = re.search(r"function\s+params\s*\(\)\s*:\s*array\s*\{.*?return\s*\[(.*?)\]\s*;", source, re.S)
     if body is None:
-        raise ConfigError(f"{path.name}: shareUrl() が見つかりません")
-    text = body.group(1)
-    if re.search(r"return\s+\$request->url\s*;", text):
-        return "", {}
-    build = re.search(r"build\(\s*'([^']+)'\s*,\s*\[(.*?)\]\s*\)", text, re.S)
-    if build is None:
-        raise ConfigError(f"{path.name}: shareUrl() は $this->build('endpoint', [...]) か return $request->url; の形にしてください")
-    params = {k: v for k, v in re.findall(r"'(\w+)'\s*=>\s*\$request->(url|title|text|via|site|hashtagsCsv)(?:\(\))?", build.group(2))}
-    if not params:
-        raise ConfigError(f"{path.name}: build() の配列に 'key' => $request->url などが必要です")
-    return build.group(1), params
+        raise ConfigError(f"{path.name}: params() は `return [...];` の形にしてください")
+    params = dict(re.findall(r"'(\w+)'\s*=>\s*'(url|title|text|via|site|hashtagsCsv)'", body.group(1)))
+    if endpoint.group(1) and not params:
+        raise ConfigError(f"{path.name}: endpoint があるなら params に送る項目を書いてください")
+    if not endpoint.group(1) and params:
+        raise ConfigError(f"{path.name}: endpoint が空なら params も空にしてください")
+    return endpoint.group(1), params
 
 
 def _service_files() -> Iterator[Path]:
@@ -158,18 +157,18 @@ def _service_files() -> Iterator[Path]:
 
 
 def catalog() -> dict[str, ServiceSpec]:
-    """Build service specifications from final classes extending AbstractService."""
+    """Build service specifications from the final classes that implement ServiceInterface."""
     specs: dict[str, ServiceSpec] = {}
     for path in _service_files():
         source = path.read_text(encoding="utf-8")
-        if "extends AbstractService" not in source:
+        if "implements ServiceInterface" not in source:
             continue
         key = ensure(_php_literal(source, "key", path), SERVICE_KEY.match, f"{path.name}: key() は英小文字と数字だけにしてください")
         if key in specs:
             raise ConfigError(f"シェア先の識別子が重複しています: {key}")
         icon = _php_literal(source, "icon", path)
         ensure(icon, lambda s: s.startswith("<svg") and "currentColor" in s, f"{path.name}: icon() は <svg …> で始まり fill=\"currentColor\" を使ってください")
-        endpoint, params = _php_share_url(source, path)
+        endpoint, params = _php_endpoint_params(source, path)
         specs[key] = ServiceSpec(
             key=key,
             label=_php_literal(source, "label", path),
@@ -303,7 +302,8 @@ def load(path: Path) -> Config:
 # ------------------------------------------------------------------------------------------
 def render_json(config: Config) -> bytes:
     payload = json.dumps(config.share, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False)
-    document = {"version": 1, "source": config.source, "sha256": hashlib.sha256(payload.encode()).hexdigest(), "share": config.share}
+    document = {"version": 1, "source": config.source, "sha256": hashlib.sha256(payload.encode()).hexdigest(),
+                "cdn": {"url": config.workflow.web_url}, "share": config.share}
     return (json.dumps(document, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
 
 
