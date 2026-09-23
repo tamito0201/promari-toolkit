@@ -2,6 +2,23 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 2.0.3
+
+### Changed
+
+- Make each layer class-based with consistent naming: classes and interfaces start with an
+  uppercase letter, methods with a lowercase letter, and each file is named after its class
+  (except `index.ts` and generated data). Use cases expose `execute()`
+  (`BuildShareBarUseCase`, `HandleShareClickUseCase`); domain services are classes with static
+  methods (`ClickPolicy.decide()`, `ServiceSelectionPolicy.select()`, `ShareTextPolicy.fill()`,
+  `UtmPolicy.apply()`, `UriEncoder.encode()`); infrastructure classes implement the domain
+  interfaces (`BrowserClipboardGateway`, `WebShareGateway`, `PopupWindowGateway`,
+  `CustomEventActivityPublisher`, `BrowserPageContext`, `SpecShareServiceRepository`).
+- Split the gateway interfaces into one file each and add `PageContextGateway`.
+- The architecture test also checks that file names in the four layers start with an uppercase letter.
+
+No public attribute, method, event, or rendered output changed.
+
 ## 2.0.2
 
 ### Fixed

@@ -1,13 +1,13 @@
 /**
  * Read the element's attributes, the component's public input, into configuration. JSON config overrides individual attributes, which override defaults. Invalid JSON is reported to the console.
  */
-import type { DeepPartial, ShareConfig } from '../application/config.ts';
+import type { DeepPartial, ShareConfig } from '../application/ShareConfig.ts';
 
 const csv = (value: string): string[] => value.split(',').map((s) => s.trim()).filter(Boolean);
 const bool = (value: string): boolean => !['false', '0', 'off', 'no'].includes(value.trim().toLowerCase());
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-export const deepMerge = <T extends object>(base: T, patch: DeepPartial<T> | undefined): T =>
+const deepMerge = <T extends object>(base: T, patch: DeepPartial<T> | undefined): T =>
   Object.fromEntries(
     Object.entries(base).map(([key, value]) => {
       const next = (patch as Record<string, unknown> | undefined)?.[key];
@@ -36,12 +36,9 @@ const ATTRIBUTES: Readonly<Record<string, Patch>> = {
   after: (v) => ({ floating: { after: Number(v) } }),
 };
 
-/**
- * Observe all configuration attributes, plus URL, title, and placement.
- */
-export const OBSERVED_ATTRIBUTES: readonly string[] = Object.freeze([...Object.keys(ATTRIBUTES), 'config', 'url', 'title', 'placement']);
+const OBSERVED: readonly string[] = Object.freeze([...Object.keys(ATTRIBUTES), 'config', 'url', 'title', 'placement']);
 
-export const readConfig = (element: Element, defaults: ShareConfig): ShareConfig => {
+const readConfig = (element: Element, defaults: ShareConfig): ShareConfig => {
   const fromAttributes = Object.entries(ATTRIBUTES)
     .filter(([name]) => element.hasAttribute(name))
     .reduce((acc, [name, toPatch]) => deepMerge(acc, toPatch(element.getAttribute(name) ?? '')), defaults);
@@ -54,3 +51,23 @@ export const readConfig = (element: Element, defaults: ShareConfig): ShareConfig
     return fromAttributes;
   }
 };
+
+export class AttributeConfigReader {
+  /** Observe all configuration attributes, plus URL, title, and placement. */
+  static readonly observedAttributes: readonly string[] = OBSERVED;
+
+  /** Merge nested objects partially; arrays are replaced. */
+  static merge<T extends object>(base: T, patch: DeepPartial<T> | undefined): T {
+    return deepMerge(base, patch);
+  }
+
+  readonly #defaults: ShareConfig;
+
+  constructor(defaults: ShareConfig) {
+    this.#defaults = defaults;
+  }
+
+  read(element: Element): ShareConfig {
+    return readConfig(element, this.#defaults);
+  }
+}

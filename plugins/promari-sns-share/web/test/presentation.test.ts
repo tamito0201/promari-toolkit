@@ -3,12 +3,12 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildCss } from '../src/presentation/styles.ts';
+import { ShareBarStyles } from '../src/presentation/ShareBarStyles.ts';
 import { CONFIG } from './domain.test.ts';
 
-describe('buildCss', () => {
+describe('ShareBarStyles', () => {
   it('--accent を :host ではなく内側で定義する（ページ側の --accent に上書きされない）', () => {
-    const css = buildCss(CONFIG);
+    const css = ShareBarStyles.build(CONFIG);
     const host = css.match(/:host\{[^}]*\}/)?.[0] ?? '';
     assert.doesNotMatch(host, /--accent/);
     assert.match(css, /\.w\{--accent:#54347e;/);

@@ -73,16 +73,24 @@ pipelines.
 リポジトリと外部機能のインターフェースはdomainが持ち、infrastructureがそれを実装する。
 そのためinfrastructureはdomainだけへ依存し、applicationを参照しない。
 
+2.0.3で、各層の主役をクラスにそろえた。クラス・インターフェースは大文字始まり、
+メソッドは小文字始まり、ファイル名はクラス名と同じにする（index.tsと生成物を除く）。
+ユースケースは`execute()`、ドメインサービスは静的メソッド、infrastructureは
+domainのインターフェースを`implements`するクラスとして書く。
+
 ```text
 web/src/
   domain/
-    model/         値オブジェクト（ShareRequest・ShareService）と語彙（Action・Placement）
-    service/       ドメインサービス（共有先の選択・文面の展開・UTM・クリックの判断・符号化）
+    model/         値オブジェクト（ShareRequest・ShareService）と語彙（ShareTypes）
+    service/       ドメインサービス（ClickPolicy・ServiceSelectionPolicy・ShareTextPolicy・UtmPolicy・UriEncoder）
     repository/    ShareServiceRepository インターフェース
-    gateway/       ShareGateways（クリップボード・端末共有・小窓・操作の通知）のインターフェース
-  application/     ユースケース（BuildShareBar・HandleShareClick）、表示カタログ、設定契約
-  infrastructure/  domainのインターフェースの実装（生成済み仕様のリポジトリ、ブラウザ機能）
-  presentation/    独自要素、属性の読み取り、HTML/CSS、スクロール表示、画面内の通知
+    gateway/       ClipboardGateway・NativeShareGateway・PopupGateway・ShareActivityPublisher・
+                   PageContextGateway インターフェースと、それらをまとめた ShareGateways
+  application/     ユースケース（BuildShareBarUseCase・HandleShareClickUseCase）、DisplayCatalog、ShareConfig
+  infrastructure/  domainのインターフェースの実装（SpecShareServiceRepository・BrowserClipboardGateway・
+                   WebShareGateway・PopupWindowGateway・CustomEventActivityPublisher・BrowserPageContext）
+  presentation/    PromariSnsShareElement、AttributeConfigReader、ShareBarView・CircleView・
+                   ShareBarStyles、FloatingVisibility、ToastNotifier、Html
   index.ts         起動時の組み立て。具体的な実装を選び、四層をつなぐ唯一の場所
   generated/       入力データ。index.tsだけが読み込む
 ```
@@ -108,14 +116,14 @@ flowchart TB
 コピーを実行するとき、処理はapplicationからinfrastructureの実装へ進むが、
 applicationが知っているのはdomainの`ClipboardGateway`だけで、ブラウザの実装はimportしない。
 
-クリックのユースケースは、画面へ何を出すかを決めない。`HandleShareClick`は
+クリックのユースケースは、画面へ何を出すかを決めない。`HandleShareClickUseCase.execute()`は
 `copied`・`copy-fallback`・`shared`・`share-dismissed`・`popup`・`follow`のいずれかを返し、
 presentationが結果に応じて画面内の通知を描く。書き込みの完了前に成功を名乗らない順序は、
 戻り値を待つことで保つ。同じサービスを複数置いても、表示層が操作ごとの識別子で押された要素を区別する。
 
 PHPから抽出したサービスの入力はapplicationの`ServiceDefinition`で受け取る。
-infrastructureの`specShareServiceRepository`がURL規則だけを値オブジェクトにし、
-applicationの`createDisplayCatalog`が表示用メタデータを組み合わせる。
+infrastructureの`SpecShareServiceRepository`がURL規則だけを値オブジェクトにし、
+applicationの`DisplayCatalog`が表示用メタデータを組み合わせる。
 色・ロゴ・表示ラベルとCSSの設定型はdomainへ渡して保持しない。
 
 属性の読み取りとスクロールに応じた表示は、独自要素そのものの入力と見た目なので
@@ -123,7 +131,7 @@ presentationに置く。infrastructureに残すのは、domainが必要とする
 
 `tsconfig.core.json`はESの型だけを使い、DOMとNodeの型を外して内側の二層を検査する。
 `architecture.test.ts`は型import・再exportを含む依存方向、動的読み込みによる迂回、
-表示層への外部接続APIの混入を検査する。infrastructureからapplicationへの参照のように、
+表示層への外部接続APIの混入、4層のファイル名が大文字始まりであることを検査する。infrastructureからapplicationへの参照のように、
 意図的な違反を検出する対照テストも含む。
 
 ### Why four layers rather than MVVM?
@@ -136,11 +144,11 @@ presentation layer without rewriting the domain logic.
 
 ### データと操作の流れ
 
-1. index.tsがリポジトリとゲートウェイの実装を選び、ユースケースと組み合わせて独自要素へ注入する。
-2. presentationが属性を設定として読み取り、BuildShareBarへ渡す。
-3. BuildShareBarがdomainの選択・URL規則と表示用メタデータを合わせてビューモデルを返す。
-4. presentationがShadow DOMへ描画し、クリックをHandleShareClickへ渡す。
-5. HandleShareClickがdomainの判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
+1. index.tsがリポジトリとゲートウェイの実装を選び、ユースケースと組み合わせて`PromariSnsShareElement.define()`へ渡す。
+2. presentationが`AttributeConfigReader`で属性を設定として読み取り、`BuildShareBarUseCase.execute()`へ渡す。
+3. `BuildShareBarUseCase`がdomainの選択・URL規則と表示用メタデータを合わせてビューモデルを返す。
+4. presentationがShadow DOMへ描画し、クリックを`HandleShareClickUseCase.execute()`へ渡す。
+5. `HandleShareClickUseCase`が`ClickPolicy.decide()`の判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
    ゲートウェイの実装がホスト要素からイベントとして送出し、画面内通知はpresentationが描く。
 
 ### Security and performance

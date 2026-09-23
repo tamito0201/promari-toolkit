@@ -1,4 +1,4 @@
-/** 部品が受け取る設定と表示用のデータ契約。DOMや取得手段は含めない。 */
+/** 部品が受け取る設定と表示用のデータの型。DOMや取得手段は含めない。 */
 export type LabelStyle = 'icon_text' | 'icon' | 'text';
 export type Size = 'small' | 'large';
 export type Shape = 'official' | 'pill' | 'rounded' | 'square';

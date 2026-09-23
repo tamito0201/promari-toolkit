@@ -3,30 +3,38 @@
  * Dependencies: presentation → application → domain ← infrastructure. Infrastructure
  * implements the repository and gateway interfaces that the domain owns.
  */
-import { createDisplayCatalog } from './application/ServiceCatalog.ts';
-import { handleShareClick } from './application/HandleShareClick.ts';
-import { specShareServiceRepository } from './infrastructure/SpecShareServiceRepository.ts';
-import { browserClipboard, customEventPublisher, pageContext, popupWindow, webShare } from './infrastructure/browserGateways.ts';
+import { BuildShareBarUseCase } from './application/BuildShareBarUseCase.ts';
+import { DisplayCatalog } from './application/DisplayCatalog.ts';
+import { HandleShareClickUseCase } from './application/HandleShareClickUseCase.ts';
+import { BrowserClipboardGateway } from './infrastructure/BrowserClipboardGateway.ts';
+import { BrowserPageContext } from './infrastructure/BrowserPageContext.ts';
+import { CustomEventActivityPublisher } from './infrastructure/CustomEventActivityPublisher.ts';
+import { PopupWindowGateway } from './infrastructure/PopupWindowGateway.ts';
+import { SpecShareServiceRepository } from './infrastructure/SpecShareServiceRepository.ts';
+import { WebShareGateway } from './infrastructure/WebShareGateway.ts';
 import { CATALOG } from './generated/catalog.ts';
 import { DEFAULTS, VERSION } from './generated/defaults.ts';
-import { defineElement } from './presentation/PromariSnsShareElement.ts';
+import { PromariSnsShareElement } from './presentation/PromariSnsShareElement.ts';
 
 declare global {
   interface Window { PromariSnsShare?: { readonly version: string; readonly services: readonly string[] } }
 }
 
 // 四層の外側に置く起動時の組み立て。具体的な接続実装を選ぶ場所はここに限定する。
-defineElement({
-  catalog: createDisplayCatalog(specShareServiceRepository(CATALOG), CATALOG),
+const catalog = new DisplayCatalog(new SpecShareServiceRepository(CATALOG), CATALOG);
+const pageContext = new BrowserPageContext();
+const webShare = new WebShareGateway();
+PromariSnsShareElement.define({
+  buildShareBar: new BuildShareBarUseCase(catalog),
   defaults: DEFAULTS,
   connect: element => ({
-    pageContext,
-    canNativeShare: () => webShare().available,
-    clickHandler: eventName => handleShareClick({
-      clipboard: browserClipboard(),
-      nativeShare: webShare(),
-      popup: popupWindow(),
-      activity: customEventPublisher(element, eventName),
+    pageContext: () => pageContext.read(),
+    canNativeShare: () => webShare.available,
+    clickUseCase: eventName => new HandleShareClickUseCase({
+      clipboard: new BrowserClipboardGateway(),
+      nativeShare: webShare,
+      popup: new PopupWindowGateway(),
+      activity: new CustomEventActivityPublisher(element, eventName),
     }),
   }),
 });

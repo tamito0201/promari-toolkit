@@ -1,20 +1,13 @@
 /**
  * Share service value object. It holds the meaning of a service and its URL rule;
  * display metadata such as labels and colors belongs to the application layer.
- */
-import { encodeComponent } from '../service/encoding.ts';
-import type { Action, RequestField, ServiceSpec } from './types.ts';
-import type { ShareRequest } from './ShareRequest.ts';
-
-/**
+ *
  * 共有URLを組み立てる値オブジェクト。key が同じなら振る舞いも同じで、
  * 状態も同一性も持たないため、DDD でいう Entity ではない。
  */
-export interface ShareService {
-  readonly key: string;
-  readonly action: Action;
-  shareUrl(request: ShareRequest): string;
-}
+import { UriEncoder } from '../service/UriEncoder.ts';
+import type { ShareRequest } from './ShareRequest.ts';
+import type { Action, RequestField, ServiceSpec } from './ShareTypes.ts';
 
 const FIELD: Readonly<Record<RequestField, (r: ShareRequest) => string>> = {
   url: (r) => r.url,
@@ -25,23 +18,30 @@ const FIELD: Readonly<Record<RequestField, (r: ShareRequest) => string>> = {
   hashtagsCsv: (r) => r.hashtagsCsv,
 };
 
-/**
- * Encode queries using RFC 3986 and omit empty values.
- */
-export const buildUrl = (endpoint: string, params: Readonly<Record<string, RequestField>>, request: ShareRequest): string => {
-  const pairs = Object.entries(params)
-    .map(([name, field]) => [name, FIELD[field](request)] as const)
-    .filter(([, value]) => value !== '')
-    .map(([name, value]) => `${encodeComponent(name)}=${encodeComponent(value)}`);
-  return endpoint + (pairs.length ? `?${pairs.join('&')}` : '');
-};
+export class ShareService {
+  readonly key: string;
+  readonly action: Action;
+  readonly #endpoint: string;
+  readonly #params: Readonly<Record<string, RequestField>>;
 
-/**
- * Factory for the value object. Return the share dialog URL, or the page URL for copy and native sharing.
- */
-export const createShareService = ({ key, action, endpoint, params }: ServiceSpec): ShareService =>
-  Object.freeze({
-    key,
-    action,
-    shareUrl: (request: ShareRequest) => (endpoint ? buildUrl(endpoint, params, request) : request.url),
-  });
+  constructor({ key, action, endpoint, params }: ServiceSpec) {
+    this.key = key;
+    this.action = action;
+    this.#endpoint = endpoint;
+    this.#params = params;
+    Object.freeze(this);
+  }
+
+  /**
+   * Return the share dialog URL, or the page URL for copy and native sharing.
+   * Queries are encoded with RFC 3986 and empty values are omitted.
+   */
+  shareUrl(request: ShareRequest): string {
+    if (!this.#endpoint) return request.url;
+    const pairs = Object.entries(this.#params)
+      .map(([name, field]) => [name, FIELD[field](request)] as const)
+      .filter(([, value]) => value !== '')
+      .map(([name, value]) => `${UriEncoder.encode(name)}=${UriEncoder.encode(value)}`);
+    return this.#endpoint + (pairs.length ? `?${pairs.join('&')}` : '');
+  }
+}

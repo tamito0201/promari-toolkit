@@ -20,8 +20,8 @@ version = 1 # Configuration format version; currently only integer 1 is supporte
 target = "." # Target Git root; relative to the repository containing this configuration.
 plugin_output = "" # WordPress plugin output directory, e.g. public_html/wp-content/plugins/promari-sns-share. Empty disables output.
 web_output = "dist" # Minified Web Component output directory, e.g. dist. Empty disables output; CDN hosting is recommended.
-web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.2/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
-web_version = "2.0.2" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
+web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.3/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
+web_version = "2.0.3" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
 
 # ==========================================================================================
 # [share] What to display, where to display it, and how it should look.
