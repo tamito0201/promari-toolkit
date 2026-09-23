@@ -2,6 +2,22 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 3.1.0
+
+### Changed
+
+- Build the object graph with a DI container (InversifyJS 8) in the new `web/src/composition/`
+  (`ShareContainer`, `InjectionTokens`, `TypedBinding`). The four layers stay free of container code
+  and keep constructor injection; bindings use factories, not decorators or `reflect-metadata` lookups.
+  Tokens carry their bound type, so a dependency listed in the wrong order is a compile error.
+- The click use case is bound as a per-element factory, so activity events keep going to the element that was clicked.
+- The architecture test allows external packages only in `composition` (`inversify`) and checks that
+  `index.ts` goes through `ShareContainer` rather than choosing implementations itself.
+- Runtime dependencies: `inversify` and its peer `reflect-metadata` (loaded by `@inversifyjs/container`).
+  The bundle grows from about 28 KB to about 116 KB (31 KB gzip).
+
+No public attribute, event, or configuration key changed.
+
 ## 3.0.0
 
 Breaking release. Names now describe what each thing is, without keeping the 2.x names.

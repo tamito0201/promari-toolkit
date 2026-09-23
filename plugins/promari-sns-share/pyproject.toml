@@ -1,6 +1,6 @@
 [project]
 name = "promari-sns-share-tools"
-version = "3.0.0"
+version = "3.1.0"
 description = "Configuration generator and tests for Promari SNS Share; Python standard library only"
 requires-python = ">=3.13"
 license = "MIT"

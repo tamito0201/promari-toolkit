@@ -2,6 +2,7 @@
  * レイヤード＋DDDの依存方向を、フォルダー名だけでなく型import・再exportまで含めて検査する。
  * presentation → application → domain ← infrastructure。domain が持つリポジトリと
  * ゲートウェイのインターフェースを infrastructure が実装する。
+ * composition は四層の外に置く組み立て役で、DIコンテナ（InversifyJS）を使ってよい唯一の場所。
  */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -18,7 +19,11 @@ const allowed: Readonly<Record<string, readonly string[]>> = {
   application: ['application', 'domain'],
   infrastructure: ['infrastructure', 'domain'],
   presentation: ['presentation', 'application'],
+  composition: ['composition', 'domain', 'application', 'infrastructure', 'presentation'],
 };
+// 外部パッケージを読み込んでよい層。四層はDIコンテナを知らず、コンストラクタで依存を受け取る。
+const packages: Readonly<Record<string, readonly string[]>> = { composition: ['inversify'] };
+const LAYERS = ['domain', 'application', 'infrastructure', 'presentation'];
 const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
   .flatMap(entry => entry.isDirectory() ? files(join(directory, entry.name)) : entry.name.endsWith('.ts') ? [join(directory, entry.name)] : []);
 
@@ -27,8 +32,12 @@ function violations(file: string, text: string): string[] {
   const errors: string[] = [];
   const source = parse(text, { sourceType: 'module', plugins: ['typescript'], createImportExpressions: true });
   const check = (name: string): void => {
+    if (!name.startsWith('.')) {
+      if (!packages[layer]?.includes(name)) errors.push(`${layer} → ${name}`);
+      return;
+    }
     const target = relative(root, resolve(dirname(file), name)).split('/')[0]!;
-    if (!name.startsWith('.') || !allowed[layer]?.includes(target)) errors.push(`${layer} → ${name}`);
+    if (!allowed[layer]?.includes(target)) errors.push(`${layer} → ${name}`);
   };
   const record = (value: unknown): Record<string, unknown> =>
     value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -59,7 +68,7 @@ describe('レイヤード＋DDDの依存境界', () => {
     for (const layer of Object.keys(allowed)) for (const file of files(join(root, layer)))
       assert.deepEqual(violations(file, readFileSync(file, 'utf8')), [], relative(root, file));
   });
-  it('4層のファイル名はクラス・型の名前と同じ大文字始まりにそろえる', () => {
+  it('4層と組み立て役のファイル名はクラス・型の名前と同じ大文字始まりにそろえる', () => {
     const misnamed = Object.keys(allowed).flatMap(layer => files(join(root, layer)))
       .map(file => relative(root, file))
       .filter(file => !/^[A-Z][A-Za-z0-9]*\.ts$/.test(file.split('/').at(-1)!));
@@ -69,6 +78,13 @@ describe('レイヤード＋DDDの依存境界', () => {
     const gatewayNamed = files(join(root, 'infrastructure')).map(file => relative(root, file))
       .filter(file => /Gateway\.ts$/.test(file));
     assert.deepEqual(gatewayNamed, []);
+  });
+  it('起動時の入口はコンテナを直接使わず、組み立て役を通す', () => {
+    const entry = parse(readFileSync(join(root, 'index.ts'), 'utf8'), { sourceType: 'module', plugins: ['typescript'] });
+    const sources = entry.program.body.flatMap(node => node.type === 'ImportDeclaration' ? [node.source.value] : []);
+    assert.ok(sources.includes('./composition/ShareContainer.ts'));
+    assert.deepEqual(sources.filter(source => !source.startsWith('.')), []);
+    assert.deepEqual(sources.filter(source => source.startsWith('./infrastructure/')), [], '具体的な実装の選択は composition へ');
   });
   it('禁止した境界を越える型・再export・動的読み込みを検出する', () => {
     for (const [layer, text] of [
@@ -82,6 +98,11 @@ describe('レイヤード＋DDDの依存境界', () => {
       ['application', "import fs from 'node:fs';"],
       ['presentation', 'navigator.clipboard.writeText("x");'],
       ['domain', '/// <reference lib="dom" />'],
+      // DIコンテナは組み立て役だけが使う。四層が読み込めば、コンテナへの依存が内側へ漏れる。
+      ...LAYERS.map(layer => [layer, "import { Container } from 'inversify';"]),
+      ['composition', "import { container } from 'tsyringe';"],
+      ['domain', "import type { ShareContainer } from '../composition/ShareContainer.ts';"],
+      ['presentation', "import { TOKENS } from '../composition/InjectionTokens.ts';"],
     ]) assert.ok(violations(join(root, layer!, 'fixture.ts'), text!).length, text);
   });
   it('内側の型検査はDOMもNodeの型もなく成功し、Elementを混ぜると失敗する', () => {

@@ -10,7 +10,7 @@ HTML page, or install the WordPress plugin to place it and load the pinned bundl
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 <promari-sns-share></promari-sns-share>
 ```
 
@@ -22,7 +22,7 @@ on supported devices. Labels are configurable; the bundled defaults are Japanese
 
 | Official widgets (iframes / SDKs) | Promari SNS Share |
 |---|---|
-| Separate third-party scripts and cookie considerations | One approximately 16 KB script; no third-party SDK requests |
+| Separate third-party scripts and cookie considerations | One script (about 116 KB, 31 KB gzip, including the InversifyJS DI container); no third-party SDK requests |
 | Clicks inside cross-origin iframes are inaccessible to your page | Observe clicks through a `data-share` attribute and a `CustomEvent` |
 | Provider-specific iframe and script permissions in CSP | No provider iframe or SDK permissions needed |
 | Limited control over labels, colors, shapes, and ordering | Configure every option through TOML or element attributes |
@@ -38,7 +38,7 @@ and less loading overhead.
 ### A. Any website: Web Components and CDN
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 
 <!-- Defaults: Facebook / X / LINE plus five secondary channels -->
 <promari-sns-share></promari-sns-share>
@@ -53,7 +53,7 @@ and less loading overhead.
 <promari-sns-share config='{"text":{"hashtags":["promari"],"via":"promari_jp"},"utm":{"enabled":true},"behavior":{"popup":false}}'></promari-sns-share>
 ```
 
-Pin `@promari-sns-share-v3.0.0` to select this component's release independently.
+Pin `@promari-sns-share-v3.1.0` to select this component's release independently.
 Release tags are immutable. `tools/publish.sh` prints an installation snippet
 with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 
