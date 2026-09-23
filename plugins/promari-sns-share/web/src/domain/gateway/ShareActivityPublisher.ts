@@ -1,6 +1,6 @@
 /** A share operation the host page may count. Not proof that the post was published. */
 export interface ShareActivity {
-  readonly service: string;
+  readonly destination: string;
   readonly url: string;
   readonly placement: string;
 }

@@ -31,14 +31,14 @@ def patched(text: str, **replacements: str) -> str:
 
 
 class CatalogTest(unittest.TestCase):
-    def test_extracts_all_bundled_services(self) -> None:
+    def test_extracts_all_bundled_destinations(self) -> None:
         specs = generator.catalog()
         self.assertEqual(set(specs), {"facebook", "x", "line", "hatena", "linkedin", "email", "copy", "native"})
         x = specs["x"]
         self.assertEqual(x.endpoint, "https://twitter.com/intent/tweet")
         self.assertEqual(x.params, {"url": "url", "text": "text", "hashtags": "hashtagsCsv", "via": "via"})
-        self.assertEqual(x.action, generator.Action.OPEN)
-        self.assertEqual(specs["copy"].action, generator.Action.COPY)
+        self.assertEqual(x.action, generator.ShareAction.OPEN)
+        self.assertEqual(specs["copy"].action, generator.ShareAction.COPY)
         self.assertEqual(specs["copy"].endpoint, "")
         for spec in specs.values():
             self.assertTrue(spec.icon.startswith("<svg"))
@@ -59,11 +59,11 @@ class ValidationTest(unittest.TestCase):
 
     def test_example_is_valid(self) -> None:
         config = generator.load(EXAMPLE)
-        self.assertEqual(config.share["services"], ["facebook", "x", "line"])
+        self.assertEqual(config.share["destinations"], ["facebook", "x", "line"])
         self.assertEqual(config.enabled_secondary, ["hatena", "linkedin", "email", "copy", "native"])
 
-    def test_rejects_unknown_service(self) -> None:
-        path = self.write(patched(self.source, services='["facebook", "instagram"]'))
+    def test_rejects_unknown_destination(self) -> None:
+        path = self.write(patched(self.source, destinations='["facebook", "instagram"]'))
         with self.assertRaisesRegex(generator.ConfigError, "未知のシェア先"):
             generator.load(path)
 
@@ -75,8 +75,8 @@ class ValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(generator.ConfigError, "accent"):
             generator.load(self.write(patched(self.source, accent='"purple"')))
 
-    def test_rejects_service_in_both_tiers(self) -> None:
-        path = self.write(patched(self.source, services='["facebook", "x", "line", "copy"]'))
+    def test_rejects_destination_in_both_tiers(self) -> None:
+        path = self.write(patched(self.source, destinations='["facebook", "x", "line", "copy"]'))
         with self.assertRaisesRegex(generator.ConfigError, "両方"):
             generator.load(path)
 
@@ -105,7 +105,7 @@ class DeployTest(unittest.TestCase):
         self.assertEqual(actual, expected)
         document = json.loads((plugin / "assets/config/share.json").read_text(encoding="utf-8"))
         self.assertEqual(document["version"], 1)
-        self.assertEqual(document["share"]["services"], ["facebook", "x", "line"])
+        self.assertEqual(document["share"]["destinations"], ["facebook", "x", "line"])
         self.assertEqual(run("--config", str(self.config), "--check").returncode, 0)
 
     def test_check_detects_stale_artifact(self) -> None:

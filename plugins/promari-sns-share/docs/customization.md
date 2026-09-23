@@ -1,6 +1,6 @@
 # Customization
 
-Use TOML for WordPress or attributes for Web Components. Adding a new service
+Use TOML for WordPress or attributes for Web Components. Adding a new destination
 is the main customization that requires source-code changes.
 
 ## Recipes
@@ -9,7 +9,7 @@ is the main customization that requires source-code changes.
 
 ```toml
 [share]
-services = ["facebook", "x", "line"]
+destinations = ["facebook", "x", "line"]
 [share.appearance]
 size = "small"
 label_style = "icon_text"
@@ -31,7 +31,7 @@ Web Components: `<promari-sns-share size="large" label-style="icon" shape="pill"
 
 ```toml
 [share]
-services = ["x"]
+destinations = ["x"]
 [share.secondary]
 facebook = true
 line = true
@@ -63,12 +63,12 @@ via = "promari_jp"
 X receives `text=...&hashtags=promari,WordPress&via=promari_jp`, LINE receives
 `text=...`, and email uses the formatted text as its subject.
 
-### Attribute incoming traffic by service in GA4
+### Attribute incoming traffic by destination in GA4
 
 ```toml
 [share.utm]
 enabled = true
-source = "{service}" # utm_source=facebook / x / line ...
+source = "{destination}" # utm_source=facebook / x / line ...
 medium = "social"
 campaign = "share"
 ```
@@ -79,7 +79,7 @@ campaign = "share"
 [share.placements]
 floating = true
 floating_position = "top"
-floating_services = ["x", "line"]
+floating_destinations = ["x", "line"]
 floating_secondary_max = 1
 ```
 
@@ -108,24 +108,24 @@ attribute = "data-track-share"
 event_name = "share:click"
 ```
 
-## Add a service
+## Add a destination
 
-The following fictional service illustrates the required structure. Replace
-the example endpoint and SVG path with those of the service you are integrating.
+The following fictional destination illustrates the required structure. Replace
+the example endpoint and SVG path with those of the destination you are integrating.
 
-1. Create `plugin/src/Service/ExampleService.php` and implement the methods
-   required by `ServiceInterface`. The class declares the service; it never builds a URL.
+1. Create `plugin/src/Destination/ExampleDestination.php` and implement the methods
+   required by `ShareDestinationInterface`. The class declares the destination; it never builds a URL.
 
 ```php
 <?php
 declare(strict_types=1);
 
-namespace PromariSnsShare\Service;
+namespace PromariSnsShare\Destination;
 
-use PromariSnsShare\Contracts\ServiceInterface;
+use PromariSnsShare\Contracts\ShareDestinationInterface;
 use PromariSnsShare\Domain\Action;
 
-final class ExampleService implements ServiceInterface
+final class ExampleDestination implements ShareDestinationInterface
 {
     public function key(): string { return 'example'; }
     public function label(): string { return 'Save to Example'; }
@@ -138,9 +138,9 @@ final class ExampleService implements ServiceInterface
 }
 ```
 
-2. Add `example` to TOML `services` or `secondary`.
+2. Add `example` to TOML `destinations` or `secondary`.
 3. Run `python3 tools/config.py --write`. The generator finds every final class in
-   `src/Service/` and includes its logo, color, endpoint, and fields in the bundle.
+   `src/Destination/` and includes its logo, color, endpoint, and fields in the bundle.
    Publish a new version so sites that pin a tag receive it.
 
 Requirements:
@@ -150,6 +150,6 @@ Requirements:
 - `brandColor()` returns a `#rrggbb` color.
 - `endpoint()` returns a string literal, and `params()` returns an array literal
   mapping query parameter names to request fields (`url`, `title`, `text`, `via`,
-  `site`, `hashtagsCsv`). Both empty means the service has no dialog.
+  `site`, `hashtagsCsv`). Both empty means the destination has no dialog.
 
 Unsupported formats cause `--write` to fail validation.

@@ -4,14 +4,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { BuildShareBarUseCase } from '../src/application/BuildShareBarUseCase.ts';
-import { DisplayCatalog } from '../src/application/DisplayCatalog.ts';
+import { ShareButtonCatalog } from '../src/application/ShareButtonCatalog.ts';
 import { HandleShareClickUseCase } from '../src/application/HandleShareClickUseCase.ts';
 import type { ShareActivity } from '../src/domain/gateway/ShareActivityPublisher.ts';
 import type { ShareGateways } from '../src/domain/gateway/ShareGateways.ts';
-import { AttributeConfigReader } from '../src/presentation/AttributeConfigReader.ts';
+import { ShareSettingsAttributeReader } from '../src/presentation/ShareSettingsAttributeReader.ts';
 import { CONFIG, SPECS, memoryRepository } from './domain.test.ts';
 
-const catalog = new DisplayCatalog(memoryRepository(SPECS), SPECS);
+const catalog = new ShareButtonCatalog(memoryRepository(SPECS), SPECS);
 const buildShareBar = new BuildShareBarUseCase(catalog);
 const input = { url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', placement: 'inline' as const, canNativeShare: false };
 
@@ -19,13 +19,13 @@ describe('BuildShareBarUseCase', () => {
   it('表示用カタログは同じ共有先を公開し、表示メタデータを不変に保つ', () => {
     assert.deepEqual(catalog.keys(), SPECS.map(s => s.key));
     assert.equal(catalog.has('missing'), false);
-    const service = catalog.resolve(['x'])[0]!;
-    assert.deepEqual(service.appearance, { label: SPECS[0]!.label, color: SPECS[0]!.color, icon: SPECS[0]!.icon });
-    assert.ok(Object.isFrozen(service.appearance));
+    const destination = catalog.resolve(['x'])[0]!;
+    assert.deepEqual(destination.appearance, { label: SPECS[0]!.label, color: SPECS[0]!.color, icon: SPECS[0]!.icon });
+    assert.ok(Object.isFrozen(destination.appearance));
     assert.throws(() => catalog.resolve(['missing']));
   });
   it('表示情報の無い共有先は黙って空欄にせず止める', () => {
-    const partial = new DisplayCatalog(memoryRepository(SPECS), SPECS.filter((s) => s.key !== 'x'));
+    const partial = new ShareButtonCatalog(memoryRepository(SPECS), SPECS.filter((s) => s.key !== 'x'));
     assert.throws(() => partial.resolve(['x']), /表示情報がありません/);
   });
   it('主役と補助のビューモデルを作り、文言・色・UTM・popup を設定どおりに写す', () => {
@@ -71,7 +71,7 @@ describe('HandleShareClickUseCase', () => {
     assert.equal(outcome, 'copied');
     assert.deepEqual(calls, ['copy:https://a.jp/post/']);
     assert.equal(prevented, true);
-    assert.deepEqual(tracked, [{ service: 'copy', url: 'https://a.jp/post/', placement: 'inline' }]);
+    assert.deepEqual(tracked, [{ destination: 'copy', url: 'https://a.jp/post/', placement: 'inline' }]);
   });
   it('書き込みの完了を待ってから結果を返す（完了前に成功を名乗らない）', async () => {
     let finish!: () => void;
@@ -100,7 +100,7 @@ describe('HandleShareClickUseCase', () => {
       const outcome = await new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
       assert.equal(outcome, reject ? 'share-dismissed' : 'shared');
       assert.equal(prevented, true);
-      assert.deepEqual(tracked, [{ service: 'native', url: input.url, placement: 'inline' }]);
+      assert.deepEqual(tracked, [{ destination: 'native', url: input.url, placement: 'inline' }]);
     }
   });
   it('popup が開けなければ既定動作（リンク遷移）に任せる', async () => {
@@ -113,19 +113,19 @@ describe('HandleShareClickUseCase', () => {
   });
 });
 
-describe('AttributeConfigReader', () => {
+describe('ShareSettingsAttributeReader', () => {
   const fakeElement = (attrs: Record<string, string>): Element =>
     ({ hasAttribute: (n: string) => n in attrs, getAttribute: (n: string) => attrs[n] ?? null }) as unknown as Element;
 
   it('deepMerge は入れ子を部分的に上書きし、配列は置き換える', () => {
-    const merged = AttributeConfigReader.merge(CONFIG, { appearance: { size: 'large' }, services: ['x'] });
+    const merged = ShareSettingsAttributeReader.merge(CONFIG, { appearance: { size: 'large' }, destinations: ['x'] });
     assert.equal(merged.appearance.size, 'large');
     assert.equal(merged.appearance.shape, 'official');
-    assert.deepEqual(merged.services, ['x']);
+    assert.deepEqual(merged.destinations, ['x']);
   });
   it('個別属性 < config 属性 の優先順位で上書きする', () => {
-    const config = new AttributeConfigReader(CONFIG).read(fakeElement({ services: 'x, facebook', size: 'large', utm: 'off', config: '{"appearance":{"size":"small"}}' }));
-    assert.deepEqual(config.services, ['x', 'facebook']);
+    const config = new ShareSettingsAttributeReader(CONFIG).read(fakeElement({ destinations: 'x, facebook', size: 'large', utm: 'off', config: '{"appearance":{"size":"small"}}' }));
+    assert.deepEqual(config.destinations, ['x', 'facebook']);
     assert.equal(config.appearance.size, 'small');
     assert.equal(config.utm.enabled, false);
   });
@@ -134,7 +134,7 @@ describe('AttributeConfigReader', () => {
     const original = console.error;
     console.error = (...a: unknown[]) => { errors.push(a); };
     try {
-      assert.equal(new AttributeConfigReader(CONFIG).read(fakeElement({ heading: 'X', config: '{oops' })).heading, 'X');
+      assert.equal(new ShareSettingsAttributeReader(CONFIG).read(fakeElement({ heading: 'X', config: '{oops' })).heading, 'X');
     } finally {
       console.error = original;
     }

@@ -13,12 +13,12 @@ with sync_playwright() as api:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.set_content('''<!doctype html><html lang="ja"><head><title>境界の検証</title></head>
         <body><promari-sns-share id="a" variant="circle" like url="https://example.com/article/"
-        title="TypeScript & PHP #1" services="x,line,facebook,copy,native" secondary="hatena"></promari-sns-share>
+        title="TypeScript & PHP #1" destinations="x,line,facebook,copy,native" secondary="hatena"></promari-sns-share>
         <promari-sns-share id="b" variant="circle" like url="https://example.com/article/"
-        services="copy" secondary=""></promari-sns-share>
-        <promari-sns-share id="plain" services="copy" secondary="copy"></promari-sns-share>
-        <promari-sns-share id="accent-attr" services="copy" secondary="" heading="SHARE" accent="#123456"></promari-sns-share>
-        <promari-sns-share id="accent-leak" services="copy" secondary="" heading="SHARE" style="--accent:#ff0000"></promari-sns-share></body></html>''')
+        destinations="copy" secondary=""></promari-sns-share>
+        <promari-sns-share id="plain" destinations="copy" secondary="copy"></promari-sns-share>
+        <promari-sns-share id="accent-attr" destinations="copy" secondary="" heading="SHARE" accent="#123456"></promari-sns-share>
+        <promari-sns-share id="accent-leak" destinations="copy" secondary="" heading="SHARE" style="--accent:#ff0000"></promari-sns-share></body></html>''')
         page.evaluate('''() => {
           window.copies=[]; window.shares=[]; window.tracked=[]; window.likes=[]; window.prompts=[];
           window.copyMode='pending'; window.shareMode='success';
@@ -56,7 +56,7 @@ with sync_playwright() as api:
         page.evaluate('window.finishCopy()')
         expect(a.locator('.status')).to_have_text('URLをコピーしました')
         assert page.evaluate('window.copies') == ['https://example.com/article/']
-        assert page.evaluate('window.tracked[0].service') == 'copy'
+        assert page.evaluate('window.tracked[0].destination') == 'copy'
         page.evaluate("window.copyMode='reject'")
         b.locator('[data-key="copy"]').click()
         page.wait_for_function('window.prompts.length===1')
@@ -65,7 +65,7 @@ with sync_playwright() as api:
             page.evaluate('(mode)=>window.shareMode=mode', mode)
             a.locator('[data-key="native"]').click()
         page.wait_for_function('window.shares.length===2')
-        page.wait_for_function('window.tracked.filter(x=>x.service==="native").length===2')
+        page.wait_for_function('window.tracked.filter(x=>x.destination==="native").length===2')
         # API非対応では丸型表示の追加メニューを開く。
         page.evaluate("Object.defineProperty(navigator,'share',{configurable:true,value:undefined})")
         a.locator('[data-key="native"]').click()

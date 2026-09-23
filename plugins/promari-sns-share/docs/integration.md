@@ -92,7 +92,7 @@ a second set. Choose automatic insertion or manual placement for that location.
 ### Tracking integration
 
 Each button carries `tracking.attribute` (default: `data-share`). Track clicks
-on `a[data-share]` and read its value (`facebook`, `x`, and so on) as the service
+on `a[data-share]` and read its value (`facebook`, `x`, and so on) as the destination
 identifier. See [Analytics](analytics.md).
 
 ### Supported versions
@@ -114,7 +114,7 @@ export const ShareBar = ({ url, title }: { url: string; title: string }) => (
 ```
 
 For typed JSX, add `promari-sns-share` to your React JSX `IntrinsicElements` with
-`React.HTMLAttributes<HTMLElement>` plus optional `url`, `title`, `services`,
+`React.HTMLAttributes<HTMLElement>` plus optional `url`, `title`, `destinations`,
 and `placement` string properties. React 19 and later support passing custom
 element attributes directly.
 
@@ -122,7 +122,7 @@ element attributes directly.
 
 ```vue
 <template>
-  <promari-sns-share :url="url" :title="title" services="x,facebook,line" />
+  <promari-sns-share :url="url" :title="title" destinations="x,facebook,line" />
 </template>
 ```
 

@@ -2,6 +2,37 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 3.0.0
+
+Breaking release. Names now describe what each thing is, without keeping the 2.x names.
+
+### Breaking
+
+- Configuration: `share.services` → `share.destinations`,
+  `share.placements.floating_services` → `share.placements.floating_destinations`,
+  and the UTM placeholder `{service}` → `{destination}`.
+- Element attribute `services` → `destinations`.
+- Click event detail `{service, url, placement}` → `{destination, url, placement}`.
+- PHP: `Contracts\ServiceInterface` → `Contracts\ShareDestinationInterface`,
+  `Service\XxxService` → `Destination\XxxDestination`, `Domain\Action` → `Domain\ShareAction`.
+  Custom destinations go in `plugin/src/Destination/*Destination.php`.
+
+### Changed
+
+- A share target is called a destination throughout: `ShareDestination`,
+  `ShareDestinationRepository`, `InMemoryShareDestinationRepository`, `DestinationSelectionPolicy`.
+- Infrastructure classes are named after the technology, not the domain interface:
+  `BrowserClipboard`, `BrowserNativeShare`, `BrowserPopupWindow`, `BrowserSharedPage`,
+  `CustomEventShareActivityPublisher`. "Gateway" names only domain interfaces
+  (`ShareWindowGateway`, `SharedPageGateway`, ...). The architecture test rejects infrastructure files named `*Gateway`.
+- Domain services: `ShareActionPolicy.decide()`, `ShareTextFormatter.format()`, `UtmParameterPolicy.apply()`.
+- Application: `ShareButtonCatalog` (was `DisplayCatalog`) and `ShareSettings` (was `ShareConfig`).
+- Presentation: `ShareSettingsAttributeReader`, `CircularShareBarView`, `ShareBarStylesheet`,
+  `FloatingBarVisibility`, `HtmlEscaper`.
+- `ShareTypes.ts` is split into one file per concept.
+
+Rendered markup and styling are unchanged.
+
 ## 2.0.3
 
 ### Changed
