@@ -2,7 +2,7 @@
 """Validate share_config.toml and generate reproducible plugin and Web Component outputs.
 
 Use --write to generate outputs, --check to detect drift, and --print to inspect settings.
-TOML owns configuration; PHP service classes own service metadata. Invalid settings fail closed."""
+TOML owns configuration; PHP destination classes own destination metadata. Invalid settings fail closed."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ if sys.version_info < (3, 13):  # pragma: no cover
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 PLUGIN_SOURCE: Final = ROOT / "plugin"
-SERVICE_DIR: Final = PLUGIN_SOURCE / "src/Service"
+DESTINATION_DIR: Final = PLUGIN_SOURCE / "src/Destination"
 WEB_SRC: Final = ROOT / "web/src"
 WEB_GENERATED: Final = WEB_SRC / "generated"
 DEFAULT_CONFIG: Final = ROOT / "config/share_config.example.toml"
@@ -37,7 +37,7 @@ WEB_FILENAME: Final = "promari-sns-share.min.js"
 HEX_COLOR: Final = re.compile(r"^#[0-9a-fA-F]{6}$")
 CSS_COLOR: Final = re.compile(r"^(#[0-9a-fA-F]{3,8}|rgba?\([\d.,\s%]+\)|hsla?\([\d.,\s%]+\)|[a-z]+)$")
 SEMVER: Final = re.compile(r"^\d+\.\d+\.\d+$")
-SERVICE_KEY: Final = re.compile(r"^[a-z0-9]+$")
+DESTINATION_KEY: Final = re.compile(r"^[a-z0-9]+$")
 POST_TYPE: Final = re.compile(r"^[a-z0-9_-]+$")
 DATA_ATTR: Final = re.compile(r"^data-[a-z][a-z0-9-]*$")
 EVENT_NAME: Final = re.compile(r"^[a-z][a-z0-9:_-]*$")
@@ -57,7 +57,7 @@ class Mode(StrEnum):
     GENERATE = "generate"  # Generate TypeScript inputs only, before typechecking or tests.
 
 
-class Action(StrEnum):
+class ShareAction(StrEnum):
     OPEN = "open"
     COPY = "copy"
     NATIVE = "native"
@@ -105,15 +105,15 @@ def strings(values: object, label: str, *, pattern: re.Pattern[str] | None = Non
 
 
 # ------------------------------------------------------------------------------------------
-# Service catalog extracted from PHP classes
+# Destination catalog extracted from PHP classes
 # ------------------------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
-class ServiceSpec:
+class DestinationSpec:
     key: str
     label: str
     color: str
     icon: str
-    action: Action
+    action: ShareAction
     endpoint: str
     params: dict[str, str] = field(default_factory=dict)
 
@@ -122,18 +122,18 @@ class ServiceSpec:
 
 
 def _php_literal(source: str, method: str, path: Path) -> str:
-    """Extract a string literal returned by a PHP service method."""
+    """Extract a string literal returned by a PHP destination method."""
     match = re.search(r"function\s+" + method + r"\s*\(\)\s*:\s*string\s*\{\s*return\s+'((?:[^'\\]|\\.)*)'\s*;", source)
     if match is None:
         raise ConfigError(f"{path.name}: {method}() の文字列リテラルが見つかりません")
     return match.group(1).replace("\\'", "'")
 
 
-def _php_action(source: str, path: Path) -> Action:
-    match = re.search(r"function\s+action\s*\(\)\s*:\s*Action\s*\{\s*return\s+Action::(\w+)\s*;", source)
+def _php_action(source: str, path: Path) -> ShareAction:
+    match = re.search(r"function\s+action\s*\(\)\s*:\s*ShareAction\s*\{\s*return\s+ShareAction::(\w+)\s*;", source)
     if match is None:
-        raise ConfigError(f"{path.name}: action() は `return Action::Open;` の形にしてください")
-    return Action[match.group(1).upper()]
+        raise ConfigError(f"{path.name}: action() は `return ShareAction::Open;` の形にしてください")
+    return ShareAction[match.group(1).upper()]
 
 
 def _php_endpoint_params(source: str, path: Path) -> tuple[str, dict[str, str]]:
@@ -152,24 +152,24 @@ def _php_endpoint_params(source: str, path: Path) -> tuple[str, dict[str, str]]:
     return endpoint.group(1), params
 
 
-def _service_files() -> Iterator[Path]:
-    return (p for p in sorted(SERVICE_DIR.glob("*Service.php")) if "final class" in p.read_text(encoding="utf-8"))
+def _destination_files() -> Iterator[Path]:
+    return (p for p in sorted(DESTINATION_DIR.glob("*Destination.php")) if "final class" in p.read_text(encoding="utf-8"))
 
 
-def catalog() -> dict[str, ServiceSpec]:
-    """Build service specifications from the final classes that implement ServiceInterface."""
-    specs: dict[str, ServiceSpec] = {}
-    for path in _service_files():
+def catalog() -> dict[str, DestinationSpec]:
+    """Build destination specifications from the final classes that implement ShareDestinationInterface."""
+    specs: dict[str, DestinationSpec] = {}
+    for path in _destination_files():
         source = path.read_text(encoding="utf-8")
-        if "implements ServiceInterface" not in source:
+        if "implements ShareDestinationInterface" not in source:
             continue
-        key = ensure(_php_literal(source, "key", path), SERVICE_KEY.match, f"{path.name}: key() は英小文字と数字だけにしてください")
+        key = ensure(_php_literal(source, "key", path), DESTINATION_KEY.match, f"{path.name}: key() は英小文字と数字だけにしてください")
         if key in specs:
             raise ConfigError(f"シェア先の識別子が重複しています: {key}")
         icon = _php_literal(source, "icon", path)
         ensure(icon, lambda s: s.startswith("<svg") and "currentColor" in s, f"{path.name}: icon() は <svg …> で始まり fill=\"currentColor\" を使ってください")
         endpoint, params = _php_endpoint_params(source, path)
-        specs[key] = ServiceSpec(
+        specs[key] = DestinationSpec(
             key=key,
             label=_php_literal(source, "label", path),
             color=ensure(_php_literal(source, "brandColor", path), HEX_COLOR.match, f"{path.name}: brandColor() は #rrggbb で書いてください"),
@@ -179,7 +179,7 @@ def catalog() -> dict[str, ServiceSpec]:
             params=params,
         )
     if not specs:
-        raise ConfigError(f"シェア先のカタログが空です: {SERVICE_DIR}")
+        raise ConfigError(f"シェア先のカタログが空です: {DESTINATION_DIR}")
     return specs
 
 
@@ -200,27 +200,27 @@ class Config:
     source: str
     workflow: Workflow
     share: Json
-    catalog: dict[str, ServiceSpec]
+    catalog: dict[str, DestinationSpec]
 
     @property
     def enabled_secondary(self) -> list[str]:
         return [k for k, on in self.share["secondary"].items() if on]
 
 
-def _validate_share(share: object, known: Mapping[str, ServiceSpec]) -> Json:
+def _validate_share(share: object, known: Mapping[str, DestinationSpec]) -> Json:
     s = fields(
         share,
-        {"services": list, "heading": str, "labels": dict, "appearance": dict, "text": dict, "utm": dict, "behavior": dict,
+        {"destinations": list, "heading": str, "labels": dict, "appearance": dict, "text": dict, "utm": dict, "behavior": dict,
          "placements": dict, "secondary": dict, "tracking": dict, "messages": dict, "style": dict},
         {"buttons": dict},
         label="share",
     )
     names = ", ".join(known)
-    services = strings(s["services"], "share.services")
-    ensure(services, bool, "share.services は 1 件以上にしてください")
-    ensure(services, lambda v: len(set(v)) == len(v), "share.services に同じシェア先が 2 回あります")
-    for name in services:
-        ensure(name, known.__contains__, f"share.services に未知のシェア先があります: {name}（使える名前: {names}）")
+    destinations = strings(s["destinations"], "share.destinations")
+    ensure(destinations, bool, "share.destinations は 1 件以上にしてください")
+    ensure(destinations, lambda v: len(set(v)) == len(v), "share.destinations に同じシェア先が 2 回あります")
+    for name in destinations:
+        ensure(name, known.__contains__, f"share.destinations に未知のシェア先があります: {name}（使える名前: {names}）")
     for key, value in s["labels"].items():
         ensure(key, known.__contains__, f"share.labels に未知のシェア先があります: {key}")
         ensure(value, lambda v: type(v) is str and "\n" not in v, f"share.labels.{key}: 改行を含まない文字列にしてください")
@@ -250,19 +250,19 @@ def _validate_share(share: object, known: Mapping[str, ServiceSpec]) -> Json:
     p = fields(
         s["placements"],
         {"post_types": list, "article_top": bool, "article_bottom": bool, "sidebar": bool, "floating": bool, "floating_position": str,
-         "floating_after_px": int, "floating_secondary_max": int, "floating_hide_near_end": bool, "floating_services": list},
+         "floating_after_px": int, "floating_secondary_max": int, "floating_hide_near_end": bool, "floating_destinations": list},
         label="share.placements",
     )
     strings(p["post_types"], "share.placements.post_types", pattern=POST_TYPE)
     one_of(p["floating_position"], ("bottom", "top"), "share.placements.floating_position")
     within(p["floating_after_px"], 100, 5000, "share.placements.floating_after_px")
     within(p["floating_secondary_max"], 0, 8, "share.placements.floating_secondary_max")
-    for name in strings(p["floating_services"], "share.placements.floating_services"):
-        ensure(name, known.__contains__, f"share.placements.floating_services に未知のシェア先があります: {name}")
+    for name in strings(p["floating_destinations"], "share.placements.floating_destinations"):
+        ensure(name, known.__contains__, f"share.placements.floating_destinations に未知のシェア先があります: {name}")
     for key, value in s["secondary"].items():
         ensure(key, known.__contains__, f"share.secondary に未知のシェア先があります: {key}")
         ensure(value, lambda v: type(v) is bool, f"share.secondary.{key} は true / false で書いてください")
-        ensure(key, lambda k: k not in services, f"{key} が services と secondary の両方にあります（どちらか一方にしてください）")
+        ensure(key, lambda k: k not in destinations, f"{key} が destinations と secondary の両方にあります（どちらか一方にしてください）")
     tr = fields(s["tracking"], {"attribute": str, "event_name": str}, label="share.tracking")
     ensure(tr["attribute"], DATA_ATTR.match, "share.tracking.attribute は data-… の形にしてください")
     ensure(tr["event_name"], EVENT_NAME.match, "share.tracking.event_name は英小文字で始めてください")
@@ -312,7 +312,7 @@ def web_defaults(config: Config) -> Json:
     s = config.share
     p = s["placements"]
     return {
-        "services": s["services"],
+        "destinations": s["destinations"],
         "secondary": config.enabled_secondary,
         "labels": s["labels"],
         "heading": s["heading"],
@@ -326,7 +326,7 @@ def web_defaults(config: Config) -> Json:
             "after": p["floating_after_px"],
             "secondaryMax": p["floating_secondary_max"],
             "hideNearEnd": p["floating_hide_near_end"],
-            "services": p["floating_services"],
+            "destinations": p["floating_destinations"],
         },
         "tracking": s["tracking"],
         "messages": s["messages"],
@@ -343,11 +343,11 @@ def generated_sources(config: Config) -> dict[Path, str]:
     header = "// Generated by tools/config.py; do not edit.\n"
     return {
         WEB_GENERATED / "catalog.ts": header
-        + "import type { ServiceDefinition } from '../application/DisplayCatalog.ts';\n"
-        + "export const CATALOG: readonly ServiceDefinition[] = Object.freeze(" + _compact([spec.to_json() for spec in config.catalog.values()]) + " as const satisfies readonly ServiceDefinition[]);\n",
+        + "import type { ShareDestinationDefinition } from '../application/ShareButtonCatalog.ts';\n"
+        + "export const CATALOG: readonly ShareDestinationDefinition[] = Object.freeze(" + _compact([spec.to_json() for spec in config.catalog.values()]) + " as const satisfies readonly ShareDestinationDefinition[]);\n",
         WEB_GENERATED / "defaults.ts": header
-        + "import type { ShareConfig } from '../application/ShareConfig.ts';\n"
-        + "export const DEFAULTS: ShareConfig = Object.freeze(" + _compact(web_defaults(config)) + " satisfies ShareConfig);\n"
+        + "import type { ShareSettings } from '../application/ShareSettings.ts';\n"
+        + "export const DEFAULTS: ShareSettings = Object.freeze(" + _compact(web_defaults(config)) + " satisfies ShareSettings);\n"
         + f"export const VERSION = {_compact(config.workflow.web_version)} as const;\nexport const WEB_URL = {_compact(config.workflow.web_url)} as const;\n",
     }
 
@@ -404,7 +404,7 @@ def describe(config: Config) -> str:
     label = lambda k: s["labels"].get(k, config.catalog[k].label)  # noqa: E731
     on = [k for k in ("article_top", "article_bottom", "sidebar", "floating") if s["placements"][k]]
     return "\n".join([
-        "主役ボタン: " + " / ".join(f"{k}（{label(k)}）" for k in s["services"]),
+        "主役ボタン: " + " / ".join(f"{k}（{label(k)}）" for k in s["destinations"]),
         "補助チャネル: " + (", ".join(config.enabled_secondary) or "なし"),
         f"外観: size={s['appearance']['size']} label={s['appearance']['label_style']} shape={s['appearance']['shape']} secondary={s['appearance']['secondary_style']}",
         f"動線: {', '.join(on) or '自動挿入なし'}（対象 post_types={s['placements']['post_types']}）",

@@ -3,11 +3,11 @@
  * domain perform side effects. The outcome is returned, and presentation decides how to show it.
  */
 import type { ShareGateways } from '../domain/gateway/ShareGateways.ts';
-import { ClickPolicy } from '../domain/service/ClickPolicy.ts';
-import type { ButtonViewModel } from './BuildShareBarUseCase.ts';
+import { ShareActionPolicy } from '../domain/service/ShareActionPolicy.ts';
+import type { ShareButtonViewModel } from './BuildShareBarUseCase.ts';
 
-export interface ClickContext {
-  readonly button: ButtonViewModel;
+export interface ShareClickCommand {
+  readonly button: ShareButtonViewModel;
   readonly placement: string;
   preventDefault(): void;
 }
@@ -20,7 +20,7 @@ export interface ClickContext {
  * - popup: a share window opened
  * - follow: the browser follows the link (including a blocked popup)
  */
-export type ShareClickOutcome = 'copied' | 'copy-fallback' | 'shared' | 'share-dismissed' | 'popup' | 'follow';
+export type ShareClickResult = 'copied' | 'copy-fallback' | 'shared' | 'share-dismissed' | 'popup' | 'follow';
 
 export class HandleShareClickUseCase {
   readonly #gateways: ShareGateways;
@@ -29,14 +29,14 @@ export class HandleShareClickUseCase {
     this.#gateways = gateways;
   }
 
-  async execute(context: ClickContext): Promise<ShareClickOutcome> {
+  async execute(context: ShareClickCommand): Promise<ShareClickResult> {
     const outcome = await this.#perform(context);
-    this.#gateways.activity.publish({ service: context.button.key, url: context.button.url, placement: context.placement });
+    this.#gateways.activity.publish({ destination: context.button.key, url: context.button.url, placement: context.placement });
     return outcome;
   }
 
-  async #perform({ button, preventDefault }: ClickContext): Promise<ShareClickOutcome> {
-    const decision = ClickPolicy.decide(button);
+  async #perform({ button, preventDefault }: ShareClickCommand): Promise<ShareClickResult> {
+    const decision = ShareActionPolicy.decide(button);
     switch (decision) {
       case 'copy': {
         preventDefault();
@@ -59,7 +59,7 @@ export class HandleShareClickUseCase {
       case 'follow':
         return 'follow'; // Let the browser follow the link.
       default: {
-        // ClickDecision を増やしたらここでコンパイルが止まる。黙って素通りさせない。
+        // ShareActionDecision を増やしたらここでコンパイルが止まる。黙って素通りさせない。
         const unhandled: never = decision;
         throw new Error(`promari-sns-share: 未対応のクリック操作です: ${String(unhandled)}`);
       }

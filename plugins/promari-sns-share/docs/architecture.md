@@ -1,13 +1,13 @@
 # Architecture
 
-Three components share **one configuration source (TOML) and one service
-catalog (PHP service classes)**.
+Three components share **one configuration source (TOML) and one destination
+catalog (PHP destination classes)**.
 
 ```mermaid
 %%{init: {"theme":"dark", "themeVariables": {"primaryColor":"#3B82F6","primaryTextColor":"#fff","primaryBorderColor":"#60A5FA","lineColor":"#6366F1","secondaryColor":"#10B981","tertiaryColor":"#EC4899"}}}%%
 flowchart LR
     T["share_config.toml"] --> G["tools/config.py<br>Validate and generate"]
-    P["plugin/src/Service/*.php<br>Logos, colors, URL specifications"] --> G
+    P["plugin/src/Destination/*.php<br>Logos, colors, URL specifications"] --> G
     G --> J["share.json"]
     G --> D["dist/promari-sns-share.min.js"]
     J --> W["WordPress plugin<br>Server-side rendering"]
@@ -29,7 +29,7 @@ flowchart LR
 | Source | Location | Generated outputs |
 |---|---|---|
 | Configuration: what, where, and how to display | `share_config.toml` | `share.json` for the plugin; `generated/defaults.ts` for JavaScript |
-| Services: SVG logos, brand colors, and where to send which fields | `plugin/src/Service/*.php` | `generated/catalog.ts` for JavaScript |
+| Destinations: SVG logos, brand colors, and where to send which fields | `plugin/src/Destination/*.php` | `generated/catalog.ts` for JavaScript |
 
 The generator reads PHP classes with regular expressions and extracts `key()`,
 `label()`, `brandColor()`, `icon()`, `action()`, `endpoint()`, and `params()`.
@@ -43,9 +43,9 @@ Component.** PHP changes flow into JavaScript on the next build; `--check` detec
 plugin/
   promari-sns-share.php          Bootstrap: requires and the promari_sns_share() template tag
   src/Domain/Placement       Where the element may appear
-  src/Contracts/             ConfigInterface (runtime), ServiceInterface (definitions only)
+  src/Contracts/             ConfigInterface (runtime), ShareDestinationInterface (definitions only)
   src/Config/JsonConfig      Reads generated configuration and fails closed
-  src/Service/               One final class per service: logo, color, endpoint, and fields.
+  src/Destination/               One final class per destination: logo, color, endpoint, and fields.
                              Read by tools/config.py; not loaded at runtime
   src/Integration/Widget     WordPress sidebar widget
   src/Plugin.php             Decides placement, emits <promari-sns-share>, loads the bundle
@@ -54,8 +54,8 @@ plugin/
 | Principle | Application |
 |---|---|
 | **S**: single responsibility | Separate configuration loading, URL construction, formatting, rendering, and wiring |
-| **O**: open / closed | Add a `ServiceInterface` implementation and register it through `promari_sns_share_services` |
-| **L**: substitution | Renderers rely on the six-method service contract, not concrete service classes |
+| **O**: open / closed | Add a `ShareDestinationInterface` implementation under `plugin/src/Destination/`; the generator picks it up at build time |
+| **L**: substitution | Renderers rely on the six-method destination contract, not concrete destination classes |
 | **I**: interface segregation | Themes use the template tag or shortcode without knowing renderer internals |
 | **D**: dependency inversion | Rendering and formatting depend on `ConfigInterface`, not the JSON representation |
 
@@ -78,19 +78,25 @@ pipelines.
 ユースケースは`execute()`、ドメインサービスは静的メソッド、infrastructureは
 domainのインターフェースを`implements`するクラスとして書く。
 
+3.0.0で、名前を役割と実装技術で読める形へそろえた。共有先は「サービス」ではなく
+「シェア先（ShareDestination）」と呼び、公開設定・属性・イベントも同じ語にした。
+infrastructureのクラスには`Gateway`を付けず、実装技術（Browser・InMemory・CustomEvent）を名前の先頭に置く。
+
 ```text
 web/src/
   domain/
-    model/         値オブジェクト（ShareRequest・ShareService）と語彙（ShareTypes）
-    service/       ドメインサービス（ClickPolicy・ServiceSelectionPolicy・ShareTextPolicy・UtmPolicy・UriEncoder）
-    repository/    ShareServiceRepository インターフェース
-    gateway/       ClipboardGateway・NativeShareGateway・PopupGateway・ShareActivityPublisher・
-                   PageContextGateway インターフェースと、それらをまとめた ShareGateways
-  application/     ユースケース（BuildShareBarUseCase・HandleShareClickUseCase）、DisplayCatalog、ShareConfig
-  infrastructure/  domainのインターフェースの実装（SpecShareServiceRepository・BrowserClipboardGateway・
-                   WebShareGateway・PopupWindowGateway・CustomEventActivityPublisher・BrowserPageContext）
-  presentation/    PromariSnsShareElement、AttributeConfigReader、ShareBarView・CircleView・
-                   ShareBarStyles、FloatingVisibility、ToastNotifier、Html
+    model/         値オブジェクト（ShareRequest・ShareDestination・SharedPage）と語彙
+                   （ShareAction・Placement・ShareDestinationSpec・DestinationSelectionSettings・UtmSettings）
+    service/       ドメインサービス（ShareActionPolicy・DestinationSelectionPolicy・ShareTextFormatter・
+                   UtmParameterPolicy・UriEncoder）
+    repository/    ShareDestinationRepository インターフェース
+    gateway/       ClipboardGateway・NativeShareGateway・ShareWindowGateway・SharedPageGateway・
+                   ShareActivityPublisher インターフェースと、それらをまとめた ShareGateways
+  application/     ユースケース（BuildShareBarUseCase・HandleShareClickUseCase）、ShareButtonCatalog、ShareSettings
+  infrastructure/  domainのインターフェースの実装（InMemoryShareDestinationRepository・BrowserClipboard・
+                   BrowserNativeShare・BrowserPopupWindow・BrowserSharedPage・CustomEventShareActivityPublisher）
+  presentation/    PromariSnsShareElement、ShareSettingsAttributeReader、ShareBarView・CircularShareBarView・
+                   ShareBarStylesheet、FloatingBarVisibility、ToastNotifier、HtmlEscaper
   index.ts         起動時の組み立て。具体的な実装を選び、四層をつなぐ唯一の場所
   generated/       入力データ。index.tsだけが読み込む
 ```
@@ -119,11 +125,11 @@ applicationが知っているのはdomainの`ClipboardGateway`だけで、ブラ
 クリックのユースケースは、画面へ何を出すかを決めない。`HandleShareClickUseCase.execute()`は
 `copied`・`copy-fallback`・`shared`・`share-dismissed`・`popup`・`follow`のいずれかを返し、
 presentationが結果に応じて画面内の通知を描く。書き込みの完了前に成功を名乗らない順序は、
-戻り値を待つことで保つ。同じサービスを複数置いても、表示層が操作ごとの識別子で押された要素を区別する。
+戻り値を待つことで保つ。同じシェア先を複数置いても、表示層が操作ごとの識別子で押された要素を区別する。
 
-PHPから抽出したサービスの入力はapplicationの`ServiceDefinition`で受け取る。
-infrastructureの`SpecShareServiceRepository`がURL規則だけを値オブジェクトにし、
-applicationの`DisplayCatalog`が表示用メタデータを組み合わせる。
+PHPから抽出したシェア先の入力はapplicationの`ShareDestinationDefinition`で受け取る。
+infrastructureの`InMemoryShareDestinationRepository`がURL規則だけを値オブジェクトにし、
+applicationの`ShareButtonCatalog`が表示用メタデータを組み合わせる。
 色・ロゴ・表示ラベルとCSSの設定型はdomainへ渡して保持しない。
 
 属性の読み取りとスクロールに応じた表示は、独自要素そのものの入力と見た目なので

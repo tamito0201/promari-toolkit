@@ -25,9 +25,9 @@ can receive events across the Shadow DOM boundary.
 
 ```js
 document.addEventListener('promari-sns-share', (e) => {
-  const { service, url, placement } = e.detail;
+  const { destination, url, placement } = e.detail;
   // Forward to GA4.
-  gtag('event', 'share', { method: service, content_type: 'article', item_id: url, placement });
+  gtag('event', 'share', { method: destination, content_type: 'article', item_id: url, placement });
 });
 ```
 
@@ -35,7 +35,7 @@ The event's `detail` contains:
 
 | Key | Example | Meaning |
 |---|---|---|
-| `service` | `x` | Share service identifier |
+| `destination` | `x` | Share destination identifier |
 | `url` | `https://example.jp/post/` | Page URL before UTM parameters are added |
 | `placement` | `article_bottom` | Click location: `article_top`, `article_bottom`, `sidebar`, `floating`, or `inline` |
 
@@ -46,7 +46,7 @@ Change the event name with `tracking.event_name`.
 ```toml
 [share.utm]
 enabled = true
-source = "{service}"
+source = "{destination}"
 medium = "social"
 campaign = "share"
 ```
@@ -60,7 +60,7 @@ on your buttons, while the other counts visits through shared links.
 ## 4. Limitations
 
 - Opening a share dialog does not confirm that a post was published; the social
-  services do not report that outcome to this component.
+  destinations do not report that outcome to this component.
 - Copy-link tracking records the action, not where the link is later pasted.
 - The native share sheet does not report which destination app was selected.
 - Visitors whose blockers disable GA4 will be absent from GA4 measurements.

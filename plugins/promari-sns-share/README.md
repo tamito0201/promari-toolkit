@@ -10,7 +10,7 @@ HTML page, or install the WordPress plugin to place it and load the pinned bundl
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.3/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 <promari-sns-share></promari-sns-share>
 ```
 
@@ -38,13 +38,13 @@ and less loading overhead.
 ### A. Any website: Web Components and CDN
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.3/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js"></script>
 
 <!-- Defaults: Facebook / X / LINE plus five secondary channels -->
 <promari-sns-share></promari-sns-share>
 
 <!-- Customize with attributes -->
-<promari-sns-share services="x,facebook" secondary="copy,native" heading="Share this article" size="large" shape="pill" accent="#0a66c2"></promari-sns-share>
+<promari-sns-share destinations="x,facebook" secondary="copy,native" heading="Share this article" size="large" shape="pill" accent="#0a66c2"></promari-sns-share>
 
 <!-- Mobile floating bar, shown after scrolling 400px -->
 <promari-sns-share placement="floating" after="400"></promari-sns-share>
@@ -53,7 +53,7 @@ and less loading overhead.
 <promari-sns-share config='{"text":{"hashtags":["promari"],"via":"promari_jp"},"utm":{"enabled":true},"behavior":{"popup":false}}'></promari-sns-share>
 ```
 
-Pin `@promari-sns-share-v2.0.3` to select this component's release independently.
+Pin `@promari-sns-share-v3.0.0` to select this component's release independently.
 Release tags are immutable. `tools/publish.sh` prints an installation snippet
 with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 
@@ -83,12 +83,12 @@ widget, and a configurable mobile floating bar. See [Integration](docs/integrati
 
 Copy [`config/share_config.example.toml`](config/share_config.example.toml) to
 the target site and edit its values. The template explains every option.
-**Unknown keys, incorrect types, out-of-range values, and unknown services cause
+**Unknown keys, incorrect types, out-of-range values, and unknown destinations cause
 validation errors** rather than silently falling back to defaults.
 
 ```toml
 [share]
-services = ["facebook", "x", "line"] # Primary buttons, in display order
+destinations = ["facebook", "x", "line"] # Primary buttons, in display order
 heading = "SHARE"
 
 [share.labels]
@@ -122,7 +122,7 @@ via = "promari_jp"
 
 [share.utm]
 enabled = true
-source = "{service}"      # utm_source=facebook / x / line ...
+source = "{destination}"      # utm_source=facebook / x / line ...
 ```
 
 See the [Configuration reference](docs/configuration.md) for all options and
@@ -131,12 +131,12 @@ accepted values, including labels and accessibility messages.
 ## Analytics
 
 Buttons carry an attribute such as `data-share="facebook"`. Each click emits a
-`promari-sns-share` `CustomEvent` with `detail: { service, url, placement }`.
+`promari-sns-share` `CustomEvent` with `detail: { destination, url, placement }`.
 For GA4, forward it as a `share` event:
 
 ```js
 document.addEventListener('promari-sns-share', (e) => {
-  gtag('event', 'share', { method: e.detail.service, content_type: 'article', item_id: e.detail.url });
+  gtag('event', 'share', { method: e.detail.destination, content_type: 'article', item_id: e.detail.url });
 });
 ```
 
@@ -144,18 +144,18 @@ See [Analytics](docs/analytics.md) for tracking methods and limitations.
 
 ## Architecture
 
-- **PHP plugin:** Domain (value objects and enums), Contracts, Service (one class
-  per service), Share (pure formatting logic), Render, and Plugin (composition
+- **PHP plugin:** Domain (value objects and enums), Contracts, Destination (one class
+  per destination), Share (pure formatting logic), Render, and Plugin (composition
   root). Requires PHP 8.1 or later.
 - **Web Components:** TypeScript with domain, application, infrastructure, and
   presentation layers. Dependencies point inward; clipboard, popup, and DOM
   operations go through ports.
 - **Generator:** Python 3.13 or later, using only the standard library. Validates
-  TOML and extracts logos, colors, and URL specifications from PHP service
-  classes for JavaScript. **PHP is the single source of service metadata.**
+  TOML and extracts logos, colors, and URL specifications from PHP destination
+  classes for JavaScript. **PHP is the single source of destination metadata.**
 
 See [Architecture](docs/architecture.md) for diagrams and dependency direction,
-and [Customization](docs/customization.md) for recipes and adding services.
+and [Customization](docs/customization.md) for recipes and adding destinations.
 
 ## Development
 
@@ -180,7 +180,7 @@ owner's brand guidelines when using them.
 
 ```html
 <promari-sns-share variant="circle" like caption="この気づきを、誰かにも。"
-  services="x,line,facebook,copy,native" secondary="hatena,linkedin,email"></promari-sns-share>
+  destinations="x,line,facebook,copy,native" secondary="hatena,linkedin,email"></promari-sns-share>
 ```
 
 The component renders the complete reaction row, including the like button.

@@ -10,9 +10,9 @@
 #
 # Design rules:
 #   - Neither the plugin nor the Web Component reads TOML directly; both consume generated outputs.
-#   - Unknown keys or services, incorrect types, and out-of-range values are errors (fail closed).
+#   - Unknown keys or destinations, incorrect types, and out-of-range values are errors (fail closed).
 #   - Do not store tokens or passwords here; these are public appearance and placement settings.
-#   - Add a ServiceInterface implementation in plugin/src/Service/ when introducing a service.
+#   - Add a ShareDestinationInterface implementation in plugin/src/Destination/ when introducing a destination.
 #     The generator extracts the Web Component catalog from PHP to avoid duplicated metadata.
 version = 1 # Configuration format version; currently only integer 1 is supported.
 
@@ -20,20 +20,20 @@ version = 1 # Configuration format version; currently only integer 1 is supporte
 target = "." # Target Git root; relative to the repository containing this configuration.
 plugin_output = "" # WordPress plugin output directory, e.g. public_html/wp-content/plugins/promari-sns-share. Empty disables output.
 web_output = "dist" # Minified Web Component output directory, e.g. dist. Empty disables output; CDN hosting is recommended.
-web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v2.0.3/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
-web_version = "2.0.3" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
+web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v3.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
+web_version = "3.0.0" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
 
 # ==========================================================================================
 # [share] What to display, where to display it, and how it should look.
 # ==========================================================================================
 [share]
 # Primary buttons with official-style appearance, brand colors, and labels; ordered left to right.
-# Available services: facebook / x / line / hatena / linkedin / email / copy / native
-services = ["facebook", "x", "line"]
+# Available destinations: facebook / x / line / hatena / linkedin / email / copy / native
+destinations = ["facebook", "x", "line"]
 heading = "SHARE" # Small heading beside or above the buttons. Empty hides it; never shown in the floating bar.
 
 [share.labels]
-# Labels: visible on primary buttons; tooltips and accessible names on secondary buttons. Omitted values use service defaults. The defaults below are Japanese; use any language.
+# Labels: visible on primary buttons; tooltips and accessible names on secondary buttons. Omitted values use destination defaults. The defaults below are Japanese; use any language.
 facebook = "シェア"
 x = "ポスト"
 line = "シェア"
@@ -77,9 +77,9 @@ hashtags = [] # X hashtags without #, e.g. ["promari", "WordPress"].
 via = "" # X attribution without @, e.g. "promari_jp". Empty omits it.
 
 [share.utm]
-# Append utm_* to shared URLs. {service} expands to the service identifier; empty values are omitted.
+# Append utm_* to shared URLs. {destination} expands to the destination identifier; empty values are omitted.
 enabled = false
-source = "{service}"
+source = "{destination}"
 medium = "social"
 campaign = "share"
 content = ""
@@ -102,7 +102,7 @@ floating_position = "bottom" # bottom / top
 floating_after_px = 400 # Scroll distance before the bar appears, in pixels, 100–5000.
 floating_secondary_max = 3 # Maximum secondary channels in the floating bar, 0–8.
 floating_hide_near_end = true # Hide the floating bar near the page end.
-floating_services = [] # Primary floating-bar services. Empty inherits share.services.
+floating_destinations = [] # Primary floating-bar destinations. Empty inherits share.destinations.
 
 [share.secondary]
 # Secondary channels shown as small icons after the primary buttons, in key order.
@@ -113,9 +113,9 @@ copy = true # Copy the URL to the clipboard; falls back to a link without JavaSc
 native = true # Native share sheet (Web Share API); shown only where navigator.share is available.
 
 [share.tracking]
-# Tracking contract: observe this attribute (value = service identifier) or the JavaScript CustomEvent.
+# Tracking contract: observe this attribute (value = destination identifier) or the JavaScript CustomEvent.
 attribute = "data-share" # Button attribute name; must start with data-.
-event_name = "promari-sns-share" # Click CustomEvent name, observable on document; detail: {service, url, placement}.
+event_name = "promari-sns-share" # Click CustomEvent name, observable on document; detail: {destination, url, placement}.
 
 [share.messages]
 copied = "URLをコピーしました" # Toast after successfully copying the URL.

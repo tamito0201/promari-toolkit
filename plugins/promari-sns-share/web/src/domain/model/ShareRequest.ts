@@ -38,7 +38,7 @@ export class ShareRequest {
     return this.hashtags.join(',');
   }
 
-  /** Copy the request with a service-specific URL; the original stays unchanged. */
+  /** Copy the request with a destination-specific URL; the original stays unchanged. */
   withUrl(url: string): ShareRequest {
     return new ShareRequest({ ...this, hashtags: this.hashtags, url });
   }

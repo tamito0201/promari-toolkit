@@ -18,7 +18,7 @@ pnpm run build          # Regenerate dist/ after PHP or TOML changes.
 ## Making changes
 
 1. Create a branch from `main` (`feat/...`, `fix/...`, or `docs/...`).
-2. Make your changes. Edit service specifications only in the PHP service
+2. Make your changes. Edit destination specifications only in the PHP destination
    classes; JavaScript metadata is generated from them.
 3. Update `dist/` with `pnpm run build`, then run `pnpm run verify`.
 4. Open a pull request. CI runs the same checks; `config.py --check` detects
@@ -29,7 +29,7 @@ pnpm run build          # Regenerate dist/ after PHP or TOML changes.
 - **Fail closed:** invalid configuration must stop the generator with an error.
   Add type, range, and allowed-value validation in `tools/config.py`, plus tests,
   whenever you introduce an option.
-- **Two sources of truth:** TOML defines configuration; PHP defines services.
+- **Two sources of truth:** TOML defines configuration; PHP defines destinations.
   Do not manually edit their outputs (`share.json`, `generated/*.ts`, or `dist/`).
 - **No telemetry requests:** the Web Component must not send analytics requests
   to Promari or other servers. The host page handles emitted events.

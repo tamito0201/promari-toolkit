@@ -3,13 +3,13 @@
  * render into Shadow DOM, and show the outcome. Policies belong to domain; browser effects go
  * through gateways implemented in infrastructure and passed in at startup.
  */
-import type { BuildShareBarUseCase, ButtonViewModel, Placement } from '../application/BuildShareBarUseCase.ts';
+import type { BuildShareBarUseCase, ShareButtonViewModel, Placement } from '../application/BuildShareBarUseCase.ts';
 import type { HandleShareClickUseCase } from '../application/HandleShareClickUseCase.ts';
-import type { ShareConfig } from '../application/ShareConfig.ts';
-import { AttributeConfigReader } from './AttributeConfigReader.ts';
-import { CircleView } from './CircleView.ts';
-import { FloatingVisibility } from './FloatingVisibility.ts';
-import { ShareBarStyles } from './ShareBarStyles.ts';
+import type { ShareSettings } from '../application/ShareSettings.ts';
+import { ShareSettingsAttributeReader } from './ShareSettingsAttributeReader.ts';
+import { CircularShareBarView } from './CircularShareBarView.ts';
+import { FloatingBarVisibility } from './FloatingBarVisibility.ts';
+import { ShareBarStylesheet } from './ShareBarStylesheet.ts';
 import { ShareBarView } from './ShareBarView.ts';
 import { ToastNotifier } from './ToastNotifier.ts';
 
@@ -17,37 +17,37 @@ const PLACEMENTS: ReadonlySet<string> = new Set<Placement>(['article_top', 'arti
 const asPlacement = (value: string | null): Placement => (value && PLACEMENTS.has(value) ? (value as Placement) : 'inline');
 
 /** ページとブラウザへの接続は入口から注入する。表示層は接続先の実装をimportしない。 */
-export interface ElementEnvironment {
+export interface ShareElementEnvironment {
   pageContext(): { readonly url: string; readonly title: string; readonly site: string };
   canNativeShare(): boolean;
   /** The click use case with gateways whose activity events use this name. */
   clickUseCase(eventName: string): HandleShareClickUseCase;
 }
-export interface ElementDeps {
+export interface ShareElementDependencies {
   readonly buildShareBar: BuildShareBarUseCase;
-  readonly defaults: ShareConfig;
-  connect(element: HTMLElement): ElementEnvironment;
+  readonly defaults: ShareSettings;
+  connect(element: HTMLElement): ShareElementEnvironment;
 }
 
 export class PromariSnsShareElement extends HTMLElement {
-  static #registered: ElementDeps | undefined;
+  static #registered: ShareElementDependencies | undefined;
 
   /** Register the element with the use cases and page connections chosen at startup. */
-  static define(deps: ElementDeps): void {
+  static define(deps: ShareElementDependencies): void {
     PromariSnsShareElement.#registered = deps;
     if (!customElements.get('promari-sns-share')) customElements.define('promari-sns-share', PromariSnsShareElement);
   }
 
-  static get observedAttributes(): readonly string[] { return [...AttributeConfigReader.observedAttributes, 'variant', 'caption', 'like']; }
+  static get observedAttributes(): readonly string[] { return [...ShareSettingsAttributeReader.observedAttributes, 'variant', 'caption', 'like']; }
 
-  static #required(): ElementDeps {
+  static #required(): ShareElementDependencies {
     if (!PromariSnsShareElement.#registered) throw new Error('promari-sns-share: define() を先に呼んでください');
     return PromariSnsShareElement.#registered;
   }
 
-  readonly #deps: ElementDeps = PromariSnsShareElement.#required();
-  readonly #config = new AttributeConfigReader(this.#deps.defaults);
-  #environment: ElementEnvironment = this.#deps.connect(this);
+  readonly #deps: ShareElementDependencies = PromariSnsShareElement.#required();
+  readonly #config = new ShareSettingsAttributeReader(this.#deps.defaults);
+  #environment: ShareElementEnvironment = this.#deps.connect(this);
   #interactions = new AbortController();
   #likeState = { liked: false, count: 0, busy: true, message: '' };
   setLikeState(state: { liked: boolean; count: number; busy?: boolean; message?: string }): void {
@@ -68,13 +68,13 @@ export class PromariSnsShareElement extends HTMLElement {
     if (status) status.textContent = this.#likeState.message;
   }
   #notificationSequence = 0;
-  #buttons = new Map<string, ButtonViewModel>();
-  #floating: FloatingVisibility | null = null;
+  #buttons = new Map<string, ShareButtonViewModel>();
+  #floating: FloatingBarVisibility | null = null;
 
   connectedCallback(): void {
     this.#render();
     if (asPlacement(this.getAttribute('placement')) === 'floating') {
-      this.#floating = new FloatingVisibility(this, this.#config.read(this).floating);
+      this.#floating = new FloatingBarVisibility(this, this.#config.read(this).floating);
       this.#floating.start();
     }
   }
@@ -99,8 +99,8 @@ export class PromariSnsShareElement extends HTMLElement {
     });
     const circle = this.getAttribute('variant') === 'circle';
     root.innerHTML = circle
-      ? CircleView.render(vm, config.tracking.attribute, this.getAttribute('caption') ?? '', this.hasAttribute('like'))
-      : ShareBarView.render(vm, config.tracking.attribute, ShareBarStyles.build(config));
+      ? CircularShareBarView.render(vm, config.tracking.attribute, this.getAttribute('caption') ?? '', this.hasAttribute('like'))
+      : ShareBarView.render(vm, config.tracking.attribute, ShareBarStylesheet.build(config));
     this.#updateLike();
     root.querySelector('.like')?.addEventListener('click', () => {
       if (this.#likeState.busy) return;

@@ -11,7 +11,7 @@ python3 tools/config.py --config .config/share_config.toml --check # Detect stal
 python3 tools/config.py --config .config/share_config.toml --print # Show effective settings
 ```
 
-**Unknown keys, incorrect types, out-of-range values, and unknown services are
+**Unknown keys, incorrect types, out-of-range values, and unknown destinations are
 errors.** Validation fails closed instead of silently ignoring invalid settings.
 
 ## `[workflow]`: output locations
@@ -28,14 +28,14 @@ errors.** Validation fails closed instead of silently ignoring invalid settings.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `services` | list[str] | Primary buttons, ordered from left to right. At least one service; no duplicates. See the bundled services below |
+| `destinations` | list[str] | Primary buttons, ordered from left to right. At least one destination; no duplicates. See the bundled destinations below |
 | `heading` | str | Button-group heading, such as `SHARE`. Empty hides it. Not shown in the floating bar |
 
 ## `[share.labels]`: button labels
 
-Keys are service identifiers and values are labels. Primary buttons display
+Keys are destination identifiers and values are labels. Primary buttons display
 them as text; secondary buttons use them for tooltips and accessible names.
-Omitted entries use the service's default label. Newlines are not allowed.
+Omitted entries use the destination's default label. Newlines are not allowed.
 
 The bundled labels are Japanese. To use English labels, override them:
 
@@ -70,7 +70,7 @@ group_label = "Share this article"
 |---|---|---|---|
 | `size` | str | `small` / `large` | Primary button height and font size: 20px / 11px for small, 28px / 13px for large |
 | `label_style` | str | `icon_text` / `icon` / `text` | Logo and label, logo only, or label only |
-| `shape` | str | `official` / `pill` / `rounded` / `square` | Corner style; official uses a pill for X and 3px corners for other services |
+| `shape` | str | `official` / `pill` / `rounded` / `square` | Corner style; official uses a pill for X and 3px corners for other destinations |
 | `gap_px` | int | 0–40 | Gap between buttons |
 | `font_family` | str | CSS `font-family` | Label font; semicolons and closing braces are forbidden |
 | `heading_position` | str | `left` / `top` / `none` | Heading position |
@@ -90,7 +90,7 @@ group_label = "Share this article"
 | Key | Type | Meaning |
 |---|---|---|
 | `enabled` | bool | Whether to append `utm_*` parameters to shared URLs |
-| `source` / `medium` / `campaign` / `content` | str | Parameter values; `{service}` expands to the service identifier. Empty values are omitted |
+| `source` / `medium` / `campaign` / `content` | str | Parameter values; `{destination}` expands to the destination identifier. Empty values are omitted |
 
 ## `[share.behavior]`: behavior
 
@@ -115,22 +115,22 @@ group_label = "Share this article"
 | `floating_after_px` | int | 100–5000 | Scroll distance before showing the bar |
 | `floating_secondary_max` | int | 0–8 | Maximum number of secondary buttons in the bar |
 | `floating_hide_near_end` | bool | | Hide the bar near the page end |
-| `floating_services` | list[str] | | Primary floating-bar services; empty inherits `services` |
+| `floating_destinations` | list[str] | | Primary floating-bar destinations; empty inherits `destinations` |
 
 The `promari_sns_share()` template tag and shortcode are always available,
 independently of automatic placement settings.
 
 ## `[share.secondary]`: secondary channels
 
-Keys are service identifiers and values are booleans. Buttons follow key order.
-A service cannot appear in both `services` and `secondary`.
+Keys are destination identifiers and values are booleans. Buttons follow key order.
+A destination cannot appear in both `destinations` and `secondary`.
 
 ## `[share.tracking]`: tracking
 
 | Key | Type | Meaning |
 |---|---|---|
-| `attribute` | str | Button attribute name, beginning with `data-`; its value is the service identifier |
-| `event_name` | str | Click `CustomEvent` name; detail is `{service, url, placement}` |
+| `attribute` | str | Button attribute name, beginning with `data-`; its value is the destination identifier |
+| `event_name` | str | Click `CustomEvent` name; detail is `{destination, url, placement}` |
 
 ## `[share.messages]`: UI messages
 
@@ -146,7 +146,7 @@ A service cannot appear in both `services` and `secondary`.
 | `accent` | str | `#rrggbb`; heading, focus outline, and copy-success color |
 | `floating_background` | str | CSS color for the floating-bar background |
 
-## Bundled services
+## Bundled destinations
 
 The label column below gives the English meaning of the bundled labels.
 Use `[share.labels]` to select the exact text displayed on your site.
@@ -162,14 +162,14 @@ Use `[share.labels]` to select the exact text displayed on your site.
 | `copy` | Copy URL | Clipboard | Falls back to an article link without JavaScript |
 | `native` | More sharing options | Web Share API | Visible only where `navigator.share` is available |
 
-See [Customization](customization.md) for adding services.
+See [Customization](customization.md) for adding destinations.
 
 ## Web Component attributes: TOML overrides
 
 | Attribute | Configuration mapping |
 |---|---|
-| `services` | `share.services`, comma-separated |
-| `secondary` | Enabled `share.secondary` services, comma-separated |
+| `destinations` | `share.destinations`, comma-separated |
+| `secondary` | Enabled `share.secondary` destinations, comma-separated |
 | `heading` / `heading-position` | `share.heading` / `appearance.heading_position` |
 | `size` / `label-style` / `shape` | `appearance.*` |
 | `accent` | `style.accent` |
