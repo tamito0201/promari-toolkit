@@ -43,3 +43,10 @@ export interface UtmConfig {
   readonly campaign: string;
   readonly content: string;
 }
+
+/** The page being shared. */
+export interface PageInfo {
+  readonly url: string;
+  readonly title: string;
+  readonly site: string;
+}

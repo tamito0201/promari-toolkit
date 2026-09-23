@@ -1,7 +1,7 @@
 /**
  * Map configuration to CSS with the same styling rules as PHP Render/Styles.
  */
-import type { SecondaryStyle, Shape, ShareConfig, Size } from '../application/config.ts';
+import type { SecondaryStyle, Shape, ShareConfig, Size } from '../application/ShareConfig.ts';
 
 interface Metrics { readonly h: number; readonly f: number; readonly i: number; readonly px: number }
 
@@ -17,7 +17,7 @@ const secondaryCss = (style: SecondaryStyle): string =>
     outline: '.s a{background:transparent;color:var(--b);box-shadow:inset 0 0 0 1px var(--b)}.s a:hover{background:var(--b);color:#fff}',
   })[style];
 
-export const buildCss = ({ appearance, style, floating }: ShareConfig): string => {
+const build = ({ appearance, style, floating }: ShareConfig): string => {
   const m = metrics(appearance.size);
   const s = appearance.secondary_size_px;
   const side = floating.position === 'top' ? 'top:0;transform:translateY(-110%)' : 'bottom:0;transform:translateY(110%)';
@@ -44,3 +44,10 @@ export const buildCss = ({ appearance, style, floating }: ShareConfig): string =
     '.t{position:fixed;left:50%;bottom:72px;z-index:10011;transform:translateX(-50%);padding:8px 14px;border-radius:999px;background:#1b1b1b;color:#fff;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none}.t.on{opacity:1}',
   ].join('');
 };
+
+/** Styles of the default share bar, derived from configuration. */
+export class ShareBarStyles {
+  static build(config: ShareConfig): string {
+    return build(config);
+  }
+}

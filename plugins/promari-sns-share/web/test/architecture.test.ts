@@ -59,15 +59,21 @@ describe('レイヤード＋DDDの依存境界', () => {
     for (const layer of Object.keys(allowed)) for (const file of files(join(root, layer)))
       assert.deepEqual(violations(file, readFileSync(file, 'utf8')), [], relative(root, file));
   });
+  it('4層のファイル名はクラス・型の名前と同じ大文字始まりにそろえる', () => {
+    const misnamed = Object.keys(allowed).flatMap(layer => files(join(root, layer)))
+      .map(file => relative(root, file))
+      .filter(file => !/^[A-Z][A-Za-z0-9]*\.ts$/.test(file.split('/').at(-1)!));
+    assert.deepEqual(misnamed, []);
+  });
   it('禁止した境界を越える型・再export・動的読み込みを検出する', () => {
     for (const [layer, text] of [
-      ['domain', "import type { X } from '../application/HandleShareClick.ts';"],
-      ['infrastructure', "import type { ShareConfig } from '../application/config.ts';"],
+      ['domain', "import type { X } from '../application/HandleShareClickUseCase.ts';"],
+      ['infrastructure', "import type { ShareConfig } from '../application/ShareConfig.ts';"],
       ['presentation', "import type { ShareService } from '../domain/model/ShareService.ts';"],
-      ['application', "export { x } from '../infrastructure/browserGateways.ts';"],
-      ['presentation', "type X = import('../infrastructure/browserGateways.ts').X;"],
-      ['infrastructure', "import { x } from '../presentation/view.ts';"],
-      ['application', "import('../infrastructure/browserGateways.ts');"],
+      ['application', "export { x } from '../infrastructure/BrowserClipboardGateway.ts';"],
+      ['presentation', "type X = import('../infrastructure/BrowserClipboardGateway.ts').X;"],
+      ['infrastructure', "import { x } from '../presentation/ShareBarView.ts';"],
+      ['application', "import('../infrastructure/BrowserClipboardGateway.ts');"],
       ['application', "import fs from 'node:fs';"],
       ['presentation', 'navigator.clipboard.writeText("x");'],
       ['domain', '/// <reference lib="dom" />'],
