@@ -1,8 +1,9 @@
 /**
- * Pure policies for button selection, shared text, and URL parameters.
+ * Domain services: pure policies for button selection, shared text, and URL parameters.
  */
 import { encodeComponent } from './encoding.ts';
-import { Action, type Catalog, type Placement, type SelectionConfig, type UtmConfig } from './types.ts';
+import type { ShareServiceRepository } from '../repository/ShareServiceRepository.ts';
+import { Action, type Placement, type SelectionConfig, type UtmConfig } from '../model/types.ts';
 
 export interface PageInfo {
   readonly url: string;
@@ -52,12 +53,12 @@ export interface Selection {
  */
 export const selectServices = (
   { services, secondary, buttons, floating }: SelectionConfig,
-  { placement, canNativeShare, catalog }: { placement: Placement; canNativeShare: boolean; catalog: Catalog },
+  { placement, canNativeShare, repository }: { placement: Placement; canNativeShare: boolean; repository: ShareServiceRepository },
 ): Selection => {
   const isFloating = placement === 'floating';
   const visible = secondary
-    .filter((key) => catalog.has(key))
-    .filter((key) => canNativeShare || catalog.resolve([key])[0]?.action !== Action.Native)
+    .filter((key) => repository.has(key))
+    .filter((key) => canNativeShare || repository.resolve([key])[0]?.action !== Action.Native)
     .filter((key) => !isFloating || (buttons[key]?.floating ?? true));
   return {
     primary: isFloating && floating.services.length ? floating.services : services,

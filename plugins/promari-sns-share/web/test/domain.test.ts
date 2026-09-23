@@ -3,12 +3,13 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { createCatalog, UnknownServiceError } from '../src/domain/Service.ts';
-import { createShareRequest } from '../src/domain/ShareRequest.ts';
-import { appendQuery, canOpenInPopup, decideClick, fillTemplate, selectServices, utmUrl } from '../src/domain/policies.ts';
+import { createShareService } from '../src/domain/model/ShareService.ts';
+import { createShareRequest } from '../src/domain/model/ShareRequest.ts';
+import { Action, type ServiceSpec } from '../src/domain/model/types.ts';
+import { UnknownServiceError, type ShareServiceRepository } from '../src/domain/repository/ShareServiceRepository.ts';
+import { appendQuery, canOpenInPopup, decideClick, fillTemplate, selectServices, utmUrl } from '../src/domain/service/policies.ts';
 import type { ServiceDefinition } from '../src/application/ServiceCatalog.ts';
 import type { ShareConfig } from '../src/application/config.ts';
-import { Action } from '../src/domain/types.ts';
 
 const svg = '<svg><path fill="currentColor"/></svg>';
 export const SPECS: readonly ServiceDefinition[] = [
@@ -34,6 +35,16 @@ export const CONFIG: ShareConfig = {
   style: { accent: '#54347e', floating_background: '#fff' },
 };
 
+/** ドメインのテストでは、リポジトリのインターフェースを満たす手書きの代役を使う。 */
+export const memoryRepository = (specs: readonly ServiceSpec[]): ShareServiceRepository => {
+  const services = new Map(specs.map((spec) => [spec.key, createShareService(spec)] as const));
+  return {
+    has: (key) => services.has(key),
+    keys: () => [...services.keys()],
+    resolve: (keys) => keys.map((key) => services.get(key) ?? (() => { throw new UnknownServiceError(key); })()),
+  };
+};
+
 describe('policies', () => {
   it('テンプレートを展開する', () => {
     assert.equal(fillTemplate('{title} | {site} {url}', { url: 'U', title: 'T', site: 'S' }), 'T | S U');
@@ -55,11 +66,11 @@ describe('policies', () => {
     assert.equal(utmUrl('https://a.jp/', CONFIG.utm, 'x'), 'https://a.jp/?utm_source=x&utm_medium=social&utm_campaign=share');
   });
   it('native は端末が対応するときだけ・固定バーは floating=false を除き最大数で切る', () => {
-    const catalog = createCatalog(SPECS);
-    assert.deepEqual(selectServices(CONFIG, { placement: 'inline', canNativeShare: false, catalog }).secondary, ['copy']);
-    assert.deepEqual(selectServices(CONFIG, { placement: 'inline', canNativeShare: true, catalog }).secondary, ['copy', 'native']);
-    assert.deepEqual(selectServices(CONFIG, { placement: 'floating', canNativeShare: true, catalog }).secondary, ['native']);
-    assert.deepEqual(selectServices({ ...CONFIG, floating: { ...CONFIG.floating, services: ['x'] } }, { placement: 'floating', canNativeShare: true, catalog }).primary, ['x']);
+    const repository = memoryRepository(SPECS);
+    assert.deepEqual(selectServices(CONFIG, { placement: 'inline', canNativeShare: false, repository }).secondary, ['copy']);
+    assert.deepEqual(selectServices(CONFIG, { placement: 'inline', canNativeShare: true, repository }).secondary, ['copy', 'native']);
+    assert.deepEqual(selectServices(CONFIG, { placement: 'floating', canNativeShare: true, repository }).secondary, ['native']);
+    assert.deepEqual(selectServices({ ...CONFIG, floating: { ...CONFIG.floating, services: ['x'] } }, { placement: 'floating', canNativeShare: true, repository }).primary, ['x']);
   });
   it('クリックの判断', () => {
     assert.equal(decideClick({ action: Action.Copy, popup: null }), 'copy');
@@ -69,14 +80,14 @@ describe('policies', () => {
   });
 });
 
-describe('Service / Catalog', () => {
+describe('ShareService（値オブジェクト）', () => {
   it('ドメインの共有先へ表示用メタデータを持ち込まない', () => {
-    const service = createCatalog(SPECS).resolve(['x'])[0]!;
+    const service = createShareService(SPECS[0]!);
     assert.deepEqual(Object.keys(service).sort(), ['action', 'key', 'shareUrl']);
     assert.ok(Object.isFrozen(service));
   });
   it('RFC 3986 でエンコードし、空の値は送らない', () => {
-    const [x] = createCatalog(SPECS).resolve(['x']);
+    const x = createShareService(SPECS[0]!);
     const request = createShareRequest({ url: 'https://a.jp/?q=1', title: 'T', text: 'a b+c', hashtags: ['p', 'q'], via: '@v' });
     assert.equal(x!.shareUrl(request), 'https://twitter.com/intent/tweet?url=https%3A%2F%2Fa.jp%2F%3Fq%3D1&text=a%20b%2Bc&hashtags=p%2Cq&via=v');
     const empty = createShareRequest({ url: 'https://a.jp/', title: '', text: '' });
@@ -86,10 +97,7 @@ describe('Service / Catalog', () => {
     assert.equal(x!.shareUrl(tricky), 'https://twitter.com/intent/tweet?url=https%3A%2F%2Fa.jp%2F&text=a%21b%27c%28d%29e%2Af');
   });
   it('endpoint の無いサービスはページ URL を返す', () => {
-    const [copy] = createCatalog(SPECS).resolve(['copy']);
+    const copy = createShareService(SPECS[2]!);
     assert.equal(copy!.shareUrl(createShareRequest({ url: 'https://a.jp/', title: '', text: '' })), 'https://a.jp/');
-  });
-  it('未知の名前は例外（黙って読み飛ばさない）', () => {
-    assert.throws(() => createCatalog(SPECS).resolve(['nope']), UnknownServiceError);
   });
 });

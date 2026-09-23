@@ -1,16 +1,16 @@
 /**
- * Application tests using plain-object ports without a DOM.
+ * Application tests using plain-object gateways without a DOM.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildShareBar } from '../src/application/BuildShareBar.ts';
 import { handleShareClick } from '../src/application/HandleShareClick.ts';
-import type { Ports, TrackDetail } from '../src/application/ports.ts';
+import type { ShareActivity, ShareGateways } from '../src/domain/gateway/ShareGateways.ts';
 import { createDisplayCatalog } from '../src/application/ServiceCatalog.ts';
-import { deepMerge, readConfig } from '../src/infrastructure/AttributeConfig.ts';
-import { CONFIG, SPECS } from './domain.test.ts';
+import { deepMerge, readConfig } from '../src/presentation/AttributeConfig.ts';
+import { CONFIG, SPECS, memoryRepository } from './domain.test.ts';
 
-const catalog = createDisplayCatalog(SPECS);
+const catalog = createDisplayCatalog(memoryRepository(SPECS), SPECS);
 const input = { url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', placement: 'inline' as const, canNativeShare: false };
 
 describe('buildShareBar', () => {
@@ -21,6 +21,10 @@ describe('buildShareBar', () => {
     assert.deepEqual(service.appearance, { label: SPECS[0]!.label, color: SPECS[0]!.color, icon: SPECS[0]!.icon });
     assert.ok(Object.isFrozen(service.appearance));
     assert.throws(() => catalog.resolve(['missing']));
+  });
+  it('表示情報の無い共有先は黙って空欄にせず止める', () => {
+    const partial = createDisplayCatalog(memoryRepository(SPECS), SPECS.filter((s) => s.key !== 'x'));
+    assert.throws(() => partial.resolve(['x']), /表示情報がありません/);
   });
   it('主役と補助のビューモデルを作り、文言・色・UTM・popup を設定どおりに写す', () => {
     const vm = buildShareBar({ catalog }, CONFIG, input);
@@ -44,64 +48,65 @@ describe('buildShareBar', () => {
 });
 
 describe('handleShareClick', () => {
-  const ports = (overrides: Partial<Ports> = {}) => {
+  const gateways = (overrides: Partial<ShareGateways> = {}) => {
     const calls: string[] = [];
-    const tracked: TrackDetail[] = [];
-    const base: Ports = {
+    const tracked: ShareActivity[] = [];
+    const base: ShareGateways = {
       clipboard: { write: async (t) => { calls.push(`copy:${t}`); }, fallback: (t) => calls.push(`fallback:${t}`) },
-      sharer: { available: true, share: async (d) => { calls.push(`share:${d.url}`); } },
+      nativeShare: { available: true, share: async (d) => { calls.push(`share:${d.url}`); } },
       popup: { open: (href) => { calls.push(`popup:${href}`); return true; } },
-      notifier: { notify: (t) => calls.push(`toast:${t}`) },
-      tracker: { track: (d) => tracked.push(d) },
+      activity: { publish: (d) => tracked.push(d) },
     };
-    return { calls, tracked, ports: { ...base, ...overrides } };
+    return { calls, tracked, gateways: { ...base, ...overrides } };
   };
   const button = (key: string) => buildShareBar({ catalog }, { ...CONFIG, secondary: ['copy', 'native'] }, { ...input, canNativeShare: true });
 
-  it('copy はクリップボードへ書いてトーストを出し、既定動作を止める', async () => {
-    const { calls, tracked, ports: p } = ports();
+  it('copy はクリップボードへ書いて copied を返し、既定動作を止める', async () => {
+    const { calls, tracked, gateways: g } = gateways();
     let prevented = false;
     const b = button('copy').secondary.find((x) => x.key === 'copy')!;
-    await handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
-    assert.deepEqual(calls, ['copy:https://a.jp/post/', 'toast:コピーしました']);
+    const outcome = await handleShareClick(g)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+    assert.equal(outcome, 'copied');
+    assert.deepEqual(calls, ['copy:https://a.jp/post/']);
     assert.equal(prevented, true);
     assert.deepEqual(tracked, [{ service: 'copy', url: 'https://a.jp/post/', placement: 'inline' }]);
   });
-  it('非同期の成功を待ち、DOMを使わず通知先の識別子を渡す', async () => {
+  it('書き込みの完了を待ってから結果を返す（完了前に成功を名乗らない）', async () => {
     let finish!: () => void;
-    const notices: [string, string | undefined][] = [];
-    const { ports: p } = ports({
-      clipboard: { write: () => new Promise<void>(resolve => { finish = resolve; }) },
-      notifier: { notify: (text, target) => { notices.push([text, target]); } },
-    });
+    const outcomes: string[] = [];
+    const { gateways: g } = gateways({ clipboard: { write: () => new Promise<void>(resolve => { finish = resolve; }) } });
     const b = button('copy').secondary.find(x => x.key === 'copy')!;
-    const pending = handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', notificationTarget: 'target-2', preventDefault: () => undefined });
-    assert.deepEqual(notices, []);
+    const pending = handleShareClick(g)({ button: b, placement: 'inline', preventDefault: () => undefined }).then((o) => { outcomes.push(o); });
+    await Promise.resolve();
+    assert.deepEqual(outcomes, []);
     finish();
     await pending;
-    assert.deepEqual(notices, [['コピーしました', 'target-2']]);
+    assert.deepEqual(outcomes, ['copied']);
   });
-  it('clipboard が失敗したら fallback', async () => {
-    const { calls, ports: p } = ports({ clipboard: { write: async () => { throw new Error('denied'); }, fallback: (t) => calls.push(`fallback:${t}`) } });
+  it('clipboard が失敗したら fallback を出し、copied とは返さない', async () => {
+    const { calls, gateways: g } = gateways({ clipboard: { write: async () => { throw new Error('denied'); }, fallback: (t) => calls.push(`fallback:${t}`) } });
     const b = button('copy').secondary.find((x) => x.key === 'copy')!;
-    await handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', preventDefault: () => undefined });
+    const outcome = await handleShareClick(g)({ button: b, placement: 'inline', preventDefault: () => undefined });
+    assert.equal(outcome, 'copy-fallback');
     assert.deepEqual(calls, ['fallback:https://a.jp/post/']);
   });
   it('端末共有の成功と拒否で、従来どおり操作イベントを一度だけ通知する', async () => {
     for (const reject of [false, true]) {
-      const { ports: p, tracked } = ports({ sharer: { available: true, share: async () => { if (reject) throw new Error('cancel'); } } });
+      const { gateways: g, tracked } = gateways({ nativeShare: { available: true, share: async () => { if (reject) throw new Error('cancel'); } } });
       let prevented = false;
       const b = button('native').secondary.find(x => x.key === 'native')!;
-      await handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+      const outcome = await handleShareClick(g)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+      assert.equal(outcome, reject ? 'share-dismissed' : 'shared');
       assert.equal(prevented, true);
       assert.deepEqual(tracked, [{ service: 'native', url: input.url, placement: 'inline' }]);
     }
   });
   it('popup が開けなければ既定動作（リンク遷移）に任せる', async () => {
-    const { ports: p } = ports({ popup: { open: () => false } });
+    const { gateways: g } = gateways({ popup: { open: () => false } });
     let prevented = false;
     const b = button('x').primary.find((x) => x.key === 'x')!;
-    await handleShareClick(p, CONFIG.messages)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+    const outcome = await handleShareClick(g)({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+    assert.equal(outcome, 'follow');
     assert.equal(prevented, false);
   });
 });

@@ -2,6 +2,22 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 2.0.1
+
+### Changed
+
+- Restructure the Web Component into layered architecture with DDD building blocks. The
+  domain now owns the `ShareServiceRepository` and `ShareGateways` interfaces, and
+  infrastructure implements them, so infrastructure depends only on the domain.
+- Organize the domain into value objects (`model/`), domain services (`service/`),
+  the repository interface (`repository/`), and gateway interfaces (`gateway/`).
+- `HandleShareClick` returns the observed outcome instead of calling a notifier; the
+  presentation layer shows the copy message. Attribute reading and floating-bar
+  visibility moved to presentation, where the element's input and display belong.
+- The architecture test now rejects imports from infrastructure into application.
+
+No public attribute, method, event, or rendered output changed.
+
 ## 2.0.0
 
 ### Changed

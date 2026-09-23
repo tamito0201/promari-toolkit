@@ -1,9 +1,12 @@
-import type { NotifierPort } from '../application/ports.ts';
+/** 画面内の通知。操作の結果を受け取った表示層が、押された要素の識別子とともに呼ぶ。 */
+export interface Notifier {
+  notify(text: string, target?: string): void;
+}
 
 /**
- * 表示領域内の通知を描く。操作側からはノードではなく対象キーを受け取る。
+ * 表示領域内の通知を描く。
  */
-export const toastNotifier = (root: ShadowRoot): NotifierPort => {
+export const toastNotifier = (root: ShadowRoot): Notifier => {
   let toast: HTMLDivElement | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   return {

@@ -1,7 +1,16 @@
 /**
- * Immutable shared-content value object matching the PHP ShareRequest. URLs already include UTM parameters and text is already formatted.
+ * Immutable value object describing the shared content. URLs already include UTM
+ * parameters and text is already formatted.
  */
-import type { ShareRequest } from './types.ts';
+export interface ShareRequest {
+  readonly url: string;
+  readonly title: string;
+  readonly text: string;
+  readonly hashtags: readonly string[];
+  readonly via: string;
+  readonly site: string;
+  readonly hashtagsCsv: string;
+}
 
 export interface ShareRequestInput {
   readonly url: string;
