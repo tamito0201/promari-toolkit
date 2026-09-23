@@ -180,3 +180,8 @@ See [Customization](customization.md) for adding services.
 | `after` | `placements.floating_after_px` |
 | `url` / `title` | Shared URL and title; defaults to the canonical URL and `document.title` |
 | `config` | JSON for any of the settings above; takes highest precedence |
+
+These attributes are the public styling contract. The component does not expose `::part`,
+and its internal CSS custom properties are not an API: since 2.0.2, setting `--accent` on
+the element no longer changes the color. The circular variant (`variant="circle"`) uses
+fixed colors, and `size`, `shape`, `label-style`, and `accent` apply only to the default variant.

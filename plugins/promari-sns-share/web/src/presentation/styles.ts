@@ -22,8 +22,9 @@ export const buildCss = ({ appearance, style, floating }: ShareConfig): string =
   const s = appearance.secondary_size_px;
   const side = floating.position === 'top' ? 'top:0;transform:translateY(-110%)' : 'bottom:0;transform:translateY(110%)';
   return [
-    `:host{display:block;font:${m.f}px/1 ${appearance.font_family};--accent:${style.accent}}`,
-    '.w{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}',
+    `:host{display:block;font:${m.f}px/1 ${appearance.font_family}}`,
+    // 色の入口は accent 属性だけにする。:host で定義すると、ページ側から要素へ当てた --accent が優先されてしまう。
+    `.w{--accent:${style.accent};display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}`,
     '.w.top{flex-direction:column;align-items:flex-start;gap:8px}',
     '.h{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--accent);margin-right:2px}',
     `.p,.s{display:inline-flex;align-items:center;gap:${appearance.gap_px}px}`,
