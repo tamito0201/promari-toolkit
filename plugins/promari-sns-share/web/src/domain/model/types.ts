@@ -1,5 +1,5 @@
 /**
- * DOM-independent domain types shared conceptually with the PHP domain.
+ * Domain vocabulary shared conceptually with the PHP domain. DOM-independent.
  */
 
 /**
@@ -26,38 +26,6 @@ export interface ServiceSpec {
   readonly action: Action;
   readonly endpoint: string;
   readonly params: Readonly<Record<string, RequestField>>;
-}
-
-/**
- * Immutable value object describing the shared content.
- */
-export interface ShareRequest {
-  readonly url: string;
-  readonly title: string;
-  readonly text: string;
-  readonly hashtags: readonly string[];
-  readonly via: string;
-  readonly site: string;
-  readonly hashtagsCsv: string;
-}
-
-/**
- * 共有URLを組み立てる値オブジェクト。key が同じなら振る舞いも同じで、
- * 状態も同一性も持たないため、DDD でいう Entity ではない。
- */
-export interface Service {
-  readonly key: string;
-  readonly action: Action;
-  shareUrl(request: ShareRequest): string;
-}
-
-/**
- * Immutable service registry.
- */
-export interface Catalog {
-  has(key: string): boolean;
-  keys(): readonly string[];
-  resolve(keys: readonly string[]): readonly Service[];
 }
 
 /** 共有先の選択に必要な値だけを表す。描画設定は含めない。 */

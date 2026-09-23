@@ -63,19 +63,27 @@ The plugin uses PHP 8.1 features: strict types, readonly properties, enums,
 `match`, named arguments, first-class callables, and `array_map` / `array_filter`
 pipelines.
 
-## Web Components：依存方向を検査する四層
+## Web Components：レイヤード＋DDDの四層
 
 共有URLの組み立ては、この四層だけが行う。PHP側は「どこへ、どの項目を送るか」を
 定義として持ち、実行時にURLを作らない。2.0.0でサーバー描画を廃止したためで、
 同じ処理を二か所に持たないぶん、両者の一致を確かめる必要もなくなった。
 
+2.0.1で、依存の向きをレイヤードアーキテクチャとDDDの形へそろえた。
+リポジトリと外部機能のインターフェースはdomainが持ち、infrastructureがそれを実装する。
+そのためinfrastructureはdomainだけへ依存し、applicationを参照しない。
+
 ```text
 web/src/
-  domain/          共有内容・操作・サービス選択・URL規則。表示メタデータは持たない
-  application/     表示用データ、設定契約、ユースケース、必要な能力のポート
-  infrastructure/  属性の読み取り、コピー、端末共有、イベント通知などの外部接続
-  presentation/    独自要素、HTML/CSS、画面内の通知。具体的な接続実装をimportしない
-  index.ts         起動時の組み立て。四層をつなぐ入口であり、業務ロジックの層ではない
+  domain/
+    model/         値オブジェクト（ShareRequest・ShareService）と語彙（Action・Placement）
+    service/       ドメインサービス（共有先の選択・文面の展開・UTM・クリックの判断・符号化）
+    repository/    ShareServiceRepository インターフェース
+    gateway/       ShareGateways（クリップボード・端末共有・小窓・操作の通知）のインターフェース
+  application/     ユースケース（BuildShareBar・HandleShareClick）、表示カタログ、設定契約
+  infrastructure/  domainのインターフェースの実装（生成済み仕様のリポジトリ、ブラウザ機能）
+  presentation/    独自要素、属性の読み取り、HTML/CSS、スクロール表示、画面内の通知
+  index.ts         起動時の組み立て。具体的な実装を選び、四層をつなぐ唯一の場所
   generated/       入力データ。index.tsだけが読み込む
 ```
 
@@ -83,35 +91,40 @@ web/src/
 |---|---|
 | domain | domain |
 | application | application、domain |
-| infrastructure | infrastructure、application、domain |
+| infrastructure | infrastructure、domain |
 | presentation | presentation、application |
 | index.ts | 起動に必要な四層と生成入力 |
 
 ```mermaid
-flowchart BT
-    P["presentation：操作と表示"] --> A["application：手順と契約"]
-    I["infrastructure：外部接続"] --> A
-    A --> D["domain：意味と判断"]
+flowchart TB
+    P["presentation：操作と表示"] --> A["application：ユースケース"]
+    A --> D["domain：モデル・判断・インターフェース"]
+    I["infrastructure：インターフェースの実装"] --> D
     R["index.ts：起動時の組み立て"] -.-> P
     R -.-> I
 ```
 
 実線はソースの参照方向、点線は起動時の接続を表す。これは処理の実行順ではない。
-たとえばコピーの実行はapplicationが受け取ったClipboardPortを通って外側へ進むが、
-applicationはその具体的なブラウザ実装をimportしない。
+コピーを実行するとき、処理はapplicationからinfrastructureの実装へ進むが、
+applicationが知っているのはdomainの`ClipboardGateway`だけで、ブラウザの実装はimportしない。
 
-`ClickContext.notificationTarget`と`NotifierPort.notify`の通知先は文字列の識別子で、
-DOMノードではない。presentationが対象要素との対応を持つ。画面内通知の実装も
-presentationへ置き、描画の詳細をブラウザ接続層へ持ち込まない。
-同じサービスを複数置いても、操作ごとの識別子で押された要素を区別する。
+クリックのユースケースは、画面へ何を出すかを決めない。`HandleShareClick`は
+`copied`・`copy-fallback`・`shared`・`share-dismissed`・`popup`・`follow`のいずれかを返し、
+presentationが結果に応じて画面内の通知を描く。書き込みの完了前に成功を名乗らない順序は、
+戻り値を待つことで保つ。同じサービスを複数置いても、表示層が操作ごとの識別子で押された要素を区別する。
 
-PHPから抽出したサービスの入力はapplicationの`ServiceDefinition`で受け取り、
-`createDisplayCatalog`でdomainのURL規則と表示用メタデータを組み合わせる。
+PHPから抽出したサービスの入力はapplicationの`ServiceDefinition`で受け取る。
+infrastructureの`specShareServiceRepository`がURL規則だけを値オブジェクトにし、
+applicationの`createDisplayCatalog`が表示用メタデータを組み合わせる。
 色・ロゴ・表示ラベルとCSSの設定型はdomainへ渡して保持しない。
+
+属性の読み取りとスクロールに応じた表示は、独自要素そのものの入力と見た目なので
+presentationに置く。infrastructureに残すのは、domainが必要とする外部機能の実装だけにする。
 
 `tsconfig.core.json`はESの型だけを使い、DOMとNodeの型を外して内側の二層を検査する。
 `architecture.test.ts`は型import・再exportを含む依存方向、動的読み込みによる迂回、
-表示層への外部接続APIの混入を検査する。意図的な違反を検出する対照テストも含む。
+表示層への外部接続APIの混入を検査する。infrastructureからapplicationへの参照のように、
+意図的な違反を検出する対照テストも含む。
 
 ### Why four layers rather than MVVM?
 
@@ -123,11 +136,12 @@ presentation layer without rewriting the domain logic.
 
 ### データと操作の流れ
 
-1. index.tsが属性の取得とブラウザ接続を組み合わせ、独自要素へ注入する。
-2. BuildShareBarがサービス選択・共有URLの規則を使い、表示用メタデータと合わせて値を返す。
-3. presentationがShadow DOMへ描画し、操作をapplicationへ渡す。
-4. HandleShareClickがdomainの判断を使い、注入されたポートを呼ぶ。通知先は文字列で渡す。
-5. 接続側のトラッカーがホスト要素からイベントを送出する。画面内通知はpresentationが描く。
+1. index.tsがリポジトリとゲートウェイの実装を選び、ユースケースと組み合わせて独自要素へ注入する。
+2. presentationが属性を設定として読み取り、BuildShareBarへ渡す。
+3. BuildShareBarがdomainの選択・URL規則と表示用メタデータを合わせてビューモデルを返す。
+4. presentationがShadow DOMへ描画し、クリックをHandleShareClickへ渡す。
+5. HandleShareClickがdomainの判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
+   ゲートウェイの実装がホスト要素からイベントとして送出し、画面内通知はpresentationが描く。
 
 ### Security and performance
 

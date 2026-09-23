@@ -1,12 +1,12 @@
 /**
- * Build a button view model from configuration and page context without accessing the DOM.
+ * Use case: build a button view model from configuration and page context without accessing the DOM.
  */
 import type { LabelStyle, ShareConfig } from './config.ts';
 import type { DisplayCatalog, DisplayService } from './ServiceCatalog.ts';
-export type { Placement } from '../domain/types.ts';
-import { createShareRequest, withUrl } from '../domain/ShareRequest.ts';
-import { Action, type Placement, type ShareRequest } from '../domain/types.ts';
-import { canOpenInPopup, fillTemplate, selectServices, utmUrl } from '../domain/policies.ts';
+export type { Placement } from '../domain/model/types.ts';
+import { createShareRequest, withUrl, type ShareRequest } from '../domain/model/ShareRequest.ts';
+import { Action, type Placement } from '../domain/model/types.ts';
+import { canOpenInPopup, fillTemplate, selectServices, utmUrl } from '../domain/service/policies.ts';
 
 export type Tier = 'primary' | 'secondary';
 
@@ -83,7 +83,7 @@ export const buildShareBar = ({ catalog }: { catalog: DisplayCatalog }, config: 
     via: config.text.via,
     site,
   });
-  const keys = selectServices(config, { placement, canNativeShare, catalog });
+  const keys = selectServices(config, { placement, canNativeShare, repository: catalog });
   return Object.freeze({
     placement,
     heading: placement === 'floating' || config.appearance.heading_position === 'none' ? '' : config.heading,

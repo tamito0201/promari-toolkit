@@ -1,4 +1,8 @@
-/** フォルダー名だけでなく、型import・再exportを含む依存方向を検査する。 */
+/**
+ * レイヤード＋DDDの依存方向を、フォルダー名だけでなく型import・再exportまで含めて検査する。
+ * presentation → application → domain ← infrastructure。domain が持つリポジトリと
+ * ゲートウェイのインターフェースを infrastructure が実装する。
+ */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,7 +16,7 @@ const root = fileURLToPath(new URL('../src/', import.meta.url));
 const allowed: Readonly<Record<string, readonly string[]>> = {
   domain: ['domain'],
   application: ['application', 'domain'],
-  infrastructure: ['infrastructure', 'application', 'domain'],
+  infrastructure: ['infrastructure', 'domain'],
   presentation: ['presentation', 'application'],
 };
 const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
@@ -50,18 +54,20 @@ function violations(file: string, text: string): string[] {
   return errors;
 }
 
-describe('四層の依存境界', () => {
+describe('レイヤード＋DDDの依存境界', () => {
   it('型import・再exportを含めて許可した方向だけに依存する', () => {
     for (const layer of Object.keys(allowed)) for (const file of files(join(root, layer)))
       assert.deepEqual(violations(file, readFileSync(file, 'utf8')), [], relative(root, file));
   });
   it('禁止した境界を越える型・再export・動的読み込みを検出する', () => {
     for (const [layer, text] of [
-      ['domain', "import type { X } from '../application/ports.ts';"],
-      ['application', "export { x } from '../infrastructure/browserPorts.ts';"],
-      ['presentation', "type X = import('../infrastructure/browserPorts.ts').X;"],
+      ['domain', "import type { X } from '../application/HandleShareClick.ts';"],
+      ['infrastructure', "import type { ShareConfig } from '../application/config.ts';"],
+      ['presentation', "import type { ShareService } from '../domain/model/ShareService.ts';"],
+      ['application', "export { x } from '../infrastructure/browserGateways.ts';"],
+      ['presentation', "type X = import('../infrastructure/browserGateways.ts').X;"],
       ['infrastructure', "import { x } from '../presentation/view.ts';"],
-      ['application', "import('../infrastructure/browserPorts.ts');"],
+      ['application', "import('../infrastructure/browserGateways.ts');"],
       ['application', "import fs from 'node:fs';"],
       ['presentation', 'navigator.clipboard.writeText("x");'],
       ['domain', '/// <reference lib="dom" />'],

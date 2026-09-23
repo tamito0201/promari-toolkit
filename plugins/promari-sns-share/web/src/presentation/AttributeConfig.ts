@@ -1,5 +1,5 @@
 /**
- * Read element attributes into configuration. JSON config overrides individual attributes, which override defaults. Invalid JSON is reported to the console.
+ * Read the element's attributes, the component's public input, into configuration. JSON config overrides individual attributes, which override defaults. Invalid JSON is reported to the console.
  */
 import type { DeepPartial, ShareConfig } from '../application/config.ts';
 
