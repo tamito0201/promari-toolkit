@@ -2,6 +2,16 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 3.2.0
+
+### Added
+
+- `setLikeState()` accepts `count: null` for an unknown count (not fetched yet, or the fetch
+  failed). The count field then shows "—" with the accessible name "いいねの件数は未取得", instead
+  of a 0 that cannot be told apart from a confirmed zero. The state type is exported as `LikeState`.
+- The count starts as unknown ("—") until the host passes a count. Negative, fractional, and
+  non-number counts are still ignored.
+
 ## 3.1.0
 
 ### Changed

@@ -15,7 +15,7 @@ const button = (b: ShareButtonViewModel, attribute: string): string => {
 };
 const render = (vm: ShareBarViewModel, attribute: string, caption: string, like: boolean): string => {
   const more = vm.secondary.length ? `<details><summary aria-label="その他の共有先"><span class="circle-icon">${svg('more')}</span><span class="caption">その他</span></summary><div class="options"><strong>SHARE THIS STORY</strong>${vm.secondary.map(b => button(b, attribute)).join('')}</div></details>` : '';
-  const reaction = like ? `<button class="like" type="button" aria-pressed="false" disabled><span class="heart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg></span><span class="like-label">いいね</span><span class="count" aria-label="いいねの件数">—</span></button>` : '';
+  const reaction = like ? `<button class="like" type="button" aria-pressed="false" disabled><span class="heart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg></span><span class="like-label">いいね</span><span class="count" aria-label="いいねの件数は未取得">—</span></button>` : '';
   return `<style>${circleCss}</style><div class="circle ${like ? 'with-like' : ''}" role="group" aria-label="${HtmlEscaper.escape(vm.groupLabel)}">${caption ? `<div class="intro"><small>PASS IT ON</small><span>${HtmlEscaper.escape(caption)}</span></div>` : ''}<div class="row">${reaction}<div class="socials">${vm.primary.map(b => button(b, attribute)).join('')}${more}</div></div><p class="status" role="status" aria-live="polite"></p></div>`;
 };
 const circleCss = `

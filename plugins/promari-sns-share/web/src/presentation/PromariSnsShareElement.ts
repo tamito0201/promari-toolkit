@@ -23,6 +23,16 @@ export interface ShareElementEnvironment {
   /** The click use case with gateways whose activity events use this name. */
   clickUseCase(eventName: string): HandleShareClickUseCase;
 }
+/**
+ * The like state the host page confirms. `count: null` means the count is not known yet
+ * (not fetched, or the fetch failed); the count field then shows "—" instead of a fake 0.
+ */
+export interface LikeState {
+  readonly liked: boolean;
+  readonly count: number | null;
+  readonly busy?: boolean;
+  readonly message?: string;
+}
 export interface ShareElementDependencies {
   readonly buildShareBar: BuildShareBarUseCase;
   readonly defaults: ShareSettings;
@@ -49,9 +59,10 @@ export class PromariSnsShareElement extends HTMLElement {
   readonly #config = new ShareSettingsAttributeReader(this.#deps.defaults);
   #environment: ShareElementEnvironment = this.#deps.connect(this);
   #interactions = new AbortController();
-  #likeState = { liked: false, count: 0, busy: true, message: '' };
-  setLikeState(state: { liked: boolean; count: number; busy?: boolean; message?: string }): void {
-    if (!Number.isSafeInteger(state.count) || state.count < 0) return;
+  #likeState: { liked: boolean; count: number | null; busy: boolean; message: string } = { liked: false, count: null, busy: true, message: '' };
+  /** Show the confirmed like state. A count must be a non-negative safe integer, or null when unknown. */
+  setLikeState(state: LikeState): void {
+    if (state.count !== null && (!Number.isSafeInteger(state.count) || state.count < 0)) return;
     this.#likeState = { liked: state.liked, count: state.count, busy: state.busy ?? false, message: state.message ?? '' };
     this.#updateLike();
   }
@@ -62,7 +73,9 @@ export class PromariSnsShareElement extends HTMLElement {
       like.disabled = this.#likeState.busy;
       like.setAttribute('aria-pressed', String(this.#likeState.liked));
       root!.querySelector('.like-label')!.textContent = this.#likeState.liked ? 'いいね済み' : 'いいね';
-      root!.querySelector('.count')!.textContent = String(this.#likeState.count);
+      const count = root!.querySelector('.count')!;
+      count.textContent = this.#likeState.count === null ? '—' : String(this.#likeState.count);
+      count.setAttribute('aria-label', this.#likeState.count === null ? 'いいねの件数は未取得' : 'いいねの件数');
     }
     const status = root?.querySelector('.status');
     if (status) status.textContent = this.#likeState.message;

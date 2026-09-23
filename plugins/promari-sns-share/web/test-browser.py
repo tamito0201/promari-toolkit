@@ -43,6 +43,20 @@ with sync_playwright() as api:
         assert page.evaluate(f'({heading})("accent-leak")') == 'rgb(84, 52, 126)', page.evaluate(f'({heading})("accent-leak")')
         a, b = page.locator('#a'), page.locator('#b')
         expect(a.locator('.like')).to_be_disabled()
+        # 件数が届くまでは、仮の0ではなく未取得の「—」を出す。
+        expect(a.locator('.count')).to_have_text('—')
+        expect(a.locator('.count')).to_have_attribute('aria-label', 'いいねの件数は未取得')
+        # 取得に失敗した接続コードは count: null を渡す。0件と見分けが付かない0にはしない。
+        page.evaluate("document.querySelectorAll('[like]').forEach(e=>e.setLikeState({liked:false,count:null,message:'取得できませんでした'}))")
+        expect(a.locator('.count')).to_have_text('—')
+        expect(a.locator('.like')).to_be_enabled()
+        # サーバーが0件と返したときだけ0を出す。不正な値（負・小数・文字列）は受け付けない。
+        page.evaluate("document.querySelectorAll('[like]').forEach(e=>e.setLikeState({liked:false,count:0}))")
+        expect(a.locator('.count')).to_have_text('0')
+        expect(a.locator('.count')).to_have_attribute('aria-label', 'いいねの件数')
+        for bad in ('-1', '1.5', "'3'"):
+            page.evaluate(f"document.querySelectorAll('[like]').forEach(e=>e.setLikeState({{liked:false,count:{bad}}}))")
+            expect(a.locator('.count')).to_have_text('0')
         page.evaluate("document.querySelectorAll('[like]').forEach(e=>e.setLikeState({liked:false,count:3}))")
         a.locator('.like').click()
         assert page.evaluate('window.likes') == [{'liked': True}]
