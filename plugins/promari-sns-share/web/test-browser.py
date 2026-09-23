@@ -16,7 +16,9 @@ with sync_playwright() as api:
         title="TypeScript & PHP #1" services="x,line,facebook,copy,native" secondary="hatena"></promari-sns-share>
         <promari-sns-share id="b" variant="circle" like url="https://example.com/article/"
         services="copy" secondary=""></promari-sns-share>
-        <promari-sns-share id="plain" services="copy" secondary="copy"></promari-sns-share></body></html>''')
+        <promari-sns-share id="plain" services="copy" secondary="copy"></promari-sns-share>
+        <promari-sns-share id="accent-attr" services="copy" secondary="" heading="SHARE" accent="#123456"></promari-sns-share>
+        <promari-sns-share id="accent-leak" services="copy" secondary="" heading="SHARE" style="--accent:#ff0000"></promari-sns-share></body></html>''')
         page.evaluate('''() => {
           window.copies=[]; window.shares=[]; window.tracked=[]; window.likes=[]; window.prompts=[];
           window.copyMode='pending'; window.shareMode='success';
@@ -35,6 +37,10 @@ with sync_playwright() as api:
         }''')
         page.add_script_tag(content=BUNDLE.read_text())
         page.evaluate("customElements.whenDefined('promari-sns-share')")
+        # 色の入口は accent 属性だけ。ページ側から要素へ当てた --accent は内側へ届かない。
+        heading = "id => getComputedStyle(document.getElementById(id).shadowRoot.querySelector('.h')).color"
+        assert page.evaluate(f'({heading})("accent-attr")') == 'rgb(18, 52, 86)'
+        assert page.evaluate(f'({heading})("accent-leak")') == 'rgb(84, 52, 126)', page.evaluate(f'({heading})("accent-leak")')
         a, b = page.locator('#a'), page.locator('#b')
         expect(a.locator('.like')).to_be_disabled()
         page.evaluate("document.querySelectorAll('[like]').forEach(e=>e.setLikeState({liked:false,count:3}))")
@@ -80,6 +86,6 @@ with sync_playwright() as api:
         assert page.locator('#plain').evaluate('e=>e.shadowRoot.querySelectorAll(".done").length') == 1
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         assert not errors, errors
-        print(f'PASS: {width}px / コピー待機・拒否・共有成功／拒否／非対応・いいね同期・再接続・通知先', flush=True)
+        print(f'PASS: {width}px / コピー待機・拒否・共有成功／拒否／非対応・いいね同期・再接続・通知先・色の入口', flush=True)
         page.close()
     browser.close()

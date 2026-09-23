@@ -1,6 +1,6 @@
 {
   "name": "@promari/sns-share",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Promari SNS Share: configurable social sharing for Web Components and WordPress",
   "license": "MIT",
   "private": true,

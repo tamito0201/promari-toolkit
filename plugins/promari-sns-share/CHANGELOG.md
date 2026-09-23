@@ -2,6 +2,15 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 2.0.2
+
+### Fixed
+
+- The default variant declared `--accent` on `:host`, so a page could override the accent
+  color by setting `--accent` on the element, an entry point that was never documented. The
+  property is now declared inside the component; the `accent` attribute remains the only
+  way to change it. The circular variant still has fixed colors.
+
 ## 2.0.1
 
 ### Changed
