@@ -82,6 +82,12 @@ domainのインターフェースを`implements`するクラスとして書く�
 「シェア先（ShareDestination）」と呼び、公開設定・属性・イベントも同じ語にした。
 infrastructureのクラスには`Gateway`を付けず、実装技術（Browser・InMemory・CustomEvent）を名前の先頭に置く。
 
+3.1.0で、起動時の組み立てをDIコンテナ（InversifyJS 8）へ移した。四層のクラスはコンテナを知らず、
+これまでどおりコンストラクタで依存を受け取る。デコレーターとreflect-metadataによる自動解決は使わず、
+`TypedBinding.provide()`で「どのトークンを、どの順番で受け取るか」を書く。トークンは結び付く型を
+持つため、取り違えはコンパイルエラーになる。クリックの通知先は要素ごとに違うので、ユースケースは
+要素ごとに作るファクトリとして束縛する。テストはinfrastructureのモジュールだけを偽物に替える。
+
 ```text
 web/src/
   domain/
@@ -97,8 +103,10 @@ web/src/
                    BrowserNativeShare・BrowserPopupWindow・BrowserSharedPage・CustomEventShareActivityPublisher）
   presentation/    PromariSnsShareElement、ShareSettingsAttributeReader、ShareBarView・CircularShareBarView・
                    ShareBarStylesheet、FloatingBarVisibility、ToastNotifier、HtmlEscaper
-  index.ts         起動時の組み立て。具体的な実装を選び、四層をつなぐ唯一の場所
-  generated/       入力データ。index.tsだけが読み込む
+  composition/     DIコンテナ（InversifyJS）の組み立て。四層の外に置き、具体的な実装を選んで
+                   domainのインターフェースへ結び付ける唯一の場所（ShareContainer・InjectionTokens・TypedBinding）
+  index.ts         入口。コンテナを作り、独自要素を登録する
+  generated/       入力データ。index.tsから渡され、compositionが束縛する
 ```
 
 | 依存元 | 許可する参照先 |
@@ -107,14 +115,15 @@ web/src/
 | application | application、domain |
 | infrastructure | infrastructure、domain |
 | presentation | presentation、application |
-| index.ts | 起動に必要な四層と生成入力 |
+| composition | 四層すべてと`inversify`（外部パッケージを読み込めるのはここだけ） |
+| index.ts | composition・presentation・生成入力（`inversify`もinfrastructureも直接は読まない） |
 
 ```mermaid
 flowchart TB
     P["presentation：操作と表示"] --> A["application：ユースケース"]
     A --> D["domain：モデル・判断・インターフェース"]
     I["infrastructure：インターフェースの実装"] --> D
-    R["index.ts：起動時の組み立て"] -.-> P
+    R["composition：DIコンテナで組み立て"] -.-> P
     R -.-> I
 ```
 
@@ -150,7 +159,7 @@ presentation layer without rewriting the domain logic.
 
 ### データと操作の流れ
 
-1. index.tsがリポジトリとゲートウェイの実装を選び、ユースケースと組み合わせて`PromariSnsShareElement.define()`へ渡す。
+1. index.tsが`ShareContainer.create()`でコンテナを作る。compositionがリポジトリとゲートウェイのブラウザ実装をdomainのインターフェースへ結び付け、ユースケースと組み合わせた依存を`PromariSnsShareElement.define()`へ渡す。
 2. presentationが`AttributeConfigReader`で属性を設定として読み取り、`BuildShareBarUseCase.execute()`へ渡す。
 3. `BuildShareBarUseCase`がdomainの選択・URL規則と表示用メタデータを合わせてビューモデルを返す。
 4. presentationがShadow DOMへ描画し、クリックを`HandleShareClickUseCase.execute()`へ渡す。
