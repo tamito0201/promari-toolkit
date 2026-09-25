@@ -1,6 +1,6 @@
 /**
  * Implements the domain repository over destination specifications. The specifications are
- * generated from the PHP destination classes at build time, so no request is sent.
+ * generated from destinations/*.toml at build time, so no request is sent.
  */
 import { ShareDestination } from '../domain/model/ShareDestination.ts';
 import type { ShareDestinationSpec } from '../domain/model/ShareDestinationSpec.ts';

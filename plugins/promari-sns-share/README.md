@@ -151,8 +151,8 @@ See [Analytics](docs/analytics.md) for tracking methods and limitations.
   presentation layers. Dependencies point inward; clipboard, popup, and DOM
   operations go through ports.
 - **Generator:** Python 3.13 or later, using only the standard library. Validates
-  TOML and extracts logos, colors, and URL specifications from PHP destination
-  classes for JavaScript. **PHP is the single source of destination metadata.**
+  TOML and reads logos, colors, and URL specifications from `destinations/*.toml`
+  for JavaScript. **One TOML file per destination is the single source of destination metadata.**
 
 See [Architecture](docs/architecture.md) for diagrams and dependency direction,
 and [Customization](docs/customization.md) for recipes and adding destinations.

@@ -12,14 +12,14 @@
 pnpm install --frozen-lockfile
 export PYTHON=python3.13 # Set this when python3 is older than 3.13.
 pnpm run verify         # Types, TS tests, Python tests, PHP tests, distribution drift
-pnpm run build          # Regenerate dist/ after PHP or TOML changes.
+pnpm run build          # Regenerate dist/ after destination or TOML changes.
 ```
 
 ## Making changes
 
 1. Create a branch from `main` (`feat/...`, `fix/...`, or `docs/...`).
-2. Make your changes. Edit destination specifications only in the PHP destination
-   classes; JavaScript metadata is generated from them.
+2. Make your changes. Edit destination specifications only in `destinations/*.toml`;
+   JavaScript metadata is generated from them.
 3. Update `dist/` with `pnpm run build`, then run `pnpm run verify`.
 4. Open a pull request. CI runs the same checks; `config.py --check` detects
    distribution files that were not regenerated.

@@ -2,6 +2,22 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- **Breaking (custom destinations only):** destinations are declared as data, one
+  `destinations/<key>.toml` per destination (`key`, `label`, `brand_color`, `action`,
+  `endpoint`, `icon`, `[params]`), and read with `tomllib`. The PHP classes in
+  `plugin/src/Destination/`, `Contracts\ShareDestinationInterface`, and `Domain\ShareAction`
+  are removed: they were never loaded at runtime and were parsed with regular expressions,
+  a leftover from when PHP built share URLs. Move a custom destination by copying its
+  return values into a TOML file (see docs/customization.md).
+- Destination files fail closed: unknown fields, a `key` that differs from the file name,
+  an unknown `action`, or an unknown request field in `[params]` stop generation.
+- The generated catalog and `dist/promari-sns-share.min.js` are byte-identical to 3.2.0;
+  sites need no change.
+
 ## 3.2.0
 
 ### Added
