@@ -113,43 +113,36 @@ event_name = "share:click"
 The following fictional destination illustrates the required structure. Replace
 the example endpoint and SVG path with those of the destination you are integrating.
 
-1. Create `plugin/src/Destination/ExampleDestination.php` and implement the methods
-   required by `ShareDestinationInterface`. The class declares the destination; it never builds a URL.
+1. Create `destinations/example.toml`. The file declares the destination; it never builds a URL.
 
-```php
-<?php
-declare(strict_types=1);
+```toml
+# Example: a fictional destination.
+key = 'example'
+label = 'Save to Example'
+brand_color = '#EF4056'
+action = 'open'
+endpoint = 'https://example.com/share'
+icon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="..."/></svg>'
 
-namespace PromariSnsShare\Destination;
-
-use PromariSnsShare\Contracts\ShareDestinationInterface;
-use PromariSnsShare\Domain\Action;
-
-final class ExampleDestination implements ShareDestinationInterface
-{
-    public function key(): string { return 'example'; }
-    public function label(): string { return 'Save to Example'; }
-    public function endpoint(): string { return 'https://example.com/share'; }
-    /** @return array<string,string> */
-    public function params(): array { return ['url' => 'url', 'title' => 'title']; }
-    public function icon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="..."/></svg>'; }
-    public function brandColor(): string { return '#EF4056'; }
-    public function action(): Action { return Action::Open; }
-}
+[params]
+url = 'url'
+title = 'title'
 ```
 
 2. Add `example` to TOML `destinations` or `secondary`.
-3. Run `python3 tools/config.py --write`. The generator finds every final class in
-   `src/Destination/` and includes its logo, color, endpoint, and fields in the bundle.
+3. Run `python3 tools/config.py --write`. The generator reads every `destinations/*.toml`
+   and includes its logo, color, endpoint, and fields in the bundle.
    Publish a new version so sites that pin a tag receive it.
 
 Requirements:
 
-- `key()` contains only lowercase English letters and digits.
-- `icon()` starts with `<svg ...>` and uses `fill="currentColor"` for CSS coloring.
-- `brandColor()` returns a `#rrggbb` color.
-- `endpoint()` returns a string literal, and `params()` returns an array literal
-  mapping query parameter names to request fields (`url`, `title`, `text`, `via`,
-  `site`, `hashtagsCsv`). Both empty means the destination has no dialog.
+- `key` contains only lowercase English letters and digits and matches the file name.
+- `icon` starts with `<svg ...>` and uses `fill="currentColor"` for CSS coloring.
+- `brand_color` is a `#rrggbb` color.
+- `action` is `open`, `copy`, or `native`.
+- `[params]` maps query parameter names to request fields (`url`, `title`, `text`,
+  `via`, `site`, `hashtagsCsv`). An empty `endpoint` with no `[params]` means the
+  destination has no dialog.
+- Unknown fields are errors.
 
 Unsupported formats cause `--write` to fail validation.

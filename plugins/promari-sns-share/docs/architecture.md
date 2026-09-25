@@ -1,17 +1,16 @@
 # Architecture
 
 Three components share **one configuration source (TOML) and one destination
-catalog (PHP destination classes)**.
+catalog (one TOML file per destination)**.
 
 ```mermaid
 %%{init: {"theme":"dark", "themeVariables": {"primaryColor":"#3B82F6","primaryTextColor":"#fff","primaryBorderColor":"#60A5FA","lineColor":"#6366F1","secondaryColor":"#10B981","tertiaryColor":"#EC4899"}}}%%
 flowchart LR
     T["share_config.toml"] --> G["tools/config.py<br>Validate and generate"]
-    P["plugin/src/Destination/*.php<br>Logos, colors, URL specifications"] --> G
+    P["destinations/*.toml<br>Logos, colors, URL specifications"] --> G
     G --> J["share.json"]
     G --> D["dist/promari-sns-share.min.js"]
-    J --> W["WordPress plugin<br>Server-side rendering"]
-    P --> W
+    J --> W["WordPress plugin<br>Emits the element"]
     D --> C["CDN: jsDelivr"]
     C --> H["Any HTML page<br>&lt;promari-sns-share&gt;"]
     style T fill:#F59E0B,stroke:#FBBF24,color:#fff
@@ -29,13 +28,17 @@ flowchart LR
 | Source | Location | Generated outputs |
 |---|---|---|
 | Configuration: what, where, and how to display | `share_config.toml` | `share.json` for the plugin; `generated/defaults.ts` for JavaScript |
-| Destinations: SVG logos, brand colors, and where to send which fields | `plugin/src/Destination/*.php` | `generated/catalog.ts` for JavaScript |
+| Destinations: SVG logos, brand colors, and where to send which fields | `destinations/<key>.toml` | `generated/catalog.ts` for JavaScript |
 
-The generator reads PHP classes with regular expressions and extracts `key()`,
-`label()`, `brandColor()`, `icon()`, `action()`, `endpoint()`, and `params()`.
-Those classes are definitions: they state where to send and which fields to send,
-and are never loaded at runtime. **Share URLs are built in one place, the Web
-Component.** PHP changes flow into JavaScript on the next build; `--check` detects drift.
+The generator reads each file with `tomllib` and validates `key`, `label`,
+`brand_color`, `icon`, `action`, `endpoint`, and `params` (unknown fields fail closed).
+The files are declarations: they state where to send and which fields to send.
+Neither PHP nor JavaScript reads them at runtime. **Share URLs are built in one place,
+the Web Component.** Destination changes flow into JavaScript on the next build; `--check` detects drift.
+
+Until v3.2.0 destinations were PHP classes parsed with regular expressions. They were a
+leftover from the era when PHP rendered buttons and built URLs; once URL construction moved
+to the Web Component, the classes were never executed, so they became data written as code.
 
 ## PHP plugin: layered architecture and SOLID
 
@@ -43,10 +46,8 @@ Component.** PHP changes flow into JavaScript on the next build; `--check` detec
 plugin/
   promari-sns-share.php          Bootstrap: requires and the promari_sns_share() template tag
   src/Domain/Placement       Where the element may appear
-  src/Contracts/             ConfigInterface (runtime), ShareDestinationInterface (definitions only)
+  src/Contracts/             ConfigInterface
   src/Config/JsonConfig      Reads generated configuration and fails closed
-  src/Destination/               One final class per destination: logo, color, endpoint, and fields.
-                             Read by tools/config.py; not loaded at runtime
   src/Integration/Widget     WordPress sidebar widget
   src/Plugin.php             Decides placement, emits <promari-sns-share>, loads the bundle
 ```
@@ -54,7 +55,7 @@ plugin/
 | Principle | Application |
 |---|---|
 | **S**: single responsibility | Separate configuration loading, URL construction, formatting, rendering, and wiring |
-| **O**: open / closed | Add a `ShareDestinationInterface` implementation under `plugin/src/Destination/`; the generator picks it up at build time |
+| **O**: open / closed | Add one `destinations/<key>.toml`; the generator picks it up at build time and no code changes |
 | **L**: substitution | Renderers rely on the six-method destination contract, not concrete destination classes |
 | **I**: interface segregation | Themes use the template tag or shortcode without knowing renderer internals |
 | **D**: dependency inversion | Rendering and formatting depend on `ConfigInterface`, not the JSON representation |

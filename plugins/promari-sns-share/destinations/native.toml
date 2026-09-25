@@ -1,0 +1,9 @@
+# 端末の共有シート（Web Share API・共有画面なし）。
+key = 'native'
+label = 'その他の共有'
+brand_color = '#5F6368'
+action = 'native'
+endpoint = ''
+icon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5l4.2 4.2-1.4 1.4-1.8-1.8V15h-2V6.3L9.2 8.1 7.8 6.7 12 2.5zM5 11h4v2H7v7h10v-7h-2v-2h4v11H5V11z"/></svg>'
+
+[params]

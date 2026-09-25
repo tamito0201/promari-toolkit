@@ -2,7 +2,7 @@
 """Validate share_config.toml and generate reproducible plugin and Web Component outputs.
 
 Use --write to generate outputs, --check to detect drift, and --print to inspect settings.
-TOML owns configuration; PHP destination classes own destination metadata. Invalid settings fail closed."""
+TOML owns configuration; destinations/*.toml own destination metadata. Invalid settings fail closed."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -27,7 +27,7 @@ if sys.version_info < (3, 13):  # pragma: no cover
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 PLUGIN_SOURCE: Final = ROOT / "plugin"
-DESTINATION_DIR: Final = PLUGIN_SOURCE / "src/Destination"
+DESTINATION_DIR: Final = ROOT / "destinations"
 WEB_SRC: Final = ROOT / "web/src"
 WEB_GENERATED: Final = WEB_SRC / "generated"
 DEFAULT_CONFIG: Final = ROOT / "config/share_config.example.toml"
@@ -105,8 +105,12 @@ def strings(values: object, label: str, *, pattern: re.Pattern[str] | None = Non
 
 
 # ------------------------------------------------------------------------------------------
-# Destination catalog extracted from PHP classes
+# Destination catalog declared as data (destinations/<key>.toml)
 # ------------------------------------------------------------------------------------------
+REQUEST_FIELDS: Final = frozenset({"url", "title", "text", "via", "site", "hashtagsCsv"})
+PARAM_NAME: Final = re.compile(r"^\w+$")
+
+
 @dataclass(frozen=True, slots=True)
 class DestinationSpec:
     key: str
@@ -121,63 +125,33 @@ class DestinationSpec:
         return {"key": self.key, "label": self.label, "color": self.color, "icon": self.icon, "action": self.action.value, "endpoint": self.endpoint, "params": self.params}
 
 
-def _php_literal(source: str, method: str, path: Path) -> str:
-    """Extract a string literal returned by a PHP destination method."""
-    match = re.search(r"function\s+" + method + r"\s*\(\)\s*:\s*string\s*\{\s*return\s+'((?:[^'\\]|\\.)*)'\s*;", source)
-    if match is None:
-        raise ConfigError(f"{path.name}: {method}() の文字列リテラルが見つかりません")
-    return match.group(1).replace("\\'", "'")
-
-
-def _php_action(source: str, path: Path) -> ShareAction:
-    match = re.search(r"function\s+action\s*\(\)\s*:\s*ShareAction\s*\{\s*return\s+ShareAction::(\w+)\s*;", source)
-    if match is None:
-        raise ConfigError(f"{path.name}: action() は `return ShareAction::Open;` の形にしてください")
-    return ShareAction[match.group(1).upper()]
-
-
-def _php_endpoint_params(source: str, path: Path) -> tuple[str, dict[str, str]]:
-    """Read the declared endpoint and request fields. PHP states where to send, never builds the URL."""
-    endpoint = re.search(r"function\s+endpoint\s*\(\)\s*:\s*string\s*\{.*?return\s+'([^']*)'\s*;", source, re.S)
-    if endpoint is None:
-        raise ConfigError(f"{path.name}: endpoint() は `return '…';` の形にしてください")
-    body = re.search(r"function\s+params\s*\(\)\s*:\s*array\s*\{.*?return\s*\[(.*?)\]\s*;", source, re.S)
-    if body is None:
-        raise ConfigError(f"{path.name}: params() は `return [...];` の形にしてください")
-    params = dict(re.findall(r"'(\w+)'\s*=>\s*'(url|title|text|via|site|hashtagsCsv)'", body.group(1)))
-    if endpoint.group(1) and not params:
-        raise ConfigError(f"{path.name}: endpoint があるなら params に送る項目を書いてください")
-    if not endpoint.group(1) and params:
-        raise ConfigError(f"{path.name}: endpoint が空なら params も空にしてください")
-    return endpoint.group(1), params
-
-
-def _destination_files() -> Iterator[Path]:
-    return (p for p in sorted(DESTINATION_DIR.glob("*Destination.php")) if "final class" in p.read_text(encoding="utf-8"))
+def _destination(path: Path) -> DestinationSpec:
+    """Read one destination file. It only declares where to send what; no code builds URLs here."""
+    name = path.name
+    try:
+        document = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(f"{name}: TOML として読めません（{error}）") from error
+    d = fields(document, {"key": str, "label": str, "brand_color": str, "action": str, "endpoint": str, "icon": str}, {"params": dict}, label=name)
+    key = ensure(d["key"], DESTINATION_KEY.match, f"{name}: key は英小文字と数字だけにしてください")
+    ensure(key, lambda k: k == path.stem, f"{name}: key（{key}）とファイル名（{path.stem}.toml）をそろえてください")
+    ensure(d["label"], bool, f"{name}: label を空にしないでください")
+    color = ensure(d["brand_color"], HEX_COLOR.match, f"{name}: brand_color は #rrggbb で書いてください")
+    icon = ensure(d["icon"], lambda s: s.startswith("<svg") and "currentColor" in s, f"{name}: icon は <svg …> で始まり fill=\"currentColor\" を使ってください")
+    action = ensure(d["action"], lambda a: a in ShareAction.__members__.values(), f"{name}: action は {' / '.join(ShareAction)} のどれかにしてください")
+    params = d.get("params", {})
+    if any(not PARAM_NAME.match(k) or v not in REQUEST_FIELDS for k, v in params.items()):
+        raise ConfigError(f"{name}: params は「SNS 側の項目名 = {' / '.join(sorted(REQUEST_FIELDS))}」の形にしてください")
+    if d["endpoint"] and not params:
+        raise ConfigError(f"{name}: endpoint があるなら params に送る項目を書いてください")
+    if not d["endpoint"] and params:
+        raise ConfigError(f"{name}: endpoint が空なら params も空にしてください")
+    return DestinationSpec(key=key, label=d["label"], color=color, icon=icon, action=ShareAction(action), endpoint=d["endpoint"], params=dict(params))
 
 
 def catalog() -> dict[str, DestinationSpec]:
-    """Build destination specifications from the final classes that implement ShareDestinationInterface."""
-    specs: dict[str, DestinationSpec] = {}
-    for path in _destination_files():
-        source = path.read_text(encoding="utf-8")
-        if "implements ShareDestinationInterface" not in source:
-            continue
-        key = ensure(_php_literal(source, "key", path), DESTINATION_KEY.match, f"{path.name}: key() は英小文字と数字だけにしてください")
-        if key in specs:
-            raise ConfigError(f"シェア先の識別子が重複しています: {key}")
-        icon = _php_literal(source, "icon", path)
-        ensure(icon, lambda s: s.startswith("<svg") and "currentColor" in s, f"{path.name}: icon() は <svg …> で始まり fill=\"currentColor\" を使ってください")
-        endpoint, params = _php_endpoint_params(source, path)
-        specs[key] = DestinationSpec(
-            key=key,
-            label=_php_literal(source, "label", path),
-            color=ensure(_php_literal(source, "brandColor", path), HEX_COLOR.match, f"{path.name}: brandColor() は #rrggbb で書いてください"),
-            icon=icon,
-            action=_php_action(source, path),
-            endpoint=endpoint,
-            params=params,
-        )
+    """Build destination specifications from destinations/*.toml, in file-name order."""
+    specs = {spec.key: spec for spec in map(_destination, sorted(DESTINATION_DIR.glob("*.toml")))}
     if not specs:
         raise ConfigError(f"シェア先のカタログが空です: {DESTINATION_DIR}")
     return specs

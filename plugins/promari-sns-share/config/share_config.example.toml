@@ -12,8 +12,8 @@
 #   - Neither the plugin nor the Web Component reads TOML directly; both consume generated outputs.
 #   - Unknown keys or destinations, incorrect types, and out-of-range values are errors (fail closed).
 #   - Do not store tokens or passwords here; these are public appearance and placement settings.
-#   - Add a ShareDestinationInterface implementation in plugin/src/Destination/ when introducing a destination.
-#     The generator extracts the Web Component catalog from PHP to avoid duplicated metadata.
+#   - Add one destinations/<key>.toml when introducing a destination (see docs/customization.md).
+#     The generator builds the Web Component catalog from those files; no code changes are needed.
 version = 1 # Configuration format version; currently only integer 1 is supported.
 
 [workflow]

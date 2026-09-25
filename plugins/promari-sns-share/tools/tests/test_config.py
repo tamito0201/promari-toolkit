@@ -1,4 +1,4 @@
-"""Test validation, fail-closed behavior, deployment convergence, and PHP catalog extraction."""
+"""Test validation, fail-closed behavior, deployment convergence, and the destination catalog (destinations/*.toml)."""
 
 from __future__ import annotations
 
@@ -43,6 +43,64 @@ class CatalogTest(unittest.TestCase):
         for spec in specs.values():
             self.assertTrue(spec.icon.startswith("<svg"))
             self.assertRegex(spec.color, r"^#[0-9A-Fa-f]{6}$")
+
+    def test_catalog_order_follows_file_names(self) -> None:
+        self.assertEqual(list(generator.catalog()), ["copy", "email", "facebook", "hatena", "line", "linkedin", "native", "x"])
+
+
+class DestinationFileTest(unittest.TestCase):
+    """Each wrong declaration stops generation (fail closed) with a message naming the file."""
+
+    VALID = (
+        "key = 'example'\nlabel = 'Example'\nbrand_color = '#123456'\naction = 'open'\n"
+        "endpoint = 'https://example.com/share'\nicon = '<svg viewBox=\"0 0 24 24\"><path fill=\"currentColor\" d=\"M0 0h24v24H0z\"/></svg>'\n"
+        "\n[params]\nurl = 'url'\ntitle = 'title'\n"
+    )
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        original = generator.DESTINATION_DIR
+        self.addCleanup(setattr, generator, "DESTINATION_DIR", original)
+        generator.DESTINATION_DIR = self.tmp  # type: ignore[misc]
+
+    def load(self, text: str, name: str = "example.toml") -> dict[str, generator.DestinationSpec]:
+        (self.tmp / name).write_text(text, encoding="utf-8")
+        return generator.catalog()
+
+    def rejects(self, text: str, message: str, name: str = "example.toml") -> None:
+        with self.assertRaisesRegex(generator.ConfigError, message):
+            self.load(text, name)
+
+    def test_valid_file_is_read_as_is(self) -> None:
+        spec = self.load(self.VALID)["example"]
+        self.assertEqual((spec.endpoint, spec.params, spec.action), ("https://example.com/share", {"url": "url", "title": "title"}, generator.ShareAction.OPEN))
+
+    def test_key_must_match_file_name(self) -> None:
+        self.rejects(self.VALID, "ファイル名", name="other.toml")
+
+    def test_rejects_invalid_key(self) -> None:
+        self.rejects(self.VALID.replace("key = 'example'", "key = 'X-Share'"), "英小文字と数字", name="X-Share.toml")
+
+    def test_rejects_unknown_field(self) -> None:
+        self.rejects(self.VALID.replace("action = 'open'", "action = 'open'\ncolour = '#000000'"), "未知")
+
+    def test_rejects_bad_color_and_icon(self) -> None:
+        self.rejects(self.VALID.replace("#123456", "red"), "#rrggbb")
+        self.rejects(self.VALID.replace("currentColor", "black"), "currentColor")
+
+    def test_rejects_unknown_action(self) -> None:
+        self.rejects(self.VALID.replace("action = 'open'", "action = 'print'"), "action は")
+
+    def test_rejects_unknown_request_field(self) -> None:
+        self.rejects(self.VALID.replace("title = 'title'", "title = 'author'"), "params は")
+
+    def test_endpoint_and_params_must_agree(self) -> None:
+        self.rejects(self.VALID.replace("\n[params]\nurl = 'url'\ntitle = 'title'\n", ""), "params に送る項目")
+        self.rejects(self.VALID.replace("https://example.com/share", ""), "params も空")
+
+    def test_rejects_broken_toml(self) -> None:
+        self.rejects("key = ", "TOML として読めません")
 
 
 class ValidationTest(unittest.TestCase):

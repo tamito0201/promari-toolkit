@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Load only what running WordPress needs: the placement value object, the configuration contract and reader, and the plugin that emits the custom element. The classes under src/Destination are definitions read by tools/config.py when generating the catalog; they are never loaded at runtime because PHP does not build share URLs.
+ * Load only what running WordPress needs: the placement value object, the configuration contract and reader, and the plugin that emits the custom element. Destinations are declared in destinations/*.toml and compiled into the JavaScript bundle; PHP does not build share URLs.
  */
 array_map(
     static fn (string $file): bool => (bool) require_once __DIR__ . '/src/' . $file,
