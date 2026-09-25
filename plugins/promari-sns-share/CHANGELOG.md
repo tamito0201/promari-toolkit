@@ -2,7 +2,7 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 4.0.0
 
 ### Changed
 
@@ -16,7 +16,7 @@ This component follows [Semantic Versioning](https://semver.org/).
 - Destination files fail closed: unknown fields, a `key` that differs from the file name,
   an unknown `action`, or an unknown request field in `[params]` stop generation.
 - The generated catalog and `dist/promari-sns-share.min.js` are byte-identical to 3.2.0;
-  sites need no change.
+  sites need no change beyond the version string.
 
 ## 3.2.0
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Promari SNS Share
  * Description: Configurable social share buttons without third-party iframes or SDKs. Supports template tags, shortcodes, automatic placements, widgets, and floating bars.
- * Version: 3.2.0
+ * Version: 4.0.0
  * Author: Takaomi Murasaki
  * Requires PHP: 8.1
  */
