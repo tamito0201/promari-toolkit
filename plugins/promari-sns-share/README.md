@@ -156,6 +156,8 @@ See [Analytics](docs/analytics.md) for tracking methods and limitations.
 
 See [Architecture](docs/architecture.md) for diagrams and dependency direction,
 and [Customization](docs/customization.md) for recipes and adding destinations.
+Design decisions, with the options we rejected and the constraints behind them, are recorded as
+[ADRs](docs/adr/README.md).
 
 ## Development
 
