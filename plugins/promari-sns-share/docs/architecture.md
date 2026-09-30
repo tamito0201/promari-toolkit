@@ -133,9 +133,15 @@ flowchart TB
 applicationが知っているのはdomainの`ClipboardGateway`だけで、ブラウザの実装はimportしない。
 
 クリックのユースケースは、画面へ何を出すかを決めない。`HandleShareClickUseCase.execute()`は
-`copied`・`copy-fallback`・`shared`・`share-dismissed`・`popup`・`follow`のいずれかを返し、
+`copied`・`copy-fallback`・`shared`・`share-dismissed`・`composed`・`compose-copy-failed`・`popup`・`follow`のいずれかを返し、
 presentationが結果に応じて画面内の通知を描く。書き込みの完了前に成功を名乗らない順序は、
 戻り値を待つことで保つ。同じシェア先を複数置いても、表示層が操作ごとの識別子で押された要素を区別する。
+
+4.1.0で、共有の入口を持たないサービス（Qiita・Zenn・Medium・アメブロ）のために操作`compose`を足した
+（[ADR-0003](adr/0003-compose-action.md)）。ユースケースは、domainの`ClipboardGateway.write()`と
+`ShareWindowGateway.openTab()`を、最初の`await`より前に同じクリックの同期処理の中で呼び始める。
+ポップアップブロッカーは、クリックの同期処理の外で開いた窓を止めるためである。コピーする文面
+（題名・改行・UTM付きURL）はdomainの`ShareActionPolicy.composeDraft()`が決め、ビューモデルの`draft`に載る。
 
 PHPから抽出したシェア先の入力はapplicationの`ShareDestinationDefinition`で受け取る。
 infrastructureの`InMemoryShareDestinationRepository`がURL規則だけを値オブジェクトにし、
@@ -190,8 +196,8 @@ Writes use temporary files and `os.replace` for atomic replacement.
 |---|---|
 | `tsc --noEmit` with strict, noUncheckedIndexedAccess, and exactOptionalPropertyTypes | Type consistency |
 | `node --test` | URL・選択・設定・操作と、四層の依存境界・DOM型混入の対照テスト |
-| Python `unittest` (9 tests) | TOML validation, fail-closed behavior, deployment / check convergence, and PHP catalog extraction |
-| `render_test.php` (16 checks) | Configured HTML, CSS, and JavaScript rendering with WordPress-free stubs |
+| Python `unittest` (24 tests) | TOML validation, fail-closed behavior (including `compose` destinations), deployment / check convergence, and the destination catalog |
+| `render_test.php` (13 checks) | Configured HTML, CSS, and JavaScript rendering with WordPress-free stubs |
 | `config.py --check` | Distribution files match regenerated outputs |
 
 ## ブラウザで公開契約を確認する

@@ -17,10 +17,12 @@ export interface ShareClickCommand {
  * - copied: the clipboard accepted the text
  * - copy-fallback: writing failed, so the fallback was offered
  * - shared / share-dismissed: the native share sheet finished or was dismissed
+ * - composed / compose-copy-failed: the editor tab was requested, and the title and URL were
+ *   (or could not be) put on the clipboard
  * - popup: a share window opened
  * - follow: the browser follows the link (including a blocked popup)
  */
-export type ShareClickResult = 'copied' | 'copy-fallback' | 'shared' | 'share-dismissed' | 'popup' | 'follow';
+export type ShareClickResult = 'copied' | 'copy-fallback' | 'shared' | 'share-dismissed' | 'composed' | 'compose-copy-failed' | 'popup' | 'follow';
 
 export class HandleShareClickUseCase {
   readonly #gateways: ShareGateways;
@@ -51,6 +53,16 @@ export class HandleShareClickUseCase {
       case 'native': {
         preventDefault();
         return this.#gateways.nativeShare.share({ title: button.title, url: button.url }).then(() => 'shared' as const, () => 'share-dismissed' as const);
+      }
+      case 'compose': {
+        preventDefault();
+        // Popup blockers honour window.open only in the click's synchronous turn, so both effects start
+        // before the first await. The clipboard write starts first; a synchronous throw becomes a rejection
+        // so the editor still opens. A failed copy is reported, not retried with a prompt: the user is
+        // already looking at the new tab (ADR-0003).
+        const writing = new Promise<void>((resolve) => { resolve(this.#gateways.clipboard.write(button.draft)); });
+        this.#gateways.popup.openTab(button.href);
+        return writing.then(() => 'composed' as const, () => 'compose-copy-failed' as const);
       }
       case 'popup': {
         if (button.popup && this.#gateways.popup.open(button.href, button.popup)) { preventDefault(); return 'popup'; }

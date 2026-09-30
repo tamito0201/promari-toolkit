@@ -138,6 +138,8 @@ A destination cannot appear in both `destinations` and `secondary`.
 |---|---|
 | `copied` | Toast after successfully copying the URL |
 | `group_label` | Button group's `aria-label` |
+| `composed` | Optional. Notice after a compose destination (`qiita`, `zenn`, `medium`, `ameba`) copied the title and URL. Defaults to 「タイトルとURLをコピーしました。投稿画面に貼り付けてください」 |
+| `compose_failed` | Optional. Notice when that copy failed; the editor still opens. Defaults to 「コピーできませんでした。投稿画面にタイトルとURLを入力してください」 |
 
 ## `[share.style]`: colors
 
@@ -161,6 +163,17 @@ Use `[share.labels]` to select the exact text displayed on your site.
 | `email` | Send by email | `mailto:` | Subject is the shared text; body is the URL |
 | `copy` | Copy URL | Clipboard | Falls back to an article link without JavaScript |
 | `native` | More sharing options | Web Share API | Visible only where `navigator.share` is available |
+| `note` | note | note's "Write on note" screen (`note.com/intent/post`) | `#000000`; sends `url` and `hashtags`; signed-out users log in first |
+| `qiita` | Qiita | Compose: copy, then open the draft editor | `#55C500`; Qiita has no entry point for sharing an external page |
+| `zenn` | Zenn | Compose: copy, then open the dashboard | `#3EA8FF`; `articles/new` returns 404, so the dashboard is the entry |
+| `medium` | Medium | Compose: copy, then open the story editor | `#000000` |
+| `ameba` | Ameba Blog | Compose: copy, then open the entry editor | `#2D8C3C`; the former Ameba Now share entry has ended |
+
+A compose destination puts "page title, line break, shared URL" on the clipboard and opens the
+service's editor in a new tab in the same click. The URL carries the same UTM parameters as the
+other destinations (`utm_source` is the destination identifier). The tab always opens as a new tab,
+regardless of `behavior.popup` and `behavior.open_in_new_tab`; see [ADR-0003](adr/0003-compose-action.md).
+Logos come from [simple-icons](https://simpleicons.org/) 16.33.0 (CC0 1.0); the marks remain trademarks of their owners.
 
 See [Customization](customization.md) for adding destinations.
 

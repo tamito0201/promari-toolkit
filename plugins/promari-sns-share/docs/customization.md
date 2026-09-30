@@ -108,6 +108,20 @@ attribute = "data-track-share"
 event_name = "share:click"
 ```
 
+### Let readers write about the article on Qiita, Zenn, note, Medium, or Ameba Blog
+
+```toml
+[share]
+destinations = ["x", "note", "qiita", "zenn", "medium"]
+[share.secondary]
+ameba = true
+[share.messages]
+composed = "Copied the title and URL. Paste them into the editor."
+```
+
+`note` opens note's own share screen. The other four have no share entry point, so a click copies
+"title, line break, URL" and opens the editor in a new tab.
+
 ## Add a destination
 
 The following fictional destination illustrates the required structure. Replace
@@ -139,7 +153,10 @@ Requirements:
 - `key` contains only lowercase English letters and digits and matches the file name.
 - `icon` starts with `<svg ...>` and uses `fill="currentColor"` for CSS coloring.
 - `brand_color` is a `#rrggbb` color.
-- `action` is `open`, `copy`, or `native`.
+- `action` is `open`, `copy`, `native`, or `compose`.
+- `compose` is for services with no share entry point: `endpoint` is the editor URL and must start
+  with `https://`, and `[params]` must be absent (even an empty table is an error). A click copies the
+  page title and URL, then opens the editor in a new tab (see [ADR-0003](adr/0003-compose-action.md)).
 - `[params]` maps query parameter names to request fields (`url`, `title`, `text`,
   `via`, `site`, `hashtagsCsv`). An empty `endpoint` with no `[params]` means the
   destination has no dialog.

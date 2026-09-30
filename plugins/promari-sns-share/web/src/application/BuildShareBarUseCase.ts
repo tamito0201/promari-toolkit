@@ -29,6 +29,8 @@ export interface ShareButtonViewModel {
   readonly popup: { readonly width: number; readonly height: number } | null;
   readonly url: string;
   readonly title: string;
+  /** The text a compose destination copies (title, line break, shared URL with UTM); empty for other actions. */
+  readonly draft: string;
 }
 
 export interface ShareBarViewModel {
@@ -79,7 +81,8 @@ export class BuildShareBarUseCase {
   #button(config: ShareSettings, request: ShareRequest, tier: ShareButtonTier, destination: DisplayedShareDestination): ShareButtonViewModel {
     const { key } = destination;
     const label = config.labels[key] ?? destination.appearance.label;
-    const href = destination.shareUrl(request.withUrl(UtmParameterPolicy.apply(request.url, config.utm, key)));
+    const sharedUrl = UtmParameterPolicy.apply(request.url, config.utm, key);
+    const href = destination.shareUrl(request.withUrl(sharedUrl));
     const isOpen = destination.action === ShareAction.Open;
     const popup = isOpen && config.behavior.popup && ShareActionPolicy.canOpenInPopup(href);
     const override = <T extends string | boolean>(name: 'color' | 'label_style' | 'tooltip', fallback: T): T => {
@@ -101,6 +104,7 @@ export class BuildShareBarUseCase {
       popup: popup ? { width: config.behavior.popup_width, height: config.behavior.popup_height } : null,
       url: request.url,
       title: request.title,
+      draft: destination.action === ShareAction.Compose ? ShareActionPolicy.composeDraft(request.title, sharedUrl) : '',
     });
   }
 }

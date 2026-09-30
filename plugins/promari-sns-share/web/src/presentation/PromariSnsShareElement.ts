@@ -4,7 +4,7 @@
  * through gateways implemented in infrastructure and passed in at startup.
  */
 import type { BuildShareBarUseCase, ShareButtonViewModel, Placement } from '../application/BuildShareBarUseCase.ts';
-import type { HandleShareClickUseCase } from '../application/HandleShareClickUseCase.ts';
+import type { HandleShareClickUseCase, ShareClickResult } from '../application/HandleShareClickUseCase.ts';
 import type { ShareSettings } from '../application/ShareSettings.ts';
 import { ShareSettingsAttributeReader } from './ShareSettingsAttributeReader.ts';
 import { CircularShareBarView } from './CircularShareBarView.ts';
@@ -12,6 +12,13 @@ import { FloatingBarVisibility } from './FloatingBarVisibility.ts';
 import { ShareBarStylesheet } from './ShareBarStylesheet.ts';
 import { ShareBarView } from './ShareBarView.ts';
 import { ToastNotifier } from './ToastNotifier.ts';
+
+/** Outcomes that show an in-page notice, and the configured message for each. */
+const MESSAGES: Readonly<Partial<Record<ShareClickResult, 'copied' | 'composed' | 'compose_failed'>>> = {
+  copied: 'copied',
+  composed: 'composed',
+  'compose-copy-failed': 'compose_failed',
+};
 
 const PLACEMENTS: ReadonlySet<string> = new Set<Placement>(['article_top', 'article_bottom', 'sidebar', 'floating', 'inline']);
 const asPlacement = (value: string | null): Placement => (value && PLACEMENTS.has(value) ? (value as Placement) : 'inline');
@@ -150,7 +157,8 @@ export class PromariSnsShareElement extends HTMLElement {
         const notificationTarget = String(++this.#notificationSequence);
         anchor.dataset['notificationTarget'] = notificationTarget;
         void clickUseCase.execute({ button, placement, preventDefault: () => event.preventDefault() }).then((outcome) => {
-          if (outcome === 'copied') notifier.notify(config.messages.copied, notificationTarget);
+          const message = MESSAGES[outcome];
+          if (message) notifier.notify(config.messages[message], notificationTarget);
         });
       }
     });

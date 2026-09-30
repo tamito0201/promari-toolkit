@@ -12,18 +12,27 @@ const attributes = (pairs: Readonly<Record<string, AttributeValue>>): string =>
     .map(([k, v]) => (v === true ? ` ${k}` : ` ${k}="${HtmlEscaper.escape(String(v))}"`))
     .join('');
 
-const button = (trackAttribute: string) => (b: ShareButtonViewModel): string =>
-  `<a${attributes({
+const content = (b: ShareButtonViewModel): string =>
+  (b.labelStyle !== 'text' ? `<i>${b.icon}</i>` : '') + (b.labelStyle !== 'icon' ? `<span>${HtmlEscaper.escape(b.label)}</span>` : '');
+
+const button = (trackAttribute: string) => (b: ShareButtonViewModel): string => {
+  const common = {
     class: `${b.key} ${b.labelStyle}`,
-    href: b.href,
     [trackAttribute]: b.key,
     'data-key': b.key,
     title: b.tooltip,
     'aria-label': b.tooltip,
     style: `--b:${b.color}`,
+  };
+  // compose copies and opens a tab in one click; as a link it would navigate without the copy.
+  if (b.action === 'compose') return `<button${attributes({ type: 'button', ...common })}>${content(b)}</button>`;
+  return `<a${attributes({
+    ...common,
+    href: b.href,
     target: b.newTab ? '_blank' : null,
     rel: b.action === 'open' ? ['noopener', 'noreferrer', b.nofollow ? 'nofollow' : null].filter(Boolean).join(' ') : null,
-  })}>${b.labelStyle !== 'text' ? `<i>${b.icon}</i>` : ''}${b.labelStyle !== 'icon' ? `<span>${HtmlEscaper.escape(b.label)}</span>` : ''}</a>`;
+  })}>${content(b)}</a>`;
+};
 
 const render = (vm: ShareBarViewModel, trackAttribute: string, css: string): string => {
   const draw = button(trackAttribute);

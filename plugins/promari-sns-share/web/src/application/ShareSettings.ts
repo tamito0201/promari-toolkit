@@ -36,7 +36,7 @@ export interface ShareSettings {
   readonly behavior: { readonly open_in_new_tab: boolean; readonly popup: boolean; readonly popup_width: number; readonly popup_height: number; readonly nofollow: boolean };
   readonly floating: { readonly position: 'bottom' | 'top'; readonly after: number; readonly secondaryMax: number; readonly hideNearEnd: boolean; readonly destinations: readonly string[] };
   readonly tracking: { readonly attribute: string; readonly event_name: string };
-  readonly messages: { readonly copied: string; readonly group_label: string };
+  readonly messages: { readonly copied: string; readonly group_label: string; readonly composed: string; readonly compose_failed: string };
   readonly style: { readonly accent: string; readonly floating_background: string };
 }
 

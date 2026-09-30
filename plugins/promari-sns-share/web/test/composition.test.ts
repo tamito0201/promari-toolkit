@@ -25,7 +25,7 @@ const fakeInfrastructure = (calls: string[], published: Array<{ element: string;
     constant(bind, TOKENS.SharedPageGateway, { read: () => ({ url: 'https://a.jp/post/', title: 'Hello', site: 'Promari' }) });
     constant(bind, TOKENS.NativeShareGateway, { available: true, share: async d => { calls.push(`share:${d.url}`); } });
     constant(bind, TOKENS.ClipboardGateway, { write: async t => { calls.push(`copy:${t}`); }, fallback: t => { calls.push(`fallback:${t}`); } });
-    constant(bind, TOKENS.ShareWindowGateway, { open: href => { calls.push(`popup:${href}`); return true; } });
+    constant(bind, TOKENS.ShareWindowGateway, { open: href => { calls.push(`popup:${href}`); return true; }, openTab: href => { calls.push(`tab:${href}`); } });
     constant(bind, TOKENS.ShareActivityPublisherFactory, (element, eventName) => ({
       publish: activity => { published.push({ element: element.id, eventName, activity }); },
     }));

@@ -33,7 +33,7 @@ def patched(text: str, **replacements: str) -> str:
 class CatalogTest(unittest.TestCase):
     def test_extracts_all_bundled_destinations(self) -> None:
         specs = generator.catalog()
-        self.assertEqual(set(specs), {"facebook", "x", "line", "hatena", "linkedin", "email", "copy", "native"})
+        self.assertEqual(set(specs), {"facebook", "x", "line", "hatena", "linkedin", "email", "copy", "native", "note", "qiita", "zenn", "medium", "ameba"})
         x = specs["x"]
         self.assertEqual(x.endpoint, "https://twitter.com/intent/tweet")
         self.assertEqual(x.params, {"url": "url", "text": "text", "hashtags": "hashtagsCsv", "via": "via"})
@@ -45,7 +45,21 @@ class CatalogTest(unittest.TestCase):
             self.assertRegex(spec.color, r"^#[0-9A-Fa-f]{6}$")
 
     def test_catalog_order_follows_file_names(self) -> None:
-        self.assertEqual(list(generator.catalog()), ["copy", "email", "facebook", "hatena", "line", "linkedin", "native", "x"])
+        self.assertEqual(list(generator.catalog()), ["ameba", "copy", "email", "facebook", "hatena", "line", "linkedin", "medium", "native", "note", "qiita", "x", "zenn"])
+
+    def test_writing_destinations(self) -> None:
+        specs = generator.catalog()
+        note = specs["note"]
+        self.assertEqual((note.action, note.endpoint, note.params), (generator.ShareAction.OPEN, "https://note.com/intent/post", {"url": "url", "hashtags": "hashtagsCsv"}))
+        editors = {
+            "qiita": "https://qiita.com/drafts/new",
+            "zenn": "https://zenn.dev/dashboard",
+            "medium": "https://medium.com/new-story",
+            "ameba": "https://blog.ameba.jp/ucs/entry/srventryinsertinput.do",
+        }
+        for key, endpoint in editors.items():
+            with self.subTest(key=key):
+                self.assertEqual((specs[key].action, specs[key].endpoint, specs[key].params), (generator.ShareAction.COMPOSE, endpoint, {}))
 
 
 class DestinationFileTest(unittest.TestCase):
@@ -99,6 +113,22 @@ class DestinationFileTest(unittest.TestCase):
         self.rejects(self.VALID.replace("\n[params]\nurl = 'url'\ntitle = 'title'\n", ""), "params に送る項目")
         self.rejects(self.VALID.replace("https://example.com/share", ""), "params も空")
 
+    COMPOSE = VALID.replace("action = 'open'", "action = 'compose'").replace("https://example.com/share", "https://example.com/new").replace("\n[params]\nurl = 'url'\ntitle = 'title'\n", "")
+
+    def test_compose_is_read_without_params(self) -> None:
+        spec = self.load(self.COMPOSE)["example"]
+        self.assertEqual((spec.action, spec.endpoint, spec.params), (generator.ShareAction.COMPOSE, "https://example.com/new", {}))
+
+    def test_compose_requires_an_https_endpoint(self) -> None:
+        self.rejects(self.COMPOSE.replace("https://example.com/new", ""), "https://")
+        self.rejects(self.COMPOSE.replace("https://example.com/new", "http://example.com/new"), "https://")
+        self.rejects(self.COMPOSE.replace("https://example.com/new", "javascript:alert(1)"), "https://")
+        self.rejects(self.COMPOSE.replace("https://example.com/new", "https://example.com/a b"), "https://")
+
+    def test_compose_rejects_params_even_when_empty(self) -> None:
+        self.rejects(self.COMPOSE + "\n[params]\nurl = 'url'\n", "\\[params\\] を書かないで")
+        self.rejects(self.COMPOSE + "\n[params]\n", "\\[params\\] を書かないで")
+
     def test_rejects_broken_toml(self) -> None:
         self.rejects("key = ", "TOML として読めません")
 
@@ -119,6 +149,17 @@ class ValidationTest(unittest.TestCase):
         config = generator.load(EXAMPLE)
         self.assertEqual(config.share["destinations"], ["facebook", "x", "line"])
         self.assertEqual(config.enabled_secondary, ["hatena", "linkedin", "email", "copy", "native"])
+
+    def test_compose_messages_have_defaults_and_can_be_overridden(self) -> None:
+        defaults = generator.web_defaults(generator.load(EXAMPLE))["messages"]
+        self.assertEqual(set(defaults), {"copied", "group_label", "composed", "compose_failed"})
+        self.assertTrue(all(defaults.values()))
+        legacy = self.source.replace(re.search(r"^composed = .*\n", self.source, re.M).group(0), "").replace(re.search(r"^compose_failed = .*\n", self.source, re.M).group(0), "")
+        self.assertEqual(generator.web_defaults(generator.load(self.write(legacy)))["messages"]["composed"], generator.OPTIONAL_MESSAGES["composed"])
+        custom = patched(self.source, composed='"Paste it into the editor"')
+        self.assertEqual(generator.web_defaults(generator.load(self.write(custom)))["messages"]["composed"], "Paste it into the editor")
+        with self.assertRaisesRegex(generator.ConfigError, "未知="):
+            generator.load(self.write(self.source.replace("[share.messages]", "[share.messages]\ncompose_ok = 'x'")))
 
     def test_rejects_unknown_destination(self) -> None:
         path = self.write(patched(self.source, destinations='["facebook", "instagram"]'))

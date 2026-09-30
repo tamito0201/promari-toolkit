@@ -1,4 +1,4 @@
-/** Implements ShareWindowGateway with a centered browser window. */
+/** Implements ShareWindowGateway with a centered browser window and detached new tabs. */
 import type { ShareWindowGateway } from '../domain/gateway/ShareWindowGateway.ts';
 
 export class BrowserPopupWindow implements ShareWindowGateway {
@@ -6,5 +6,9 @@ export class BrowserPopupWindow implements ShareWindowGateway {
     const left = Math.max(0, (window.screen.width - width) / 2);
     const top = Math.max(0, (window.screen.height - height) / 2);
     return window.open(href, 'promari-sns-share', `width=${width},height=${height},left=${left},top=${top},noopener,noreferrer`) !== null;
+  }
+
+  openTab(href: string): void {
+    window.open(href, '_blank', 'noopener,noreferrer');
   }
 }

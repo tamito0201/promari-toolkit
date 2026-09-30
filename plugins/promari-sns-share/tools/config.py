@@ -61,6 +61,7 @@ class ShareAction(StrEnum):
     OPEN = "open"
     COPY = "copy"
     NATIVE = "native"
+    COMPOSE = "compose"  # Copy the title and URL, then open the destination's editor (ADR-0003).
 
 
 # ------------------------------------------------------------------------------------------
@@ -109,6 +110,7 @@ def strings(values: object, label: str, *, pattern: re.Pattern[str] | None = Non
 # ------------------------------------------------------------------------------------------
 REQUEST_FIELDS: Final = frozenset({"url", "title", "text", "via", "site", "hashtagsCsv"})
 PARAM_NAME: Final = re.compile(r"^\w+$")
+COMPOSE_ENDPOINT_FORBIDDEN: Final = frozenset(" \t\n\"'<>")
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +144,11 @@ def _destination(path: Path) -> DestinationSpec:
     params = d.get("params", {})
     if any(not PARAM_NAME.match(k) or v not in REQUEST_FIELDS for k, v in params.items()):
         raise ConfigError(f"{name}: params は「SNS 側の項目名 = {' / '.join(sorted(REQUEST_FIELDS))}」の形にしてください")
-    if d["endpoint"] and not params:
+    if action == ShareAction.COMPOSE:
+        # compose opens a fixed editor page; nothing is sent in the URL, so [params] is rejected even when empty.
+        ensure(d["endpoint"], lambda e: e.startswith("https://") and COMPOSE_ENDPOINT_FORBIDDEN.isdisjoint(e), f"{name}: action = 'compose' には https:// で始まる投稿画面の URL を endpoint に書いてください（空白・引用符は不可）")
+        ensure(d, lambda doc: "params" not in doc, f"{name}: action = 'compose' は URL に項目を送らないので [params] を書かないでください")
+    elif d["endpoint"] and not params:
         raise ConfigError(f"{name}: endpoint があるなら params に送る項目を書いてください")
     if not d["endpoint"] and params:
         raise ConfigError(f"{name}: endpoint が空なら params も空にしてください")
@@ -179,6 +185,13 @@ class Config:
     @property
     def enabled_secondary(self) -> list[str]:
         return [k for k, on in self.share["secondary"].items() if on]
+
+
+# Messages added after 4.0.0 are optional so existing configuration files stay valid.
+OPTIONAL_MESSAGES: Final[dict[str, str]] = {
+    "composed": "タイトルとURLをコピーしました。投稿画面に貼り付けてください",
+    "compose_failed": "コピーできませんでした。投稿画面にタイトルとURLを入力してください",
+}
 
 
 def _validate_share(share: object, known: Mapping[str, DestinationSpec]) -> Json:
@@ -240,7 +253,7 @@ def _validate_share(share: object, known: Mapping[str, DestinationSpec]) -> Json
     tr = fields(s["tracking"], {"attribute": str, "event_name": str}, label="share.tracking")
     ensure(tr["attribute"], DATA_ATTR.match, "share.tracking.attribute は data-… の形にしてください")
     ensure(tr["event_name"], EVENT_NAME.match, "share.tracking.event_name は英小文字で始めてください")
-    fields(s["messages"], {"copied": str, "group_label": str}, label="share.messages")
+    fields(s["messages"], {"copied": str, "group_label": str}, {name: str for name in OPTIONAL_MESSAGES}, label="share.messages")
     st = fields(s["style"], {"accent": str, "floating_background": str}, label="share.style")
     ensure(st["accent"], HEX_COLOR.match, "share.style.accent は #rrggbb で書いてください")
     ensure(st["floating_background"], CSS_COLOR.match, "share.style.floating_background は CSS の色にしてください")
@@ -303,7 +316,7 @@ def web_defaults(config: Config) -> Json:
             "destinations": p["floating_destinations"],
         },
         "tracking": s["tracking"],
-        "messages": s["messages"],
+        "messages": s["messages"] | {k: v for k, v in OPTIONAL_MESSAGES.items() if k not in s["messages"]},
         "style": s["style"],
     }
 
