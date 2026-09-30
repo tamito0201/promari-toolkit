@@ -19,13 +19,17 @@ const MESSAGES: Readonly<Partial<Record<ShareClickResult, 'copied' | 'composed' 
   composed: 'composed',
   'compose-copy-failed': 'compose_failed',
 };
+/** Destination-specific text appended to a notice, such as how to turn a pasted URL into a card. */
+const HINTS: Readonly<Partial<Record<ShareClickResult, (button: ShareButtonViewModel) => string>>> = {
+  composed: (button) => button.composeHint,
+};
 
 const PLACEMENTS: ReadonlySet<string> = new Set<Placement>(['article_top', 'article_bottom', 'sidebar', 'floating', 'inline']);
 const asPlacement = (value: string | null): Placement => (value && PLACEMENTS.has(value) ? (value as Placement) : 'inline');
 
 /** ページとブラウザへの接続は入口から注入する。表示層は接続先の実装をimportしない。 */
 export interface ShareElementEnvironment {
-  pageContext(): { readonly url: string; readonly title: string; readonly site: string };
+  pageContext(): { readonly url: string; readonly title: string; readonly site: string; readonly description: string; readonly image: string };
   canNativeShare(): boolean;
   /** The click use case with gateways whose activity events use this name. */
   clickUseCase(eventName: string): HandleShareClickUseCase;
@@ -114,6 +118,8 @@ export class PromariSnsShareElement extends HTMLElement {
       url: this.getAttribute('url') || page.url,
       title: this.getAttribute('title') || page.title,
       site: page.site,
+      description: this.getAttribute('description') || page.description,
+      image: this.getAttribute('image') || page.image,
       placement,
       canNativeShare: this.#environment.canNativeShare(),
     });
@@ -158,7 +164,7 @@ export class PromariSnsShareElement extends HTMLElement {
         anchor.dataset['notificationTarget'] = notificationTarget;
         void clickUseCase.execute({ button, placement, preventDefault: () => event.preventDefault() }).then((outcome) => {
           const message = MESSAGES[outcome];
-          if (message) notifier.notify(config.messages[message], notificationTarget);
+          if (message) notifier.notify([config.messages[message], HINTS[outcome]?.(button) ?? ''].filter(Boolean).join(' '), notificationTarget);
         });
       }
     });

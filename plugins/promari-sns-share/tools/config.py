@@ -64,6 +64,13 @@ class ShareAction(StrEnum):
     COMPOSE = "compose"  # Copy the title and URL, then open the destination's editor (ADR-0003).
 
 
+class DraftFormat(StrEnum):
+    """How a draft template is filled in (ADR-0004): html escapes each value, text inserts it as is."""
+
+    TEXT = "text"
+    HTML = "html"
+
+
 # ------------------------------------------------------------------------------------------
 # Small, pure validation helpers
 # ------------------------------------------------------------------------------------------
@@ -108,9 +115,11 @@ def strings(values: object, label: str, *, pattern: re.Pattern[str] | None = Non
 # ------------------------------------------------------------------------------------------
 # Destination catalog declared as data (destinations/<key>.toml)
 # ------------------------------------------------------------------------------------------
-REQUEST_FIELDS: Final = frozenset({"url", "title", "text", "via", "site", "hashtagsCsv"})
+REQUEST_FIELDS: Final = frozenset({"url", "title", "text", "via", "site", "hashtagsCsv", "draft"})
 PARAM_NAME: Final = re.compile(r"^\w+$")
 COMPOSE_ENDPOINT_FORBIDDEN: Final = frozenset(" \t\n\"'<>")
+DRAFT_PLACEHOLDERS: Final = ("{title}", "{url}", "{description}", "{image}", "{host}")
+DRAFT_PLACEHOLDER: Final = re.compile("|".join(map(re.escape, DRAFT_PLACEHOLDERS)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,9 +131,37 @@ class DestinationSpec:
     action: ShareAction
     endpoint: str
     params: dict[str, str] = field(default_factory=dict)
+    draft: str | None = None
+    draft_format: DraftFormat | None = None
+    compose_hint: str | None = None
 
     def to_json(self) -> Json:
-        return {"key": self.key, "label": self.label, "color": self.color, "icon": self.icon, "action": self.action.value, "endpoint": self.endpoint, "params": self.params}
+        """Optional fields appear only when declared, so destinations without them generate the same catalog entries."""
+        document: Json = {"key": self.key, "label": self.label, "color": self.color, "icon": self.icon, "action": self.action.value, "endpoint": self.endpoint, "params": self.params}
+        if self.draft is not None and self.draft_format is not None:
+            document["draft"] = {"template": self.draft, "format": self.draft_format.value}
+        if self.compose_hint is not None:
+            document["composeHint"] = self.compose_hint
+        return document
+
+
+def _draft(name: str, d: Json, action: ShareAction, params: Mapping[str, str]) -> tuple[str | None, DraftFormat | None]:
+    """Validate the optional draft template (ADR-0004). Anything that would be silently ignored fails closed."""
+    template, format_ = d.get("draft"), d.get("draft_format")
+    sends = "draft" in params.values()
+    if template is None and format_ is None:
+        ensure(sends, lambda s: not s, f"{name}: params で 'draft' を送るなら draft と draft_format を書いてください")
+        return None, None
+    if template is None or format_ is None:
+        raise ConfigError(f"{name}: draft と draft_format は両方書いてください")
+    ensure(action, lambda a: a in (ShareAction.OPEN, ShareAction.COMPOSE), f"{name}: draft を使えるのは action = 'open' か 'compose' だけです")
+    ensure(template, lambda t: bool(t.strip()), f"{name}: draft を空にしないでください")
+    one_of(format_, [f.value for f in DraftFormat], f"{name}: draft_format")
+    leftover = DRAFT_PLACEHOLDER.sub("", template)
+    ensure(leftover, lambda rest: "{" not in rest and "}" not in rest, f"{name}: draft の差し込み口は {' '.join(DRAFT_PLACEHOLDERS)} だけです（未知の差し込み口か、単独の波括弧があります）")
+    if action == ShareAction.OPEN:
+        ensure(sends, bool, f"{name}: action = 'open' の draft は、params で 'draft' を送らないと使われません")
+    return template, DraftFormat(format_)
 
 
 def _destination(path: Path) -> DestinationSpec:
@@ -134,7 +171,12 @@ def _destination(path: Path) -> DestinationSpec:
         document = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f"{name}: TOML として読めません（{error}）") from error
-    d = fields(document, {"key": str, "label": str, "brand_color": str, "action": str, "endpoint": str, "icon": str}, {"params": dict}, label=name)
+    d = fields(
+        document,
+        {"key": str, "label": str, "brand_color": str, "action": str, "endpoint": str, "icon": str},
+        {"params": dict, "draft": str, "draft_format": str, "compose_hint": str},
+        label=name,
+    )
     key = ensure(d["key"], DESTINATION_KEY.match, f"{name}: key は英小文字と数字だけにしてください")
     ensure(key, lambda k: k == path.stem, f"{name}: key（{key}）とファイル名（{path.stem}.toml）をそろえてください")
     ensure(d["label"], bool, f"{name}: label を空にしないでください")
@@ -152,7 +194,15 @@ def _destination(path: Path) -> DestinationSpec:
         raise ConfigError(f"{name}: endpoint があるなら params に送る項目を書いてください")
     if not d["endpoint"] and params:
         raise ConfigError(f"{name}: endpoint が空なら params も空にしてください")
-    return DestinationSpec(key=key, label=d["label"], color=color, icon=icon, action=ShareAction(action), endpoint=d["endpoint"], params=dict(params))
+    draft, draft_format = _draft(name, d, ShareAction(action), params)
+    hint = d.get("compose_hint")
+    if hint is not None:
+        ensure(action, lambda a: a == ShareAction.COMPOSE, f"{name}: compose_hint は action = 'compose' の共有先にだけ書けます")
+        ensure(hint, lambda h: bool(h.strip()) and "\n" not in h, f"{name}: compose_hint は改行を含まない、空でない文字列にしてください")
+    return DestinationSpec(
+        key=key, label=d["label"], color=color, icon=icon, action=ShareAction(action), endpoint=d["endpoint"], params=dict(params),
+        draft=draft, draft_format=draft_format, compose_hint=hint,
+    )
 
 
 def catalog() -> dict[str, DestinationSpec]:
@@ -189,7 +239,7 @@ class Config:
 
 # Messages added after 4.0.0 are optional so existing configuration files stay valid.
 OPTIONAL_MESSAGES: Final[dict[str, str]] = {
-    "composed": "タイトルとURLをコピーしました。投稿画面に貼り付けてください",
+    "composed": "記事のリンクをコピーしました。投稿画面に貼り付けてください",
     "compose_failed": "コピーできませんでした。投稿画面にタイトルとURLを入力してください",
 }
 

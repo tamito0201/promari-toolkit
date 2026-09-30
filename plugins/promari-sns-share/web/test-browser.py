@@ -107,7 +107,9 @@ with sync_playwright() as api:
         page = browser.new_page(viewport={'width': width, 'height': 900})
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
-        page.set_content('''<!doctype html><html lang="ja"><head><title>書く場所の検証</title></head>
+        page.set_content('''<!doctype html><html lang="ja"><head><title>書く場所の検証</title>
+        <meta property="og:description" content="記事の説明 &amp; 要点"><meta name="description" content="使わない説明">
+        <base href="https://example.com/"><meta property="og:image" content="/images/cover.webp"></head>
         <body><promari-sns-share id="c" variant="circle" like url="https://example.com/article/" title="記事の題名"
         destinations="x,line,facebook,copy,native,qiita,zenn,note,medium" secondary="ameba"></promari-sns-share>
         <promari-sns-share id="w" url="https://example.com/article/" title="記事の題名"
@@ -141,18 +143,38 @@ with sync_playwright() as api:
         # 既定の共有欄: compose はボタン、note は公式の共有入口へのリンク。
         assert w.locator('[data-key="qiita"]').evaluate('n => n.tagName') == 'BUTTON'
         expect(w.locator('[data-key="note"]')).to_have_attribute('href', 'https://note.com/intent/post?url=https%3A%2F%2Fexample.com%2Farticle%2F')
+        # アメブロは open のリンク（既定・円いの両方）。投稿画面が題名とカードの HTML をクエリで受け取る（ADR-0004）。
+        for bar in (w, c):
+            ameba = bar.locator('[data-key="ameba"]')
+            assert ameba.evaluate('n => n.tagName') == 'A'
+            query = ameba.evaluate('''n => { const u = new URL(n.href); return { base: u.origin + u.pathname, keys: [...u.searchParams.keys()],
+              title: u.searchParams.get('entry_title'), text: u.searchParams.get('entry_text'), length: n.href.length }; }''')
+            assert query['base'] == 'https://blog.ameba.jp/ucs/entry/srventryinsertinput.do', query
+            assert query['keys'] == ['entry_title', 'entry_text'], query
+            assert query['title'] == '記事の題名', query
+            assert query['text'].startswith('<div class="ogpCard_root">'), query
+            for part in ('href="https://example.com/article/"', '>記事の題名</span>', '>記事の説明 &amp; 要点</span>', '>example.com</span>', 'src="https://example.com/images/cover.webp"'):
+                assert part in query['text'], (part, query['text'])
+            assert query['length'] <= 2900, query['length']
         # 同じクリックの同期処理の中で、クリップボードへの書き込みと新しいタブの両方を始める。
+        # Qiita のコピー文は「題名＋空行＋URL＋空行」（プレビューでリンクカードになる形）。
         c.locator('[data-key="qiita"]').click()
-        assert page.evaluate('window.events') == ['copy:記事の題名\nhttps://example.com/article/', 'open|https://qiita.com/drafts/new|_blank|noopener,noreferrer'], page.evaluate('window.events')
+        assert page.evaluate('window.events') == ['copy:記事の題名\n\nhttps://example.com/article/\n', 'open|https://qiita.com/drafts/new|_blank|noopener,noreferrer'], page.evaluate('window.events')
         expect(c.locator('.status')).to_be_empty()  # 書き込みが終わるまで成功を名乗らない。
         page.evaluate('window.finishCopy()')
-        expect(c.locator('.status')).to_have_text('タイトルとURLをコピーしました。投稿画面に貼り付けてください')
+        expect(c.locator('.status')).to_have_text('記事のリンクをコピーしました。投稿画面に貼り付けてください')
+        # Medium は URL だけをコピーし、成功の知らせに「Enter でカード」の案内を足す。
+        page.evaluate("window.events=[]")
+        w.locator('[data-key="medium"]').click()
+        page.evaluate('window.finishCopy()')
+        expect(w.locator('.t')).to_have_text('記事のリンクをコピーしました。投稿画面に貼り付けてください 貼り付けたあと Enter を押すと、記事のカードになります')
+        assert page.evaluate('window.events') == ['copy:https://example.com/article/', 'open|https://medium.com/new-story|_blank|noopener,noreferrer'], page.evaluate('window.events')
         # 書き込みが拒否されても投稿画面は開き、失敗を知らせる（prompt は出さない）。
         page.evaluate("window.events=[]; window.copyMode='reject'")
         w.locator('[data-key="zenn"]').click()
         expect(w.locator('.t')).to_have_text('コピーできませんでした。投稿画面にタイトルとURLを入力してください')
         assert page.evaluate('window.events[1]') == 'open|https://zenn.dev/dashboard|_blank|noopener,noreferrer'
         assert not errors, errors
-        print(f'PASS: {width}px / 主の列10個が{rows}段で収まる・その他の選択肢が画面内・compose の同期開始・成功／失敗の通知', flush=True)
+        print(f'PASS: {width}px / 主の列10個が{rows}段で収まる・その他の選択肢が画面内・compose の同期開始・成功／失敗の通知・アメブロのカード・Qiita/Medium のコピー文', flush=True)
         page.close()
     browser.close()

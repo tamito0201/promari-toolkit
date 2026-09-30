@@ -116,11 +116,31 @@ destinations = ["x", "note", "qiita", "zenn", "medium"]
 [share.secondary]
 ameba = true
 [share.messages]
-composed = "Copied the title and URL. Paste them into the editor."
+composed = "Copied a link to the article. Paste it into the editor."
 ```
 
-`note` opens note's own share screen. The other four have no share entry point, so a click copies
-"title, line break, URL" and opens the editor in a new tab.
+`note` opens note's own share screen, and `ameba` opens Ameba Blog's editor with the title and a
+link card already filled in. Qiita, Zenn, and Medium have no share entry point, so a click copies text
+that the service turns into a card and opens the editor in a new tab (see
+[ADR-0004](adr/0004-link-card-drafts.md)).
+
+### Declare how a service turns a link into a card
+
+```toml
+# A fictional service whose editor turns a URL on its own line into a card.
+key = 'example'
+label = 'Example'
+brand_color = '#EF4056'
+action = 'compose'
+endpoint = 'https://example.com/new'
+icon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="..."/></svg>'
+draft = "{title}\n\n{url}\n"
+draft_format = 'text'
+compose_hint = 'Press Enter after the URL to make a card'
+```
+
+If the service's editor reads its body from the query instead, use `action = 'open'`, send the draft
+in `[params]` (for example `body = 'draft'`), and use `draft_format = 'html'` when the body is HTML.
 
 ## Add a destination
 
@@ -158,8 +178,19 @@ Requirements:
   with `https://`, and `[params]` must be absent (even an empty table is an error). A click copies the
   page title and URL, then opens the editor in a new tab (see [ADR-0003](adr/0003-compose-action.md)).
 - `[params]` maps query parameter names to request fields (`url`, `title`, `text`,
-  `via`, `site`, `hashtagsCsv`). An empty `endpoint` with no `[params]` means the
+  `via`, `site`, `hashtagsCsv`, `draft`). An empty `endpoint` with no `[params]` means the
   destination has no dialog.
+- `draft` and `draft_format` (optional, always together) declare how the service writes a link card
+  or embed for the article (see [ADR-0004](adr/0004-link-card-drafts.md)). The placeholders are
+  `{title}`, `{url}`, `{description}`, `{image}`, and `{host}`; any other placeholder or a lone brace is
+  an error. `draft_format = 'html'` HTML-escapes each value, and `'text'` inserts values as they are and
+  drops leading blank lines. A `compose` destination copies its draft; an `open` destination must send it
+  with `draft` in `[params]` (a draft that is never sent is an error), and never opens in a popup, since
+  it opens an editor. Values are cut to 100 characters (title) and 60 (description), and a URL that
+  carries a draft is kept at 2,900 characters or fewer by shortening the card. `copy` and `native` cannot
+  declare a draft.
+- `compose_hint` (optional, `compose` only, one line) follows the success notice, for example to tell
+  readers to press Enter after pasting.
 - Unknown fields are errors.
 
 Unsupported formats cause `--write` to fail validation.

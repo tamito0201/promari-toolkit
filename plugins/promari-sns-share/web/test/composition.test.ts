@@ -23,7 +23,7 @@ const fakeInfrastructure = (calls: string[], published: Array<{ element: string;
   new ContainerModule(({ bind }) => {
     const { provide, constant } = TypedBinding;
     provide(bind, TOKENS.ShareDestinationRepository, [TOKENS.ShareDestinationDefinitions], definitions => new InMemoryShareDestinationRepository(definitions));
-    constant(bind, TOKENS.SharedPageGateway, { read: () => ({ url: 'https://a.jp/post/', title: 'Hello', site: 'Promari' }) });
+    constant(bind, TOKENS.SharedPageGateway, { read: () => ({ url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', description: '', image: '' }) });
     constant(bind, TOKENS.NativeShareGateway, { available: true, share: async d => { calls.push(`share:${d.url}`); } });
     constant(bind, TOKENS.ClipboardGateway, { write: async t => { calls.push(`copy:${t}`); }, fallback: t => { calls.push(`fallback:${t}`); } });
     constant(bind, TOKENS.ShareWindowGateway, { open: href => { calls.push(`popup:${href}`); return true; } });
