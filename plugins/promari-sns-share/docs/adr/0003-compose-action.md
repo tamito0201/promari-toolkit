@@ -50,14 +50,17 @@ Qiita・Zenn・Medium には無く、アメブロの Ameba Now は終了して�
 - 宣言: `destinations/<key>.toml` に `action = 'compose'` と、`https://` で始まる投稿画面の URL を `endpoint` に書く。
   URL に項目を送らないので `[params]` は書かせない（空の表でも止める）。生成器 `tools/config.py` がこれを検査する（fail closed）。
 - 文面: 「ページの題名＋改行＋共有 URL」。URL には他の共有先と同じ UTM を付ける（`utm_source` は共有先の識別子）。
-  題名が空なら URL だけにする。決めるのは domain の `ShareActionPolicy.composeDraft()`。
+  題名が空なら URL だけにする。決めるのは domain の値オブジェクト `ShareDestination.composeDraft()`（compose 以外は空）。
 - 順序: `HandleShareClickUseCase` は、クリップボードへの書き込みと新しいタブを開く処理の両方を、最初の `await` より前に呼び始める。
   書き込みを先に始め、同期で例外が出ても拒否として扱うので、投稿画面は必ず開く。
-- 窓: 常に新しいタブ（`noopener,noreferrer`）。domain の `ShareWindowGateway` に `openTab()` を足し、infrastructure が実装する。
+- 窓: 常に新しいタブ（`noopener,noreferrer`）。domain に小窓（`ShareWindowGateway`）とは別のポート `NewTabGateway` を置き、
+  infrastructure の `BrowserNewTab` が実装する。小窓は開けたかを返してリンクの遷移へ戻せるが、新しいタブは観測できないため、
+  約束を1つのインターフェースに同居させない。
 - 通知: 成功は `messages.composed`、失敗は `messages.compose_failed` を既存の画面内通知で出す。
   どちらも省略でき、省略すると既定の文言を使う（既存の設定ファイルはそのまま通る）。
   失敗しても `copy` のような `prompt` は出さない。読者の目はすでに新しいタブにあり、元のページのダイアログは見えないからである。
-- 表示: `compose` はリンクではなくボタンとして描く（既定の共有欄・円い共有欄の両方）。
+- 表示: `compose` はリンクではなくボタンとして描く（既定の共有欄・円い共有欄の両方）。リンクにしてよいかは
+  domain の `ShareActionPolicy.linkable()` が決め、ビューモデルの `linkable` に載せる。描画は操作の名前を比べない。
 
 note は公式の入口があるので `compose` にせず、`open` の共有先として足す。
 

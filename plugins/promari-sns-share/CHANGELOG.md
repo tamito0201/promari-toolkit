@@ -26,6 +26,12 @@ This component follows [Semantic Versioning](https://semver.org/).
   390px without horizontal scrolling.
 - `compose` destinations render as `<button>` in both share bars; the default bar's styles apply to
   buttons as well as links.
+- Internal: whether a button may be a link, and whether its action is following the link, is decided once
+  in the domain (`ShareActionPolicy.followsLink()` / `linkable()`) and carried in the view model; the
+  views no longer compare action names. Opening a new tab is its own domain port (`NewTabGateway`,
+  implemented by `BrowserNewTab`) instead of a second method on `ShareWindowGateway`. The compose text
+  comes from the destination value object (`ShareDestination.composeDraft()`). Markup and behavior of
+  `open`, `copy`, and `native` are unchanged.
 
 ## 4.0.0
 

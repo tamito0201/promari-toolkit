@@ -24,13 +24,13 @@ const button = (trackAttribute: string) => (b: ShareButtonViewModel): string => 
     'aria-label': b.tooltip,
     style: `--b:${b.color}`,
   };
-  // compose copies and opens a tab in one click; as a link it would navigate without the copy.
-  if (b.action === 'compose') return `<button${attributes({ type: 'button', ...common })}>${content(b)}</button>`;
+  // The view model says whether a link is allowed (not for compose); the view does not interpret actions.
+  if (!b.linkable) return `<button${attributes({ type: 'button', ...common })}>${content(b)}</button>`;
   return `<a${attributes({
     ...common,
     href: b.href,
     target: b.newTab ? '_blank' : null,
-    rel: b.action === 'open' ? ['noopener', 'noreferrer', b.nofollow ? 'nofollow' : null].filter(Boolean).join(' ') : null,
+    rel: b.followsLink ? ['noopener', 'noreferrer', b.nofollow ? 'nofollow' : null].filter(Boolean).join(' ') : null,
   })}>${content(b)}</a>`;
 };
 

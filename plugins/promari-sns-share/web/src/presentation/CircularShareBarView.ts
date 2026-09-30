@@ -9,9 +9,10 @@ const button = (b: ShareButtonViewModel, attribute: string): string => {
   const name = HtmlEscaper.escape(labels[b.key] ?? b.label);
   const content = `${icon(b.key, b.icon)}<span class="caption">${name}</span>`;
   const attrs = `class="social" data-key="${HtmlEscaper.escape(b.key)}" ${attribute}="${HtmlEscaper.escape(b.key)}" aria-label="${HtmlEscaper.escape(b.tooltip)}"`;
-  return b.action === 'copy' || b.action === 'native' || b.action === 'compose'
-    ? `<button type="button" ${attrs}>${content}</button>`
-    : `<a ${attrs} href="${HtmlEscaper.escape(b.href)}"${b.newTab ? ' target="_blank"' : ''} rel="noopener noreferrer${b.nofollow ? ' nofollow' : ''}">${content}</a>`;
+  // Only a destination whose action is following its href is a link; every in-page action is a button.
+  return b.followsLink
+    ? `<a ${attrs} href="${HtmlEscaper.escape(b.href)}"${b.newTab ? ' target="_blank"' : ''} rel="noopener noreferrer${b.nofollow ? ' nofollow' : ''}">${content}</a>`
+    : `<button type="button" ${attrs}>${content}</button>`;
 };
 const render = (vm: ShareBarViewModel, attribute: string, caption: string, like: boolean): string => {
   const more = vm.secondary.length ? `<details><summary aria-label="その他の共有先"><span class="circle-icon">${svg('more')}</span><span class="caption">その他</span></summary><div class="options"><strong>SHARE THIS STORY</strong>${vm.secondary.map(b => button(b, attribute)).join('')}</div></details>` : '';

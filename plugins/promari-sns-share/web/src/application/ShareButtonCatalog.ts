@@ -28,6 +28,7 @@ export class DisplayedShareDestination {
   get key(): string { return this.#destination.key; }
   get action(): ShareAction { return this.#destination.action; }
   shareUrl(request: ShareRequest): string { return this.#destination.shareUrl(request); }
+  composeDraft(request: ShareRequest): string { return this.#destination.composeDraft(request); }
 }
 
 export class ShareButtonCatalog {

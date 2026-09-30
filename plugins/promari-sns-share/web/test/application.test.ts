@@ -56,7 +56,8 @@ describe('HandleShareClickUseCase', () => {
     const base: ShareGateways = {
       clipboard: { write: async (t) => { calls.push(`copy:${t}`); }, fallback: (t) => calls.push(`fallback:${t}`) },
       nativeShare: { available: true, share: async (d) => { calls.push(`share:${d.url}`); } },
-      popup: { open: (href) => { calls.push(`popup:${href}`); return true; }, openTab: (href) => { calls.push(`tab:${href}`); } },
+      popup: { open: (href) => { calls.push(`popup:${href}`); return true; } },
+      newTab: { open: (href) => { calls.push(`tab:${href}`); } },
       activity: { publish: (d) => tracked.push(d) },
     };
     return { calls, tracked, gateways: { ...base, ...overrides } };
@@ -105,7 +106,7 @@ describe('HandleShareClickUseCase', () => {
     }
   });
   it('popup が開けなければ既定動作（リンク遷移）に任せる', async () => {
-    const { gateways: g } = gateways({ popup: { open: () => false, openTab: () => undefined } });
+    const { gateways: g } = gateways({ popup: { open: () => false } });
     let prevented = false;
     const b = button('x').primary.find((x) => x.key === 'x')!;
     const outcome = await new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
@@ -121,7 +122,8 @@ describe('HandleShareClickUseCase（compose）', () => {
     const g: ShareGateways = {
       clipboard: { write: (t) => { calls.push(`copy:${t}`); return write(t); }, fallback: (t) => calls.push(`fallback:${t}`) },
       nativeShare: { available: false, share: async () => undefined },
-      popup: { open: (href) => { calls.push(`popup:${href}`); return true; }, openTab: (href) => { calls.push(`tab:${href}`); } },
+      popup: { open: (href) => { calls.push(`popup:${href}`); return true; } },
+      newTab: { open: (href) => { calls.push(`tab:${href}`); } },
       activity: { publish: (d) => tracked.push(d) },
     };
     return { calls, tracked, g };

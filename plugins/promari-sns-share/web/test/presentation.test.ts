@@ -38,6 +38,16 @@ describe('compose の描画', () => {
     assert.equal(qiita[1], 'button');
     assert.ok(qiita[2]!.includes(SPECS[4]!.icon));
   });
+  it('既存の copy・native の描き方は変えない（既定の共有欄はリンク、円い共有欄はボタン）', () => {
+    const both = new BuildShareBarUseCase(new ShareButtonCatalog(memoryRepository(SPECS), SPECS))
+      .execute({ ...CONFIG, destinations: ['x', 'copy', 'native'], secondary: [] }, { url: 'https://a.jp/', title: 'T', site: 'S', placement: 'inline', canNativeShare: true });
+    const tags = (html: string) => Object.fromEntries(['x', 'copy', 'native'].map((key) => [key, html.match(new RegExp(`<(\\w+)[^>]*data-key="${key}"`))![1]]));
+    assert.deepEqual(tags(ShareBarView.render(both, 'data-share', '')), { x: 'a', copy: 'a', native: 'a' });
+    assert.deepEqual(tags(CircularShareBarView.render(both, 'data-share', '', false)), { x: 'a', copy: 'button', native: 'button' });
+    // rel は共有 URL をたどるリンク（open）だけに付く。
+    assert.match(ShareBarView.render(both, 'data-share', ''), /data-key="x"[^>]*rel="noopener noreferrer nofollow"/);
+    assert.doesNotMatch(ShareBarView.render(both, 'data-share', ''), /data-key="copy"[^>]*rel=/);
+  });
   it('ボタンにもリンクと同じ見た目の規則を当てる', () => {
     const css = ShareBarStylesheet.build(CONFIG);
     assert.match(css, /\.p :is\(a,button\)\{height:/);

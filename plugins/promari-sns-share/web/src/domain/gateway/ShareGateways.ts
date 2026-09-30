@@ -4,6 +4,7 @@
  */
 import type { ClipboardGateway } from './ClipboardGateway.ts';
 import type { NativeShareGateway } from './NativeShareGateway.ts';
+import type { NewTabGateway } from './NewTabGateway.ts';
 import type { ShareWindowGateway } from './ShareWindowGateway.ts';
 import type { ShareActivityPublisher } from './ShareActivityPublisher.ts';
 
@@ -11,5 +12,6 @@ export interface ShareGateways {
   readonly clipboard: ClipboardGateway;
   readonly nativeShare: NativeShareGateway;
   readonly popup: ShareWindowGateway;
+  readonly newTab: NewTabGateway;
   readonly activity: ShareActivityPublisher;
 }

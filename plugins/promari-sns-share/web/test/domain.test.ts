@@ -87,9 +87,14 @@ describe('ドメインサービス', () => {
     assert.equal(ShareActionPolicy.decide({ action: ShareAction.Compose, popup: { width: 1, height: 1 } }), 'compose');
     assert.equal(ShareActionPolicy.decide({ action: ShareAction.Compose, popup: null }), 'compose');
   });
-  it('compose の下書きは「題名＋改行＋URL」、題名が空なら URL だけ', () => {
-    assert.equal(ShareActionPolicy.composeDraft('Hello', 'https://a.jp/'), 'Hello\nhttps://a.jp/');
-    assert.equal(ShareActionPolicy.composeDraft('  ', 'https://a.jp/'), 'https://a.jp/');
+  it('操作と href の関係は domain の1か所で決める（リンクになれるか・リンクをたどること自体が操作か）', () => {
+    const table = Object.values(ShareAction).map((action) => [action, ShareActionPolicy.followsLink(action), ShareActionPolicy.linkable(action)]);
+    assert.deepEqual(table, [
+      ['open', true, true],
+      ['copy', false, true], // href はページ自身。既定の共有欄では従来どおりリンク
+      ['native', false, true],
+      ['compose', false, false], // href だけをたどるとコピーが抜けるので、リンクにしない
+    ]);
   });
 });
 
@@ -113,6 +118,12 @@ describe('ShareDestination（値オブジェクト）', () => {
   it('compose の共有先は投稿画面の URL をそのまま返す（URL に項目を載せない）', () => {
     const qiita = new ShareDestination(SPECS[4]!);
     assert.equal(qiita.shareUrl(ShareRequest.create({ url: 'https://a.jp/', title: 'T', text: 'T' })), 'https://qiita.com/drafts/new');
+  });
+  it('compose の下書きは「題名＋改行＋URL」、題名が空なら URL だけ。compose 以外は空', () => {
+    const qiita = new ShareDestination(SPECS[4]!);
+    assert.equal(qiita.composeDraft(ShareRequest.create({ url: 'https://a.jp/', title: ' Hello ', text: '' })), 'Hello\nhttps://a.jp/');
+    assert.equal(qiita.composeDraft(ShareRequest.create({ url: 'https://a.jp/', title: '  ', text: '' })), 'https://a.jp/');
+    for (const spec of SPECS.slice(0, 4)) assert.equal(new ShareDestination(spec).composeDraft(ShareRequest.create({ url: 'https://a.jp/', title: 'T', text: 'T' })), '', spec.key);
   });
   it('endpoint の無いサービスはページ URL を返す', () => {
     const copy = new ShareDestination(SPECS[2]!);

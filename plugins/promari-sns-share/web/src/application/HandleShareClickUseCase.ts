@@ -61,7 +61,7 @@ export class HandleShareClickUseCase {
         // so the editor still opens. A failed copy is reported, not retried with a prompt: the user is
         // already looking at the new tab (ADR-0003).
         const writing = new Promise<void>((resolve) => { resolve(this.#gateways.clipboard.write(button.draft)); });
-        this.#gateways.popup.openTab(button.href);
+        this.#gateways.newTab.open(button.href);
         return writing.then(() => 'composed' as const, () => 'compose-copy-failed' as const);
       }
       case 'popup': {

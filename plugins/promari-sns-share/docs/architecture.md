@@ -97,11 +97,11 @@ web/src/
     service/       ドメインサービス（ShareActionPolicy・DestinationSelectionPolicy・ShareTextFormatter・
                    UtmParameterPolicy・UriEncoder）
     repository/    ShareDestinationRepository インターフェース
-    gateway/       ClipboardGateway・NativeShareGateway・ShareWindowGateway・SharedPageGateway・
+    gateway/       ClipboardGateway・NativeShareGateway・ShareWindowGateway・NewTabGateway・SharedPageGateway・
                    ShareActivityPublisher インターフェースと、それらをまとめた ShareGateways
   application/     ユースケース（BuildShareBarUseCase・HandleShareClickUseCase）、ShareButtonCatalog、ShareSettings
   infrastructure/  domainのインターフェースの実装（InMemoryShareDestinationRepository・BrowserClipboard・
-                   BrowserNativeShare・BrowserPopupWindow・BrowserSharedPage・CustomEventShareActivityPublisher）
+                   BrowserNativeShare・BrowserPopupWindow・BrowserNewTab・BrowserSharedPage・CustomEventShareActivityPublisher）
   presentation/    PromariSnsShareElement、ShareSettingsAttributeReader、ShareBarView・CircularShareBarView・
                    ShareBarStylesheet、FloatingBarVisibility、ToastNotifier、HtmlEscaper
   composition/     DIコンテナ（InversifyJS）の組み立て。四層の外に置き、具体的な実装を選んで
@@ -139,9 +139,24 @@ presentationが結果に応じて画面内の通知を描く。書き込みの�
 
 4.1.0で、共有の入口を持たないサービス（Qiita・Zenn・Medium・アメブロ）のために操作`compose`を足した
 （[ADR-0003](adr/0003-compose-action.md)）。ユースケースは、domainの`ClipboardGateway.write()`と
-`ShareWindowGateway.openTab()`を、最初の`await`より前に同じクリックの同期処理の中で呼び始める。
+`NewTabGateway.open()`を、最初の`await`より前に同じクリックの同期処理の中で呼び始める。
 ポップアップブロッカーは、クリックの同期処理の外で開いた窓を止めるためである。コピーする文面
-（題名・改行・UTM付きURL）はdomainの`ShareActionPolicy.composeDraft()`が決め、ビューモデルの`draft`に載る。
+（題名・改行・UTM付きURL）は値オブジェクトの`ShareDestination.composeDraft()`が決め、ビューモデルの`draft`に載る。
+
+新しいタブは小窓（`ShareWindowGateway`）と別のポート`NewTabGateway`にした。小窓は開けたかを返し、
+開けなければリンクの遷移へ戻すが、`noopener`の新しいタブは開けたかを観測できない。約束が違うものを
+1つのインターフェースに同居させると、小窓だけを使う実装や試験の代役にも新しいタブの実装を強いる（ISP）。
+
+ボタンをリンクで描いてよいか（`linkable`）と、クリックがリンクをたどること自体か（`followsLink`）は、
+domainの`ShareActionPolicy`が操作ごとの表で1か所に決め、ビューモデルに載せる。表は`ShareAction`の
+全値を要求する型なので、操作を足すと両方の事実を書くまでコンパイルが通らない。描画（`ShareBarView`・
+`CircularShareBarView`）はこの値だけを読み、操作の名前を比べない。`architecture.test.ts`が描画の
+ファイルで`action`を読んでいないことを検査する。既定の共有欄は`linkable`、円い共有欄は`followsLink`で
+リンクとボタンを分けるので、`copy`・`native`の描き方（既定はリンク、円いほうはボタン）は4.0.0から変わらない。
+
+クリックの分岐（`HandleShareClickUseCase`の`switch`）は、戦略（Strategy）へ分けず、閉じた集合への
+網羅的な分岐のままにした。操作の種類を増やすことは共有先の追加（TOMLを1つ足す）と違い、ADR-0002・0003で
+別の判断として扱うと決めている。`never`による網羅検査があるので、増やしたときは書き漏れがコンパイルで止まる。
 
 PHPから抽出したシェア先の入力はapplicationの`ShareDestinationDefinition`で受け取る。
 infrastructureの`InMemoryShareDestinationRepository`がURL規則だけを値オブジェクトにし、
@@ -167,10 +182,10 @@ presentation layer without rewriting the domain logic.
 ### データと操作の流れ
 
 1. index.tsが`ShareContainer.create()`でコンテナを作る。compositionがリポジトリとゲートウェイのブラウザ実装をdomainのインターフェースへ結び付け、ユースケースと組み合わせた依存を`PromariSnsShareElement.define()`へ渡す。
-2. presentationが`AttributeConfigReader`で属性を設定として読み取り、`BuildShareBarUseCase.execute()`へ渡す。
+2. presentationが`ShareSettingsAttributeReader`で属性を設定として読み取り、`BuildShareBarUseCase.execute()`へ渡す。
 3. `BuildShareBarUseCase`がdomainの選択・URL規則と表示用メタデータを合わせてビューモデルを返す。
 4. presentationがShadow DOMへ描画し、クリックを`HandleShareClickUseCase.execute()`へ渡す。
-5. `HandleShareClickUseCase`が`ClickPolicy.decide()`の判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
+5. `HandleShareClickUseCase`が`ShareActionPolicy.decide()`の判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
    ゲートウェイの実装がホスト要素からイベントとして送出し、画面内通知はpresentationが描く。
 
 ### Security and performance

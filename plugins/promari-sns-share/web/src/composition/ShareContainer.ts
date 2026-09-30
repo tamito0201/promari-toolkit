@@ -16,6 +16,7 @@ import { ShareButtonCatalog, type ShareDestinationDefinition } from '../applicat
 import type { ShareSettings } from '../application/ShareSettings.ts';
 import { BrowserClipboard } from '../infrastructure/BrowserClipboard.ts';
 import { BrowserNativeShare } from '../infrastructure/BrowserNativeShare.ts';
+import { BrowserNewTab } from '../infrastructure/BrowserNewTab.ts';
 import { BrowserPopupWindow } from '../infrastructure/BrowserPopupWindow.ts';
 import { BrowserSharedPage } from '../infrastructure/BrowserSharedPage.ts';
 import { CustomEventShareActivityPublisher } from '../infrastructure/CustomEventShareActivityPublisher.ts';
@@ -47,6 +48,7 @@ export class ShareContainer {
       provide(bind, TOKENS.NativeShareGateway, [], () => new BrowserNativeShare());
       provide(bind, TOKENS.ClipboardGateway, [], () => new BrowserClipboard());
       provide(bind, TOKENS.ShareWindowGateway, [], () => new BrowserPopupWindow());
+      provide(bind, TOKENS.NewTabGateway, [], () => new BrowserNewTab());
       constant(bind, TOKENS.ShareActivityPublisherFactory, publisher);
     });
   }
@@ -59,9 +61,10 @@ export class ShareContainer {
       provide(bind, TOKENS.BuildShareBarUseCase, [TOKENS.ShareButtonCatalog], catalog => new BuildShareBarUseCase(catalog));
       // Each element publishes activity under its own name, so the click use case is made per element.
       provide(bind, TOKENS.HandleShareClickUseCaseFactory,
-        [TOKENS.ClipboardGateway, TOKENS.NativeShareGateway, TOKENS.ShareWindowGateway, TOKENS.ShareActivityPublisherFactory],
-        (clipboard, nativeShare, popup, publish): HandleShareClickUseCaseFactory => (element, eventName) =>
-          new HandleShareClickUseCase({ clipboard, nativeShare, popup, activity: publish(element, eventName) }));
+        [TOKENS.ClipboardGateway, TOKENS.NativeShareGateway, TOKENS.ShareWindowGateway, TOKENS.NewTabGateway,
+          TOKENS.ShareActivityPublisherFactory],
+        (clipboard, nativeShare, popup, newTab, publish): HandleShareClickUseCaseFactory => (element, eventName) =>
+          new HandleShareClickUseCase({ clipboard, nativeShare, popup, newTab, activity: publish(element, eventName) }));
       provide(bind, TOKENS.ShareElementDependencies,
         [TOKENS.BuildShareBarUseCase, TOKENS.DefaultShareSettings, TOKENS.SharedPageGateway, TOKENS.NativeShareGateway,
           TOKENS.HandleShareClickUseCaseFactory],

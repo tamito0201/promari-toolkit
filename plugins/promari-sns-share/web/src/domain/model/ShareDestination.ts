@@ -7,7 +7,7 @@
  */
 import { UriEncoder } from '../service/UriEncoder.ts';
 import type { ShareRequest } from './ShareRequest.ts';
-import type { ShareAction } from './ShareAction.ts';
+import { ShareAction } from './ShareAction.ts';
 import type { ShareRequestField, ShareDestinationSpec } from './ShareDestinationSpec.ts';
 
 const FIELD: Readonly<Record<ShareRequestField, (r: ShareRequest) => string>> = {
@@ -44,5 +44,16 @@ export class ShareDestination {
       .filter(([, value]) => value !== '')
       .map(([name, value]) => `${UriEncoder.encode(name)}=${UriEncoder.encode(value)}`);
     return this.#endpoint + (pairs.length ? `?${pairs.join('&')}` : '');
+  }
+
+  /**
+   * The text a compose destination puts on the clipboard: the page title, a line break, and the
+   * shared URL (ADR-0003). Without a title only the URL is copied, so the paste never starts with a
+   * blank line. Other actions copy nothing of their own and return an empty string.
+   */
+  composeDraft(request: ShareRequest): string {
+    if (this.action !== ShareAction.Compose) return '';
+    const heading = request.title.trim();
+    return heading ? `${heading}\n${request.url}` : request.url;
   }
 }
