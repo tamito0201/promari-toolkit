@@ -10,6 +10,7 @@ import type { ShareSettings } from '../application/ShareSettings.ts';
 import type { ClipboardGateway } from '../domain/gateway/ClipboardGateway.ts';
 import type { ShareActivityPublisher } from '../domain/gateway/ShareActivityPublisher.ts';
 import type { NativeShareGateway } from '../domain/gateway/NativeShareGateway.ts';
+import type { NewTabGateway } from '../domain/gateway/NewTabGateway.ts';
 import type { ShareWindowGateway } from '../domain/gateway/ShareWindowGateway.ts';
 import type { SharedPageGateway } from '../domain/gateway/SharedPageGateway.ts';
 import type { ShareDestinationRepository } from '../domain/repository/ShareDestinationRepository.ts';
@@ -36,6 +37,7 @@ export const TOKENS = Object.freeze({
   NativeShareGateway: token<NativeShareGateway>('NativeShareGateway'),
   ClipboardGateway: token<ClipboardGateway>('ClipboardGateway'),
   ShareWindowGateway: token<ShareWindowGateway>('ShareWindowGateway'),
+  NewTabGateway: token<NewTabGateway>('NewTabGateway'),
   ShareActivityPublisherFactory: token<ShareActivityPublisherFactory>('ShareActivityPublisherFactory'),
   // application.
   ShareButtonCatalog: token<ShareButtonCatalog>('ShareButtonCatalog'),

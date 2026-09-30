@@ -58,7 +58,9 @@ $assert(!str_contains($html, '<?') && !str_contains($html, '<script'), 'HTML に
 
 // 共有 URL の組み立ては Web Component だけが行う。サーバー側には一切現れない。
 $assert(!str_contains($html, 'twitter.com') && !str_contains($html, 'facebook.com')
-    && !str_contains($html, 'hatena.ne.jp') && !str_contains($html, 'mailto:'),
+    && !str_contains($html, 'hatena.ne.jp') && !str_contains($html, 'mailto:')
+    && !str_contains($html, 'note.com') && !str_contains($html, 'qiita.com') && !str_contains($html, 'zenn.dev')
+    && !str_contains($html, 'medium.com') && !str_contains($html, 'ameba.jp'),
     'サーバーは共有先のエンドポイントを書き出さない');
 $assert(!str_contains($html, 'utm_source') && !str_contains($html, '%3A%2F%2F'),
     'サーバーは UTM も符号化した URL も作らない');

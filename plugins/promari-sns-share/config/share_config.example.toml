@@ -20,15 +20,16 @@ version = 1 # Configuration format version; currently only integer 1 is supporte
 target = "." # Target Git root; relative to the repository containing this configuration.
 plugin_output = "" # WordPress plugin output directory, e.g. public_html/wp-content/plugins/promari-sns-share. Empty disables output.
 web_output = "dist" # Minified Web Component output directory, e.g. dist. Empty disables output; CDN hosting is recommended.
-web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v4.0.0/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
-web_version = "4.0.0" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
+web_url = "https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v4.1.0/plugins/promari-sns-share/dist/promari-sns-share.min.js" # Public HTTPS URL for the JavaScript bundle. Set together with web_output.
+web_version = "4.1.0" # Independent plugin version. tools/publish.sh creates promari-sns-share-v<VERSION>.
 
 # ==========================================================================================
 # [share] What to display, where to display it, and how it should look.
 # ==========================================================================================
 [share]
 # Primary buttons with official-style appearance, brand colors, and labels; ordered left to right.
-# Available destinations: facebook / x / line / hatena / linkedin / email / copy / native
+# Available destinations: facebook / x / line / hatena / linkedin / email / copy / native / note / qiita / zenn / medium / ameba
+# qiita / zenn / medium / ameba have no share entry point: they copy "title + line break + URL" and open the editor in a new tab.
 destinations = ["facebook", "x", "line"]
 heading = "SHARE" # Small heading beside or above the buttons. Empty hides it; never shown in the floating bar.
 
@@ -42,6 +43,11 @@ linkedin = "LinkedIn"
 email = "メールで送る"
 copy = "URLをコピー"
 native = "その他の共有"
+note = "note"
+qiita = "Qiita"
+zenn = "Zenn"
+medium = "Medium"
+ameba = "アメブロ"
 
 # Optional per-button overrides. Entire sections may be omitted; empty strings inherit defaults.
 [share.buttons.facebook]
@@ -111,6 +117,11 @@ linkedin = true # LinkedIn
 email = true # Send by email (mailto).
 copy = true # Copy the URL to the clipboard; falls back to a link without JavaScript.
 native = true # Native share sheet (Web Share API); shown only where navigator.share is available.
+note = false # note ("Write on note"); signed-out users log in first.
+qiita = false # Qiita: copies the title and URL, then opens the draft editor.
+zenn = false # Zenn: copies the title and URL, then opens the dashboard.
+medium = false # Medium: copies the title and URL, then opens the story editor.
+ameba = false # Ameba Blog: copies the title and URL, then opens the entry editor.
 
 [share.tracking]
 # Tracking contract: observe this attribute (value = destination identifier) or the JavaScript CustomEvent.
@@ -120,6 +131,8 @@ event_name = "promari-sns-share" # Click CustomEvent name, observable on documen
 [share.messages]
 copied = "URLをコピーしました" # Toast after successfully copying the URL.
 group_label = "この記事をシェアする" # Accessible name of the button group (aria-label).
+composed = "タイトルとURLをコピーしました。投稿画面に貼り付けてください" # Optional. After copying for qiita / zenn / medium / ameba.
+compose_failed = "コピーできませんでした。投稿画面にタイトルとURLを入力してください" # Optional. When that copy fails; the editor still opens.
 
 [share.style]
 accent = "#54347e" # Heading, focus outline, and copy-success color (site brand), #rrggbb.

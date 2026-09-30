@@ -13,6 +13,7 @@ import { DEFAULTS } from '../src/generated/defaults.ts';
 import { InMemoryShareDestinationRepository } from '../src/infrastructure/InMemoryShareDestinationRepository.ts';
 import { BrowserClipboard } from '../src/infrastructure/BrowserClipboard.ts';
 import { BrowserNativeShare } from '../src/infrastructure/BrowserNativeShare.ts';
+import { BrowserNewTab } from '../src/infrastructure/BrowserNewTab.ts';
 import { BrowserPopupWindow } from '../src/infrastructure/BrowserPopupWindow.ts';
 import { BrowserSharedPage } from '../src/infrastructure/BrowserSharedPage.ts';
 import type { ShareActivity } from '../src/domain/gateway/ShareActivityPublisher.ts';
@@ -26,6 +27,7 @@ const fakeInfrastructure = (calls: string[], published: Array<{ element: string;
     constant(bind, TOKENS.NativeShareGateway, { available: true, share: async d => { calls.push(`share:${d.url}`); } });
     constant(bind, TOKENS.ClipboardGateway, { write: async t => { calls.push(`copy:${t}`); }, fallback: t => { calls.push(`fallback:${t}`); } });
     constant(bind, TOKENS.ShareWindowGateway, { open: href => { calls.push(`popup:${href}`); return true; } });
+    constant(bind, TOKENS.NewTabGateway, { open: href => { calls.push(`tab:${href}`); } });
     constant(bind, TOKENS.ShareActivityPublisherFactory, (element, eventName) => ({
       publish: activity => { published.push({ element: element.id, eventName, activity }); },
     }));
@@ -64,6 +66,17 @@ describe('ShareContainer', () => {
       [['top', 'share-top', 'article_top'], ['bottom', 'share-bottom', 'article_bottom']]);
   });
 
+  it('compose のクリックは、コンテナが結んだ新しいタブのポートで投稿画面を開く（小窓のポートは使わない）', async () => {
+    const calls: string[] = [];
+    const deps = ShareContainer.get(ShareContainer.create(CATALOG, DEFAULTS, fakeInfrastructure(calls, [])), TOKENS.ShareElementDependencies);
+    const bar = deps.buildShareBar.execute({ ...DEFAULTS, destinations: ['qiita'], secondary: [] }, { url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', placement: 'inline', canNativeShare: false });
+    const qiita = bar.primary[0]!;
+    const outcome = await deps.connect(element('a')).clickUseCase('share').execute({ button: qiita, placement: 'inline', preventDefault: () => undefined });
+    assert.equal(outcome, 'composed');
+    assert.deepEqual(calls.map(call => call.split(':')[0]), ['copy', 'tab']);
+    assert.equal(calls[1], `tab:${qiita.href}`);
+  });
+
   it('ブラウザ用のモジュールは、domainのインターフェースへブラウザ実装を結び付ける', () => {
     const container = ShareContainer.create(CATALOG, DEFAULTS);
     assert.ok(ShareContainer.get(container, TOKENS.ShareDestinationRepository) instanceof InMemoryShareDestinationRepository);
@@ -71,6 +84,7 @@ describe('ShareContainer', () => {
     assert.ok(ShareContainer.get(container, TOKENS.NativeShareGateway) instanceof BrowserNativeShare);
     assert.ok(ShareContainer.get(container, TOKENS.ClipboardGateway) instanceof BrowserClipboard);
     assert.ok(ShareContainer.get(container, TOKENS.ShareWindowGateway) instanceof BrowserPopupWindow);
+    assert.ok(ShareContainer.get(container, TOKENS.NewTabGateway) instanceof BrowserNewTab);
   });
 
   it('結び付けていないトークンは解決時に失敗する（黙って undefined を返さない）', () => {

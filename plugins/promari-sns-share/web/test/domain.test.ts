@@ -22,6 +22,7 @@ export const SPECS: readonly ShareDestinationDefinition[] = [
   { key: 'facebook', label: 'シェア', color: '#1877F2', icon: svg, action: ShareAction.Open, endpoint: 'https://www.facebook.com/sharer/sharer.php', params: { u: 'url' } },
   { key: 'copy', label: 'URLをコピー', color: '#5F6368', icon: svg, action: ShareAction.Copy, endpoint: '', params: {} },
   { key: 'native', label: 'その他', color: '#5F6368', icon: svg, action: ShareAction.Native, endpoint: '', params: {} },
+  { key: 'qiita', label: 'Qiita', color: '#55C500', icon: svg, action: ShareAction.Compose, endpoint: 'https://qiita.com/drafts/new', params: {} },
 ];
 
 export const CONFIG: ShareSettings = {
@@ -36,7 +37,7 @@ export const CONFIG: ShareSettings = {
   behavior: { open_in_new_tab: true, popup: true, popup_width: 600, popup_height: 500, nofollow: true },
   floating: { position: 'bottom', after: 400, secondaryMax: 1, hideNearEnd: true, destinations: [] },
   tracking: { attribute: 'data-share', event_name: 'promari-sns-share' },
-  messages: { copied: 'コピーしました', group_label: 'シェア' },
+  messages: { copied: 'コピーしました', group_label: 'シェア', composed: '投稿画面に貼り付けてください', compose_failed: 'コピーできませんでした' },
   style: { accent: '#54347e', floating_background: '#fff' },
 };
 
@@ -82,6 +83,18 @@ describe('ドメインサービス', () => {
     assert.equal(ShareActionPolicy.decide({ action: ShareAction.Native, popup: null }), 'native');
     assert.equal(ShareActionPolicy.decide({ action: ShareAction.Open, popup: { width: 1, height: 1 } }), 'popup');
     assert.equal(ShareActionPolicy.decide({ action: ShareAction.Open, popup: null }), 'follow');
+    // compose は小窓の設定に関わらず compose（常に新しいタブ）。
+    assert.equal(ShareActionPolicy.decide({ action: ShareAction.Compose, popup: { width: 1, height: 1 } }), 'compose');
+    assert.equal(ShareActionPolicy.decide({ action: ShareAction.Compose, popup: null }), 'compose');
+  });
+  it('操作と href の関係は domain の1か所で決める（リンクになれるか・リンクをたどること自体が操作か）', () => {
+    const table = Object.values(ShareAction).map((action) => [action, ShareActionPolicy.followsLink(action), ShareActionPolicy.linkable(action)]);
+    assert.deepEqual(table, [
+      ['open', true, true],
+      ['copy', false, true], // href はページ自身。既定の共有欄では従来どおりリンク
+      ['native', false, true],
+      ['compose', false, false], // href だけをたどるとコピーが抜けるので、リンクにしない
+    ]);
   });
 });
 
@@ -101,6 +114,16 @@ describe('ShareDestination（値オブジェクト）', () => {
     // encodeURIComponent は ! ' ( ) * を残すので、RFC 3986 に合わせて補って符号化する。
     const tricky = ShareRequest.create({ url: 'https://a.jp/', title: '', text: "a!b'c(d)e*f" });
     assert.equal(x!.shareUrl(tricky), 'https://twitter.com/intent/tweet?url=https%3A%2F%2Fa.jp%2F&text=a%21b%27c%28d%29e%2Af');
+  });
+  it('compose の共有先は投稿画面の URL をそのまま返す（URL に項目を載せない）', () => {
+    const qiita = new ShareDestination(SPECS[4]!);
+    assert.equal(qiita.shareUrl(ShareRequest.create({ url: 'https://a.jp/', title: 'T', text: 'T' })), 'https://qiita.com/drafts/new');
+  });
+  it('compose の下書きは「題名＋改行＋URL」、題名が空なら URL だけ。compose 以外は空', () => {
+    const qiita = new ShareDestination(SPECS[4]!);
+    assert.equal(qiita.composeDraft(ShareRequest.create({ url: 'https://a.jp/', title: ' Hello ', text: '' })), 'Hello\nhttps://a.jp/');
+    assert.equal(qiita.composeDraft(ShareRequest.create({ url: 'https://a.jp/', title: '  ', text: '' })), 'https://a.jp/');
+    for (const spec of SPECS.slice(0, 4)) assert.equal(new ShareDestination(spec).composeDraft(ShareRequest.create({ url: 'https://a.jp/', title: 'T', text: 'T' })), '', spec.key);
   });
   it('endpoint の無いサービスはページ URL を返す', () => {
     const copy = new ShareDestination(SPECS[2]!);

@@ -2,6 +2,37 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 4.1.0
+
+### Added
+
+- Destinations for writing about the article: `note`, `qiita`, `zenn`, `medium`, and `ameba`
+  (Ameba Blog). Logos come from simple-icons 16.33.0 (CC0 1.0). None is enabled in the example
+  configuration; add them to `share.destinations` or `share.secondary`.
+- `note` uses note's official share screen (`https://note.com/intent/post`) with `url` and `hashtags`.
+- New action `compose` for services without a share entry point (Qiita, Zenn, Medium, Ameba Blog).
+  A click puts "page title, line break, shared URL" (with the same UTM parameters as other
+  destinations) on the clipboard and opens the service's editor in a new tab. Both effects start in
+  the click's synchronous turn so popup blockers allow the tab. The tab always opens as a new tab,
+  regardless of `behavior.popup` and `behavior.open_in_new_tab`. See docs/adr/0003-compose-action.md.
+- Optional messages `share.messages.composed` and `share.messages.compose_failed`, with Japanese
+  defaults. Existing configuration files remain valid.
+- Destination files with `action = 'compose'` fail closed unless `endpoint` starts with `https://`,
+  and reject a `[params]` table even when it is empty.
+
+### Changed
+
+- The circular share bar (`variant="circle"`) wraps its buttons, so ten buttons fit at 320px and
+  390px without horizontal scrolling.
+- `compose` destinations render as `<button>` in both share bars; the default bar's styles apply to
+  buttons as well as links.
+- Internal: whether a button may be a link, and whether its action is following the link, is decided once
+  in the domain (`ShareActionPolicy.followsLink()` / `linkable()`) and carried in the view model; the
+  views no longer compare action names. Opening a new tab is its own domain port (`NewTabGateway`,
+  implemented by `BrowserNewTab`) instead of a second method on `ShareWindowGateway`. The compose text
+  comes from the destination value object (`ShareDestination.composeDraft()`). Markup and behavior of
+  `open`, `copy`, and `native` are unchanged.
+
 ## 4.0.0
 
 ### Changed

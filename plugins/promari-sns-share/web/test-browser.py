@@ -102,4 +102,57 @@ with sync_playwright() as api:
         assert not errors, errors
         print(f'PASS: {width}px / コピー待機・拒否・共有成功／拒否／非対応・いいね同期・再接続・通知先・色の入口', flush=True)
         page.close()
+
+        # 書く場所（compose）と、主の列に10個並べた円い表示。
+        page = browser.new_page(viewport={'width': width, 'height': 900})
+        errors = []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        page.set_content('''<!doctype html><html lang="ja"><head><title>書く場所の検証</title></head>
+        <body><promari-sns-share id="c" variant="circle" like url="https://example.com/article/" title="記事の題名"
+        destinations="x,line,facebook,copy,native,qiita,zenn,note,medium" secondary="ameba"></promari-sns-share>
+        <promari-sns-share id="w" url="https://example.com/article/" title="記事の題名"
+        destinations="qiita,note" secondary="zenn,medium,ameba"></promari-sns-share></body></html>''')
+        page.evaluate('''() => {
+          window.events=[]; window.copyMode='pending';
+          Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:text=>{
+            window.events.push('copy:'+text);
+            if(window.copyMode==='reject')return Promise.reject(new Error('denied'));
+            return new Promise(resolve=>window.finishCopy=resolve);
+          }}});
+          Object.defineProperty(navigator,'share',{configurable:true,value:async()=>{}});
+          window.open=(href,target,features)=>{window.events.push(['open',href,target,features].join('|'));return null;};
+        }''')
+        page.add_script_tag(content=BUNDLE.read_text())
+        page.evaluate("customElements.whenDefined('promari-sns-share')")
+        c, w = page.locator('#c'), page.locator('#w')
+        # 主の列の9個と「その他」が、横スクロールを出さずに画面内へ収まる（折り返す）。
+        assert c.locator('.socials > .social').count() == 9
+        inside = '''e => [...e.shadowRoot.querySelectorAll('.socials > .social, summary')].map(n => n.getBoundingClientRect())
+          .every(r => r.left >= 0 && r.right <= innerWidth)'''
+        assert c.evaluate(inside), f'{width}px: 円いボタンが画面外にはみ出す'
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), page.evaluate('[document.documentElement.scrollWidth, innerWidth]')
+        rows = c.evaluate("e => new Set([...e.shadowRoot.querySelectorAll('.socials > .social, summary')].map(n => Math.round(n.getBoundingClientRect().top))).size")
+        c.locator('summary').click()
+        expect(c.locator('details')).to_have_attribute('open', '')
+        # 位置の補正は toggle イベント（非同期）で入るので、収まるまで待つ。収まらなければ時間切れで失敗する。
+        page.wait_for_function('''() => { const r = document.querySelector('#c').shadowRoot.querySelector('.options').getBoundingClientRect();
+          return r.left >= 15.5 && r.right <= innerWidth - 15.5; }''', timeout=3000)
+        c.locator('summary').press('Escape')
+        # 既定の共有欄: compose はボタン、note は公式の共有入口へのリンク。
+        assert w.locator('[data-key="qiita"]').evaluate('n => n.tagName') == 'BUTTON'
+        expect(w.locator('[data-key="note"]')).to_have_attribute('href', 'https://note.com/intent/post?url=https%3A%2F%2Fexample.com%2Farticle%2F')
+        # 同じクリックの同期処理の中で、クリップボードへの書き込みと新しいタブの両方を始める。
+        c.locator('[data-key="qiita"]').click()
+        assert page.evaluate('window.events') == ['copy:記事の題名\nhttps://example.com/article/', 'open|https://qiita.com/drafts/new|_blank|noopener,noreferrer'], page.evaluate('window.events')
+        expect(c.locator('.status')).to_be_empty()  # 書き込みが終わるまで成功を名乗らない。
+        page.evaluate('window.finishCopy()')
+        expect(c.locator('.status')).to_have_text('タイトルとURLをコピーしました。投稿画面に貼り付けてください')
+        # 書き込みが拒否されても投稿画面は開き、失敗を知らせる（prompt は出さない）。
+        page.evaluate("window.events=[]; window.copyMode='reject'")
+        w.locator('[data-key="zenn"]').click()
+        expect(w.locator('.t')).to_have_text('コピーできませんでした。投稿画面にタイトルとURLを入力してください')
+        assert page.evaluate('window.events[1]') == 'open|https://zenn.dev/dashboard|_blank|noopener,noreferrer'
+        assert not errors, errors
+        print(f'PASS: {width}px / 主の列10個が{rows}段で収まる・その他の選択肢が画面内・compose の同期開始・成功／失敗の通知', flush=True)
+        page.close()
     browser.close()

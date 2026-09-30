@@ -105,6 +105,31 @@ describe('レイヤード＋DDDの依存境界', () => {
       ['presentation', "import { TOKENS } from '../composition/InjectionTokens.ts';"],
     ]) assert.ok(violations(join(root, layer!, 'fixture.ts'), text!).length, text);
   });
+  it('描画（〜View）は操作の種類を解釈せず、ビューモデルの値（followsLink・linkable）だけを読む', () => {
+    // 「どの操作ならリンクにできるか」は domain の ShareActionPolicy の1か所で決める。
+    // 描画側で action を比べると、同じ判断が複数の View に散り、操作を足すたびに書き漏れが出る。
+    const readsAction = (text: string): boolean => {
+      let found = false;
+      const visit = (value: unknown): void => {
+        if (found || !value || typeof value !== 'object') return;
+        if (Array.isArray(value)) { value.forEach(visit); return; }
+        const node = value as Record<string, unknown>;
+        const property = node['property'] as Record<string, unknown> | undefined;
+        if ((node['type'] === 'MemberExpression' || node['type'] === 'OptionalMemberExpression') && property?.['name'] === 'action') found = true;
+        if (node['type'] === 'ObjectPattern' && JSON.stringify(node).includes('"name":"action"')) found = true;
+        Object.values(node).forEach(visit);
+      };
+      visit(parse(text, { sourceType: 'module', plugins: ['typescript'] }));
+      return found;
+    };
+    const views = files(join(root, 'presentation')).filter(file => /View\.ts$/.test(file));
+    assert.ok(views.length >= 2, '描画のファイルが見つからない');
+    assert.deepEqual(views.filter(file => readsAction(readFileSync(file, 'utf8'))).map(file => relative(root, file)), []);
+    // 対照: 描画側で操作を比べる書き方は検出する。
+    assert.equal(readsAction("const f = (b) => b.action === 'compose' ? 1 : 0;"), true);
+    assert.equal(readsAction("const f = ({ action }) => action;"), true);
+    assert.equal(readsAction("const f = (b) => b.linkable ? 1 : 0;"), false);
+  });
   it('内側の型検査はDOMもNodeの型もなく成功し、Elementを混ぜると失敗する', () => {
     const project = fileURLToPath(new URL('../../', import.meta.url));
     const compiler = join(project, 'node_modules/.bin/tsc');
