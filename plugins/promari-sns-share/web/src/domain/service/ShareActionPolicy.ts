@@ -21,9 +21,13 @@ const CONTROL: Readonly<Record<ShareAction, { readonly followsLink: boolean; rea
 };
 
 export class ShareActionPolicy {
-  /** 小窓で開ける共有先か。mailto: はメールソフトへ渡すので、窓を開いても何も残らない。 */
-  static canOpenInPopup(href: string): boolean {
-    return !href.startsWith('mailto:');
+  /**
+   * 小窓で開ける共有先か。mailto: はメールソフトへ渡すので、窓を開いても何も残らない。
+   * 下書きを送る共有先（sendsDraft）が開くのはサービスの投稿画面で、小窓ではエディタに狭いので
+   * compose と同じく小窓にしない（ADR-0003・ADR-0004）。
+   */
+  static canOpenInPopup({ href, sendsDraft }: { href: string; sendsDraft: boolean }): boolean {
+    return !sendsDraft && !href.startsWith('mailto:');
   }
 
   /** Whether the action is following the share URL (open). Link attributes such as rel apply only then. */

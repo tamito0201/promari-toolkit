@@ -18,7 +18,8 @@
 |---|---|---|
 | [0001](0001-web-components.md) | 共有ボタンを Web Components として作る | 採用 |
 | [0002](0002-destinations-as-data.md) | 共有先を destinations/<key>.toml のデータで宣言する | 採用 |
-| [0003](0003-compose-action.md) | 共有の入口が無いサービスには、題名と URL をコピーして投稿画面を開く操作 compose を足す | 採用 |
+| [0003](0003-compose-action.md) | 共有の入口が無いサービスには、題名と URL をコピーして投稿画面を開く操作 compose を足す | 採用（文面は 0004 で改めた） |
+| [0004](0004-link-card-drafts.md) | 共有先ごとに「そのサービスのリンクカード・埋め込みの書き方」で記事を紹介する | 採用 |
 
 ## ひな形
 

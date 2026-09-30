@@ -2,6 +2,50 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 4.2.0
+
+### Added
+
+- Writing destinations introduce the article the way each service makes a link card or embed, measured
+  in a signed-in browser on 2026-10-01 (docs/adr/0004-link-card-drafts.md):
+  - `ameba` changes from `compose` to `open`: Ameba Blog's entry editor reads `entry_title` and
+    `entry_text` from the query, so a click opens it with the page title and an Ameba link card (HTML
+    with the title, description, host, and image) already filled in. Nothing is copied.
+  - `qiita` copies "title, blank line, URL, blank line"; the blank lines make Qiita's preview show a card.
+  - `zenn` copies the title and Zenn's card notation `@[card](URL)`.
+  - `medium` copies the URL alone and adds "貼り付けたあと Enter を押すと、記事のカードになります" to the
+    success notice; Medium makes a card only from a URL alone on its line followed by Enter.
+- Destination files accept optional `draft` and `draft_format` (`text` or `html`): a template with the
+  placeholders `{title}`, `{url}`, `{description}`, `{image}`, and `{host}`. `html` HTML-escapes each value.
+  Generation fails closed on unknown placeholders or lone braces, a `draft` without `draft_format` (or the
+  reverse), a draft on `copy` or `native`, an `open` draft that `[params]` never sends, and `draft` sent in
+  `[params]` without a template.
+- The request field `draft` for `[params]`, so an `open` destination can send its draft in the share URL.
+- Optional `compose_hint` for `compose` destinations, shown after the success notice.
+- The page description (`og:description`, else `meta name="description"`) and image (`og:image`, resolved
+  to an absolute http(s) URL) are read for link cards. The element accepts `description` and `image`
+  attributes to override them.
+- Link-card limits: the title is cut to 100 characters and the description to 60 (ending with "…"), and a
+  share URL that carries a draft stays at 3,500 characters or fewer. When it would be longer, the
+  description is shortened and then left out, then the image, and last the title is shortened. Ameba
+  limits the whole request (URL plus cookies): signed in with about 1,800 characters of cookies, a
+  5,105-character URL passed and 5,140 got 400 (signed out: 302 up to 6,000, 400 at 8,000). The 3,500
+  budget leaves room for about 1,600 more characters of cookies, and keeps the image for a promari.jp
+  title of about 70 characters; the image is left out only from a Japanese title of about 100 characters.
+
+### Changed
+
+- The default `share.messages.composed` is now 「記事のリンクをコピーしました。投稿画面に貼り付けてください」
+  (was 「タイトルとURLをコピーしました。…」), because Medium now copies the URL alone. Configured messages
+  are unchanged.
+- An `open` destination that sends a draft opens the service's editor, so it never opens in a popup,
+  whatever `behavior.popup` says (the reason ADR-0003 gave for `compose`).
+- In-page toasts stay longer for longer text (1.8 s up to 6 s), so a compose hint can be read.
+- Internal: `ShareDestination` fills in drafts through the domain services `DraftTemplate` and
+  `LinkCardPolicy`; `SharedPage` and `ShareRequest` carry `description` and `image`;
+  `ShareActionPolicy.canOpenInPopup()` takes `{ href, sendsDraft }`. Destinations without the new fields
+  generate the same catalog entries as 4.1.0.
+
 ## 4.1.0
 
 ### Added

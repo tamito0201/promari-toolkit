@@ -10,6 +10,11 @@ export class ToastNotifier {
     this.#root = root;
   }
 
+  /** How long a toast stays: 1.8 s, longer for longer text (such as a compose hint), at most 6 s. */
+  static duration(text: string): number {
+    return Math.min(6000, Math.max(1800, 70 * Array.from(text).length));
+  }
+
   notify(text: string, target?: string): void {
     const anchor = target === undefined ? null : this.#root.querySelector(`[data-notification-target="${CSS.escape(target)}"]`);
     const status = this.#root.querySelector('.status');
@@ -21,6 +26,6 @@ export class ToastNotifier {
     toast.classList.add('on');
     anchor?.classList.add('done');
     clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => { toast.classList.remove('on'); anchor?.classList.remove('done'); }, 1800);
+    this.#timer = setTimeout(() => { toast.classList.remove('on'); anchor?.classList.remove('done'); }, ToastNotifier.duration(text));
   }
 }

@@ -95,7 +95,7 @@ web/src/
     model/         値オブジェクト（ShareRequest・ShareDestination・SharedPage）と語彙
                    （ShareAction・Placement・ShareDestinationSpec・DestinationSelectionSettings・UtmSettings）
     service/       ドメインサービス（ShareActionPolicy・DestinationSelectionPolicy・ShareTextFormatter・
-                   UtmParameterPolicy・UriEncoder）
+                   UtmParameterPolicy・UriEncoder・DraftTemplate・LinkCardPolicy）
     repository/    ShareDestinationRepository インターフェース
     gateway/       ClipboardGateway・NativeShareGateway・ShareWindowGateway・NewTabGateway・SharedPageGateway・
                    ShareActivityPublisher インターフェースと、それらをまとめた ShareGateways
@@ -154,6 +154,15 @@ domainの`ShareActionPolicy`が操作ごとの表で1か所に決め、ビュー
 ファイルで`action`を読んでいないことを検査する。既定の共有欄は`linkable`、円い共有欄は`followsLink`で
 リンクとボタンを分けるので、`copy`・`native`の描き方（既定はリンク、円いほうはボタン）は4.0.0から変わらない。
 
+4.2.0で、共有先ごとに「そのサービスでカードになる書き方」を下書きのひな形としてTOMLに宣言できるようにした
+（[ADR-0004](adr/0004-link-card-drafts.md)）。ひな形は生成カタログを通って値オブジェクト`ShareDestination`に入り、
+ドメインサービス`DraftTemplate`が差し込み（`html`なら値ごとのHTMLエスケープ）を、`LinkCardPolicy`が長さの上限
+（題名100文字・説明60文字・下書きを送る共有URLは3,500文字）を受け持つ。上限を超えたら、説明を縮めて外し、画像を外し、
+最後に題名を縮める純粋関数`LinkCardPolicy.fit()`で組み立て直す。送り項目`draft`により、`open`の共有先も下書きを
+URLで送れる（アメブロ）。ページの説明と画像はinfrastructureの`BrowserSharedPage`が読み、domainの`SharedPage`に値として渡す。
+下書きを送る`open`は投稿画面を開くので、小窓にしないことを`ShareActionPolicy.canOpenInPopup()`の1か所で決める。
+コードに共有先の名前は無く、表示層は`action`を読まない（成功の知らせに足す`composeHint`もビューモデルの値として渡す）。
+
 クリックの分岐（`HandleShareClickUseCase`の`switch`）は、戦略（Strategy）へ分けず、閉じた集合への
 網羅的な分岐のままにした。操作の種類を増やすことは共有先の追加（TOMLを1つ足す）と違い、ADR-0002・0003で
 別の判断として扱うと決めている。`never`による網羅検査があるので、増やしたときは書き漏れがコンパイルで止まる。
@@ -211,7 +220,7 @@ Writes use temporary files and `os.replace` for atomic replacement.
 |---|---|
 | `tsc --noEmit` with strict, noUncheckedIndexedAccess, and exactOptionalPropertyTypes | Type consistency |
 | `node --test` | URL・選択・設定・操作と、四層の依存境界・DOM型混入の対照テスト |
-| Python `unittest` (24 tests) | TOML validation, fail-closed behavior (including `compose` destinations), deployment / check convergence, and the destination catalog |
+| Python `unittest` (32 tests) | TOML validation, fail-closed behavior (including `compose` destinations and `draft` declarations), deployment / check convergence, and the destination catalog |
 | `render_test.php` (13 checks) | Configured HTML, CSS, and JavaScript rendering with WordPress-free stubs |
 | `config.py --check` | Distribution files match regenerated outputs |
 

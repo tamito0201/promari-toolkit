@@ -33,8 +33,10 @@ export interface ShareButtonViewModel {
   readonly popup: { readonly width: number; readonly height: number } | null;
   readonly url: string;
   readonly title: string;
-  /** The text a compose destination copies (title, line break, shared URL with UTM); empty for other actions. */
+  /** The text a compose destination copies (its draft template, or title, line break, and shared URL with UTM); empty for other actions. */
   readonly draft: string;
+  /** Appended to the compose success notice, such as how to turn the paste into a card; empty for none. */
+  readonly composeHint: string;
 }
 
 export interface ShareBarViewModel {
@@ -50,6 +52,10 @@ export interface BuildShareBarInput {
   readonly url: string;
   readonly title: string;
   readonly site: string;
+  /** The page description for link-card drafts; empty when the page has none. */
+  readonly description?: string;
+  /** The page image URL for link-card drafts; empty when the page has none. */
+  readonly image?: string;
   readonly placement: Placement;
   readonly canNativeShare: boolean;
 }
@@ -62,7 +68,7 @@ export class BuildShareBarUseCase {
   }
 
   execute(config: ShareSettings, input: BuildShareBarInput): ShareBarViewModel {
-    const { url, title, site, placement, canNativeShare } = input;
+    const { url, title, site, description = '', image = '', placement, canNativeShare } = input;
     const request = ShareRequest.create({
       url,
       title,
@@ -70,6 +76,8 @@ export class BuildShareBarUseCase {
       hashtags: config.text.hashtags,
       via: config.text.via,
       site,
+      description,
+      image,
     });
     const keys = DestinationSelectionPolicy.select(config, { placement, canNativeShare, repository: this.#catalog.repository });
     return Object.freeze({
@@ -88,7 +96,7 @@ export class BuildShareBarUseCase {
     const shared = request.withUrl(UtmParameterPolicy.apply(request.url, config.utm, key));
     const href = destination.shareUrl(shared);
     const isOpen = ShareActionPolicy.followsLink(destination.action);
-    const popup = isOpen && config.behavior.popup && ShareActionPolicy.canOpenInPopup(href);
+    const popup = isOpen && config.behavior.popup && ShareActionPolicy.canOpenInPopup({ href, sendsDraft: destination.sendsDraft });
     const override = <T extends string | boolean>(name: 'color' | 'label_style' | 'tooltip', fallback: T): T => {
       const value = config.buttons[key]?.[name];
       return value === undefined || value === '' ? fallback : (value as T);
@@ -111,6 +119,7 @@ export class BuildShareBarUseCase {
       url: request.url,
       title: request.title,
       draft: destination.composeDraft(shared),
+      composeHint: destination.appearance.composeHint,
     });
   }
 }

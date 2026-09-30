@@ -36,7 +36,7 @@ const ATTRIBUTES: Readonly<Record<string, Patch>> = {
   after: (v) => ({ floating: { after: Number(v) } }),
 };
 
-const OBSERVED: readonly string[] = Object.freeze([...Object.keys(ATTRIBUTES), 'config', 'url', 'title', 'placement']);
+const OBSERVED: readonly string[] = Object.freeze([...Object.keys(ATTRIBUTES), 'config', 'url', 'title', 'description', 'image', 'placement']);
 
 const readConfig = (element: Element, defaults: ShareSettings): ShareSettings => {
   const fromAttributes = Object.entries(ATTRIBUTES)
@@ -53,7 +53,7 @@ const readConfig = (element: Element, defaults: ShareSettings): ShareSettings =>
 };
 
 export class ShareSettingsAttributeReader {
-  /** Observe all configuration attributes, plus URL, title, and placement. */
+  /** Observe all configuration attributes, plus URL, title, description, image, and placement. */
   static readonly observedAttributes: readonly string[] = OBSERVED;
 
   /** Merge nested objects partially; arrays are replaced. */

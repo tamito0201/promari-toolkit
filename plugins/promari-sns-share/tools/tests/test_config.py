@@ -52,14 +52,33 @@ class CatalogTest(unittest.TestCase):
         note = specs["note"]
         self.assertEqual((note.action, note.endpoint, note.params), (generator.ShareAction.OPEN, "https://note.com/intent/post", {"url": "url", "hashtags": "hashtagsCsv"}))
         editors = {
-            "qiita": "https://qiita.com/drafts/new",
-            "zenn": "https://zenn.dev/dashboard",
-            "medium": "https://medium.com/new-story",
-            "ameba": "https://blog.ameba.jp/ucs/entry/srventryinsertinput.do",
+            "qiita": ("https://qiita.com/drafts/new", "{title}\n\n{url}\n"),
+            "zenn": ("https://zenn.dev/dashboard", "{title}\n\n@[card]({url})\n"),
+            "medium": ("https://medium.com/new-story", "{url}"),
         }
-        for key, endpoint in editors.items():
+        for key, (endpoint, draft) in editors.items():
             with self.subTest(key=key):
-                self.assertEqual((specs[key].action, specs[key].endpoint, specs[key].params), (generator.ShareAction.COMPOSE, endpoint, {}))
+                spec = specs[key]
+                self.assertEqual((spec.action, spec.endpoint, spec.params), (generator.ShareAction.COMPOSE, endpoint, {}))
+                self.assertEqual((spec.draft, spec.draft_format), (draft, generator.DraftFormat.TEXT))
+        self.assertEqual(specs["medium"].compose_hint, "貼り付けたあと Enter を押すと、記事のカードになります")
+
+    def test_ameba_prefills_its_editor_with_a_link_card(self) -> None:
+        ameba = generator.catalog()["ameba"]
+        self.assertEqual((ameba.action, ameba.endpoint), (generator.ShareAction.OPEN, "https://blog.ameba.jp/ucs/entry/srventryinsertinput.do"))
+        self.assertEqual(ameba.params, {"entry_title": "title", "entry_text": "draft"})
+        self.assertEqual(ameba.draft_format, generator.DraftFormat.HTML)
+        assert ameba.draft is not None
+        self.assertTrue(ameba.draft.startswith('<div class="ogpCard_root">'))
+        self.assertEqual(sorted(set(re.findall(r"\{\w+\}", ameba.draft))), ["{description}", "{host}", "{image}", "{title}", "{url}"])
+
+    def test_catalog_json_carries_drafts_only_where_declared(self) -> None:
+        specs = generator.catalog()
+        self.assertEqual(specs["ameba"].to_json()["draft"]["format"], "html")
+        self.assertEqual(specs["medium"].to_json()["composeHint"], specs["medium"].compose_hint)
+        # Destinations without the new fields generate the same entries as 4.1.0.
+        self.assertEqual(set(specs["x"].to_json()), {"key", "label", "color", "icon", "action", "endpoint", "params"})
+        self.assertNotIn("composeHint", specs["qiita"].to_json())
 
 
 class DestinationFileTest(unittest.TestCase):
@@ -128,6 +147,45 @@ class DestinationFileTest(unittest.TestCase):
     def test_compose_rejects_params_even_when_empty(self) -> None:
         self.rejects(self.COMPOSE + "\n[params]\nurl = 'url'\n", "\\[params\\] を書かないで")
         self.rejects(self.COMPOSE + "\n[params]\n", "\\[params\\] を書かないで")
+
+    OPEN_DRAFT = VALID.replace("title = 'title'\n", "body = 'draft'\n").replace("\n[params]", "draft = '<a href=\"{url}\">{title}</a>'\ndraft_format = 'html'\n\n[params]")
+    COMPOSE_DRAFT = COMPOSE + "draft = \"{title}\\n\\n{url}\\n\"\ndraft_format = 'text'\n"
+
+    def test_draft_is_read_for_open_and_compose(self) -> None:
+        spec = self.load(self.OPEN_DRAFT)["example"]
+        self.assertEqual((spec.params, spec.draft, spec.draft_format), ({"url": "url", "body": "draft"}, '<a href="{url}">{title}</a>', generator.DraftFormat.HTML))
+        self.assertEqual(spec.to_json()["draft"], {"template": '<a href="{url}">{title}</a>', "format": "html"})
+        compose = self.load(self.COMPOSE_DRAFT)["example"]
+        self.assertEqual((compose.draft, compose.draft_format), ("{title}\n\n{url}\n", generator.DraftFormat.TEXT))
+
+    def test_draft_format_must_be_text_or_html(self) -> None:
+        self.rejects(self.OPEN_DRAFT.replace("draft_format = 'html'", "draft_format = 'markdown'"), "draft_format は text / html")
+        self.rejects(self.OPEN_DRAFT.replace("draft_format = 'html'", "draft_format = 1"), "draft_format: str")
+
+    def test_draft_placeholders_are_closed(self) -> None:
+        for template in ("{title} {author}", "{Title}", "{ url }", "{url", "style={x}", "a } b"):
+            with self.subTest(template=template):
+                self.rejects(self.OPEN_DRAFT.replace('<a href=\"{url}\">{title}</a>', template), "差し込み口は")
+
+    def test_draft_and_its_format_come_together(self) -> None:
+        self.rejects(self.OPEN_DRAFT.replace("draft_format = 'html'\n", ""), "両方")
+        self.rejects(self.COMPOSE + "draft_format = 'text'\n", "両方")
+        self.rejects(self.OPEN_DRAFT.replace('<a href=\"{url}\">{title}</a>', "  "), "空にしないで")
+
+    def test_draft_that_would_be_ignored_fails_closed(self) -> None:
+        # An open destination that declares a draft but never sends it.
+        self.rejects(self.OPEN_DRAFT.replace("body = 'draft'", "body = 'title'"), "送らないと使われません")
+        # A destination that sends 'draft' without declaring one.
+        self.rejects(self.VALID.replace("title = 'title'", "body = 'draft'"), "draft と draft_format を書いて")
+        # Copy and native never use a draft.
+        copy = "key = 'example'\nlabel = 'Copy'\nbrand_color = '#123456'\naction = 'copy'\nendpoint = ''\nicon = '<svg><path fill=\"currentColor\"/></svg>'\ndraft = '{url}'\ndraft_format = 'text'\n"
+        self.rejects(copy, "'open' か 'compose' だけ")
+
+    def test_compose_hint_only_for_compose(self) -> None:
+        self.assertEqual(self.load(self.COMPOSE + "compose_hint = 'Press Enter'\n")["example"].compose_hint, "Press Enter")
+        self.rejects(self.VALID.replace("action = 'open'", "action = 'open'\ncompose_hint = 'x'"), "compose_hint は action")
+        self.rejects(self.COMPOSE + "compose_hint = \"a\\nb\"\n", "改行を含まない")
+        self.rejects(self.COMPOSE + "compose_hint = ' '\n", "改行を含まない")
 
     def test_rejects_broken_toml(self) -> None:
         self.rejects("key = ", "TOML として読めません")

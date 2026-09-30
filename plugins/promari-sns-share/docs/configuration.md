@@ -138,7 +138,7 @@ A destination cannot appear in both `destinations` and `secondary`.
 |---|---|
 | `copied` | Toast after successfully copying the URL |
 | `group_label` | Button group's `aria-label` |
-| `composed` | Optional. Notice after a compose destination (`qiita`, `zenn`, `medium`, `ameba`) copied the title and URL. Defaults to 「タイトルとURLをコピーしました。投稿画面に貼り付けてください」 |
+| `composed` | Optional. Notice after a compose destination (`qiita`, `zenn`, `medium`) copied its text. The destination's `compose_hint`, if any, follows it. Defaults to 「記事のリンクをコピーしました。投稿画面に貼り付けてください」 (until 4.1.0: 「タイトルとURLをコピーしました。…」) |
 | `compose_failed` | Optional. Notice when that copy failed; the editor still opens. Defaults to 「コピーできませんでした。投稿画面にタイトルとURLを入力してください」 |
 
 ## `[share.style]`: colors
@@ -164,15 +164,25 @@ Use `[share.labels]` to select the exact text displayed on your site.
 | `copy` | Copy URL | Clipboard | Falls back to an article link without JavaScript |
 | `native` | More sharing options | Web Share API | Visible only where `navigator.share` is available |
 | `note` | note | note's "Write on note" screen (`note.com/intent/post`) | `#000000`; sends `url` and `hashtags`; signed-out users log in first |
-| `qiita` | Qiita | Compose: copy, then open the draft editor | `#55C500`; Qiita has no entry point for sharing an external page |
-| `zenn` | Zenn | Compose: copy, then open the dashboard | `#3EA8FF`; `articles/new` returns 404, so the dashboard is the entry |
-| `medium` | Medium | Compose: copy, then open the story editor | `#000000` |
-| `ameba` | Ameba Blog | Compose: copy, then open the entry editor | `#2D8C3C`; the former Ameba Now share entry has ended |
+| `qiita` | Qiita | Compose: copy "title, blank line, URL, blank line", then open the draft editor | `#55C500`; the blank lines make Qiita's preview show a link card. Qiita has no entry point for sharing an external page |
+| `zenn` | Zenn | Compose: copy the title and `@[card](URL)`, then open the dashboard | `#3EA8FF`; Zenn's card notation. `articles/new` returns 404, so the dashboard is the entry |
+| `medium` | Medium | Compose: copy the URL alone, then open the story editor | `#000000`; Medium makes a card when the URL is alone on a line and the writer presses Enter, which the notice says |
+| `ameba` | Ameba Blog | Share dialog: the entry editor with `entry_title` and `entry_text` prefilled | `#2D8C3C`; `entry_text` is an Ameba link card (HTML) with the page title, description, host, and image. Never a popup |
 
-A compose destination puts "page title, line break, shared URL" on the clipboard and opens the
-service's editor in a new tab in the same click. The URL carries the same UTM parameters as the
-other destinations (`utm_source` is the destination identifier). The tab always opens as a new tab,
-regardless of `behavior.popup` and `behavior.open_in_new_tab`; see [ADR-0003](adr/0003-compose-action.md).
+A compose destination puts its draft on the clipboard and opens the service's editor in a new tab in
+the same click; without a `draft`, the text is "page title, line break, shared URL". The URL carries the
+same UTM parameters as the other destinations (`utm_source` is the destination identifier). The tab
+always opens as a new tab, regardless of `behavior.popup` and `behavior.open_in_new_tab`; see
+[ADR-0003](adr/0003-compose-action.md).
+
+Each writing destination uses the way its service turns a link into a card, measured in a signed-in
+browser on 2026-10-01 ([ADR-0004](adr/0004-link-card-drafts.md)). Ameba Blog's editor reads the title and
+body from the query, so `ameba` is an `open` destination that follows its link; it opens in a new tab or
+the current tab according to `behavior.open_in_new_tab`, and never in a popup. Its URL is kept at 3,500
+characters or fewer, since Ameba limits the whole request including cookies (signed in, a 5,105-character
+URL passed and 5,140 got 400; the margin covers readers with more cookies): the card's description is shortened and then
+left out, then the image, and last the title is shortened. The card reads the page's `og:description`
+(or `meta name="description"`) and `og:image`.
 Logos come from [simple-icons](https://simpleicons.org/) 16.33.0 (CC0 1.0); the marks remain trademarks of their owners.
 
 See [Customization](customization.md) for adding destinations.
@@ -192,6 +202,7 @@ See [Customization](customization.md) for adding destinations.
 | `placement` | `inline` (default) / `floating` |
 | `after` | `placements.floating_after_px` |
 | `url` / `title` | Shared URL and title; defaults to the canonical URL and `document.title` |
+| `description` / `image` | Description and image URL for link cards; default to `og:description` (or `meta name="description"`) and `og:image`. Set them when `url` points to another page |
 | `config` | JSON for any of the settings above; takes highest precedence |
 
 These attributes are the public styling contract. The component does not expose `::part`,

@@ -10,6 +10,8 @@ import type { ShareActivity } from '../src/domain/gateway/ShareActivityPublisher
 import type { ShareGateways } from '../src/domain/gateway/ShareGateways.ts';
 import { ShareSettingsAttributeReader } from '../src/presentation/ShareSettingsAttributeReader.ts';
 import { CONFIG, SPECS, memoryRepository } from './domain.test.ts';
+import { CATALOG } from '../src/generated/catalog.ts';
+import { LinkCardPolicy } from '../src/domain/service/LinkCardPolicy.ts';
 
 const catalog = new ShareButtonCatalog(memoryRepository(SPECS), SPECS);
 const buildShareBar = new BuildShareBarUseCase(catalog);
@@ -20,7 +22,7 @@ describe('BuildShareBarUseCase', () => {
     assert.deepEqual(catalog.keys(), SPECS.map(s => s.key));
     assert.equal(catalog.has('missing'), false);
     const destination = catalog.resolve(['x'])[0]!;
-    assert.deepEqual(destination.appearance, { label: SPECS[0]!.label, color: SPECS[0]!.color, icon: SPECS[0]!.icon });
+    assert.deepEqual(destination.appearance, { label: SPECS[0]!.label, color: SPECS[0]!.color, icon: SPECS[0]!.icon, composeHint: '' });
     assert.ok(Object.isFrozen(destination.appearance));
     assert.throws(() => catalog.resolve(['missing']));
   });
@@ -160,6 +162,64 @@ describe('HandleShareClickUseCase（compose）', () => {
       assert.ok(calls.includes('tab:https://qiita.com/drafts/new'));
       assert.equal(calls.some((c) => c.startsWith('fallback:') || c.startsWith('popup:')), false);
     }
+  });
+});
+
+describe('同梱の共有先のリンクカード（destinations/*.toml, ADR-0004）', () => {
+  const bundled = new BuildShareBarUseCase(new ShareButtonCatalog(memoryRepository(CATALOG), CATALOG));
+  const page = { url: 'https://promari.jp/blog/share/', title: '共有ボタンを作る', site: 'Promari', description: '記事の説明 & 要点', image: 'https://promari.jp/cover.webp', placement: 'inline' as const, canNativeShare: false };
+  const find = (key: string, overrides: Partial<typeof page> = {}) =>
+    bundled.execute({ ...CONFIG, destinations: ['x'], secondary: ['ameba', 'qiita', 'zenn', 'medium', 'note'] }, { ...page, ...overrides }).secondary.find((b) => b.key === key)!;
+  const query = (href: string) => new URLSearchParams(href.slice(href.indexOf('?') + 1));
+
+  it('アメブロは open のリンクで、投稿画面に entry_title と entry_text（カードの HTML）を送る', () => {
+    const ameba = find('ameba');
+    assert.equal(ameba.action, 'open');
+    assert.equal(ameba.linkable, true);
+    assert.equal(ameba.followsLink, true);
+    assert.ok(ameba.href.startsWith('https://blog.ameba.jp/ucs/entry/srventryinsertinput.do?entry_title='));
+    const q = query(ameba.href);
+    assert.equal(q.get('entry_title'), '共有ボタンを作る');
+    const card = q.get('entry_text')!;
+    assert.match(card, /^<div class="ogpCard_root">/);
+    assert.ok(card.includes('href="https://promari.jp/blog/share/?utm_source=ameba&amp;utm_medium=social&amp;utm_campaign=share"'));
+    assert.ok(card.includes('>共有ボタンを作る</span>'));
+    assert.ok(card.includes('>記事の説明 &amp; 要点</span>'));
+    assert.ok(card.includes('>promari.jp</span>'));
+    assert.ok(card.includes('src="https://promari.jp/cover.webp"'));
+    assert.ok(ameba.href.length <= LinkCardPolicy.URL_MAX, String(ameba.href.length));
+    assert.equal(ameba.draft, '', 'open はコピーしない');
+  });
+  it('アメブロは小窓の設定があっても小窓にしない（投稿画面は小窓に狭い）', () => {
+    assert.equal(CONFIG.behavior.popup, true);
+    assert.equal(find('ameba').popup, null);
+    assert.deepEqual(bundled.execute({ ...CONFIG, destinations: ['x'], secondary: [] }, page).primary[0]!.popup, { width: 600, height: 500 }, 'ほかの open は従来どおり');
+  });
+  it('上限は 3,500 文字。promari.jp の約70文字の題名（「| プロマリのブログ」付き）では画像を外さない', () => {
+    assert.equal(LinkCardPolicy.URL_MAX, 3500);
+    const title = `${'あ'.repeat(59)} | プロマリのブログ`;
+    assert.equal(Array.from(title).length, 70);
+    const ameba = find('ameba', { url: 'https://promari.jp/blog/share-buttons-plugin/', title, description: 'い'.repeat(60), image: 'https://promari.jp/wp-content/uploads/2026/09/share-buttons-plugin-cover.webp' });
+    const card = query(ameba.href).get('entry_text')!;
+    assert.ok(card.includes('src="https://promari.jp/wp-content/uploads/2026/09/share-buttons-plugin-cover.webp"'), '画像は残る');
+    assert.equal(query(ameba.href).get('entry_title'), title, '題名は縮めない');
+    assert.ok(ameba.href.length <= 3500, String(ameba.href.length));
+  });
+  it('アメブロの URL は、日本語の長い題名と説明でも 3,500 文字以内に収まる', () => {
+    for (const title of ['あ'.repeat(40), 'あ'.repeat(100), 'あ'.repeat(400)]) {
+      const href = find('ameba', { title, description: 'い'.repeat(200) }).href;
+      assert.ok(href.length <= LinkCardPolicy.URL_MAX, `${title.length}: ${href.length}`);
+      assert.match(query(href).get('entry_title')!, /^あ+…?$/);
+    }
+  });
+  it('Qiita・Zenn・Medium のコピー文は、各サービスでカードになる書き方', () => {
+    const utm = (key: string) => `https://promari.jp/blog/share/?utm_source=${key}&utm_medium=social&utm_campaign=share`;
+    assert.equal(find('qiita').draft, `共有ボタンを作る\n\n${utm('qiita')}\n`);
+    assert.equal(find('zenn').draft, `共有ボタンを作る\n\n@[card](${utm('zenn')})\n`);
+    assert.equal(find('medium').draft, utm('medium'));
+    assert.equal(find('medium').composeHint, '貼り付けたあと Enter を押すと、記事のカードになります');
+    assert.equal(find('qiita').composeHint, '');
+    assert.equal(find('note').href, 'https://note.com/intent/post?url=https%3A%2F%2Fpromari.jp%2Fblog%2Fshare%2F%3Futm_source%3Dnote%26utm_medium%3Dsocial%26utm_campaign%3Dshare&hashtags=promari');
   });
 });
 
