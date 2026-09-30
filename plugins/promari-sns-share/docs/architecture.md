@@ -157,7 +157,7 @@ domainの`ShareActionPolicy`が操作ごとの表で1か所に決め、ビュー
 4.2.0で、共有先ごとに「そのサービスでカードになる書き方」を下書きのひな形としてTOMLに宣言できるようにした
 （[ADR-0004](adr/0004-link-card-drafts.md)）。ひな形は生成カタログを通って値オブジェクト`ShareDestination`に入り、
 ドメインサービス`DraftTemplate`が差し込み（`html`なら値ごとのHTMLエスケープ）を、`LinkCardPolicy`が長さの上限
-（題名100文字・説明60文字・下書きを送る共有URLは2,900文字）を受け持つ。上限を超えたら、説明を縮めて外し、画像を外し、
+（題名100文字・説明60文字・下書きを送る共有URLは3,500文字）を受け持つ。上限を超えたら、説明を縮めて外し、画像を外し、
 最後に題名を縮める純粋関数`LinkCardPolicy.fit()`で組み立て直す。送り項目`draft`により、`open`の共有先も下書きを
 URLで送れる（アメブロ）。ページの説明と画像はinfrastructureの`BrowserSharedPage`が読み、domainの`SharedPage`に値として渡す。
 下書きを送る`open`は投稿画面を開くので、小窓にしないことを`ShareActionPolicy.canOpenInPopup()`の1か所で決める。

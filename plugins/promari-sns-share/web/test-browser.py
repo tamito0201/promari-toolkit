@@ -155,7 +155,7 @@ with sync_playwright() as api:
             assert query['text'].startswith('<div class="ogpCard_root">'), query
             for part in ('href="https://example.com/article/"', '>記事の題名</span>', '>記事の説明 &amp; 要点</span>', '>example.com</span>', 'src="https://example.com/images/cover.webp"'):
                 assert part in query['text'], (part, query['text'])
-            assert query['length'] <= 2900, query['length']
+            assert query['length'] <= 3500, query['length']
         # 同じクリックの同期処理の中で、クリップボードへの書き込みと新しいタブの両方を始める。
         # Qiita のコピー文は「題名＋空行＋URL＋空行」（プレビューでリンクカードになる形）。
         c.locator('[data-key="qiita"]').click()

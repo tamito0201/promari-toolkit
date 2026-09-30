@@ -1,7 +1,9 @@
 /**
  * Domain service: keep the values in a link-card draft, and the share URL that carries it, within
- * the limits measured on 2026-10-01 (ADR-0004). Ameba Blog's editor answered 400 to a 5,140-character
- * URL and accepted 2,919 characters, so share URLs that carry a draft stay at 2,900 or below.
+ * the limits measured on 2026-10-01 (ADR-0004). Ameba Blog's limit applies to the whole request, URL plus
+ * cookies: signed in with about 1,800 characters of cookies, 5,105 characters of URL passed and 5,140 got
+ * 400. Share URLs that carry a draft stay at 3,500 or below, which still passes for a reader with about
+ * 1,600 more characters of cookies than measured.
  */
 import type { ShareRequest } from '../model/ShareRequest.ts';
 
@@ -10,7 +12,7 @@ const ELLIPSIS = '…';
 export class LinkCardPolicy {
   static readonly TITLE_MAX = 100;
   static readonly DESCRIPTION_MAX = 60;
-  static readonly URL_MAX = 2900;
+  static readonly URL_MAX = 3500;
 
   /**
    * Shorten a value to at most `max` characters (code points, so no surrogate pair is split),

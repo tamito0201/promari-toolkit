@@ -206,7 +206,7 @@ describe('ShareDestination（下書きを持つ共有先）', () => {
     assert.equal(card.composeDraft(request()), '', 'open はコピーしない');
     assert.equal(new ShareDestination(SPECS[0]!).sendsDraft, false);
   });
-  it('下書きを送る URL は 2,900 文字以内に収める（日本語の長い題名でも）', () => {
+  it('下書きを送る URL は 3,500 文字以内に収める（日本語の長い題名でも）', () => {
     const card = new ShareDestination({ ...CARD_SPEC, draft: { template: `${'<p style="x">'.repeat(60)}{title}{description}{image}`, format: 'html' } });
     for (const title of ['あ'.repeat(40), 'あ'.repeat(100), 'あ'.repeat(300)]) {
       const href = card.shareUrl(request({ title, description: 'い'.repeat(60), image: `https://a.jp/${'i'.repeat(200)}.png` }));

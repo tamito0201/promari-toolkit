@@ -26,10 +26,12 @@ This component follows [Semantic Versioning](https://semver.org/).
   to an absolute http(s) URL) are read for link cards. The element accepts `description` and `image`
   attributes to override them.
 - Link-card limits: the title is cut to 100 characters and the description to 60 (ending with "…"), and a
-  share URL that carries a draft stays at 2,900 characters or fewer. When it would be longer, the
-  description is shortened and then left out, then the image, and last the title is shortened (a Japanese
-  title of about 65 characters or more would otherwise exceed the limit). Ameba's editor answered 400 at
-  5,140 characters.
+  share URL that carries a draft stays at 3,500 characters or fewer. When it would be longer, the
+  description is shortened and then left out, then the image, and last the title is shortened. Ameba
+  limits the whole request (URL plus cookies): signed in with about 1,800 characters of cookies, a
+  5,105-character URL passed and 5,140 got 400 (signed out: 302 up to 6,000, 400 at 8,000). The 3,500
+  budget leaves room for about 1,600 more characters of cookies, and keeps the image for a promari.jp
+  title of about 70 characters; the image is left out only from a Japanese title of about 100 characters.
 
 ### Changed
 

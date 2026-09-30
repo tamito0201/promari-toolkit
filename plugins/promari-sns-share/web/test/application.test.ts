@@ -195,7 +195,17 @@ describe('同梱の共有先のリンクカード（destinations/*.toml, ADR-000
     assert.equal(find('ameba').popup, null);
     assert.deepEqual(bundled.execute({ ...CONFIG, destinations: ['x'], secondary: [] }, page).primary[0]!.popup, { width: 600, height: 500 }, 'ほかの open は従来どおり');
   });
-  it('アメブロの URL は、日本語の長い題名と説明でも 2,900 文字以内に収まる', () => {
+  it('上限は 3,500 文字。promari.jp の約70文字の題名（「| プロマリのブログ」付き）では画像を外さない', () => {
+    assert.equal(LinkCardPolicy.URL_MAX, 3500);
+    const title = `${'あ'.repeat(59)} | プロマリのブログ`;
+    assert.equal(Array.from(title).length, 70);
+    const ameba = find('ameba', { url: 'https://promari.jp/blog/share-buttons-plugin/', title, description: 'い'.repeat(60), image: 'https://promari.jp/wp-content/uploads/2026/09/share-buttons-plugin-cover.webp' });
+    const card = query(ameba.href).get('entry_text')!;
+    assert.ok(card.includes('src="https://promari.jp/wp-content/uploads/2026/09/share-buttons-plugin-cover.webp"'), '画像は残る');
+    assert.equal(query(ameba.href).get('entry_title'), title, '題名は縮めない');
+    assert.ok(ameba.href.length <= 3500, String(ameba.href.length));
+  });
+  it('アメブロの URL は、日本語の長い題名と説明でも 3,500 文字以内に収まる', () => {
     for (const title of ['あ'.repeat(40), 'あ'.repeat(100), 'あ'.repeat(400)]) {
       const href = find('ameba', { title, description: 'い'.repeat(200) }).href;
       assert.ok(href.length <= LinkCardPolicy.URL_MAX, `${title.length}: ${href.length}`);

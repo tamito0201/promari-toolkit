@@ -178,8 +178,9 @@ always opens as a new tab, regardless of `behavior.popup` and `behavior.open_in_
 Each writing destination uses the way its service turns a link into a card, measured in a signed-in
 browser on 2026-10-01 ([ADR-0004](adr/0004-link-card-drafts.md)). Ameba Blog's editor reads the title and
 body from the query, so `ameba` is an `open` destination that follows its link; it opens in a new tab or
-the current tab according to `behavior.open_in_new_tab`, and never in a popup. Its URL is kept at 2,900
-characters or fewer (the editor answered 400 at 5,140): the card's description is shortened and then
+the current tab according to `behavior.open_in_new_tab`, and never in a popup. Its URL is kept at 3,500
+characters or fewer, since Ameba limits the whole request including cookies (signed in, a 5,105-character
+URL passed and 5,140 got 400; the margin covers readers with more cookies): the card's description is shortened and then
 left out, then the image, and last the title is shortened. The card reads the page's `og:description`
 (or `meta name="description"`) and `og:image`.
 Logos come from [simple-icons](https://simpleicons.org/) 16.33.0 (CC0 1.0); the marks remain trademarks of their owners.

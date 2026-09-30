@@ -187,7 +187,7 @@ Requirements:
   drops leading blank lines. A `compose` destination copies its draft; an `open` destination must send it
   with `draft` in `[params]` (a draft that is never sent is an error), and never opens in a popup, since
   it opens an editor. Values are cut to 100 characters (title) and 60 (description), and a URL that
-  carries a draft is kept at 2,900 characters or fewer by shortening the card. `copy` and `native` cannot
+  carries a draft is kept at 3,500 characters or fewer by shortening the card. `copy` and `native` cannot
   declare a draft.
 - `compose_hint` (optional, `compose` only, one line) follows the success notice, for example to tell
   readers to press Enter after pasting.
