@@ -2,6 +2,25 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 4.2.1
+
+The Web Component and the WordPress plugin behave exactly as in 4.2.0; this release changes how the
+component is built and released.
+
+### Changed
+
+- Releases are made by a release workflow instead of `tools/publish.sh`, which is removed. The workflow
+  runs every check, builds the WordPress ZIP, publishes this directory, and creates the tag and the GitHub
+  Release. `tools/release.py` (version checks, the ZIP, the SRI hash) and `tools/build-release.sh` (the
+  ZIP, `checksums.txt`, and the SBOM) replace the script.
+- The release attaches `checksums.txt` (SHA-256 of the ZIP and the JavaScript bundle), its cosign keyless
+  signature `checksums.txt.sigstore.json`, and `sbom.spdx.json`, which lists the packages bundled into the
+  JavaScript. The release notes keep the installation snippet with the SRI hash.
+- The WordPress ZIP is reproducible: the same sources always give the same bytes.
+- The component has its own `package.json` (with `packageManager`), `pnpm-lock.yaml`, `.node-version`, and
+  `LICENSE`; it no longer depends on a repository-level pnpm workspace.
+- Test fixtures use `example.com` addresses.
+
 ## 4.2.0
 
 ### Added
