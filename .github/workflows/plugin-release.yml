@@ -1,0 +1,66 @@
+name: Plugin release
+
+# promari-portal publishes a Claude Code plugin here with a deploy key (git push only, no token):
+# it pushes the release files to the branch release-assets/<tag>, then the commit to main, then the
+# tag <plugin>-v<version>. A deploy key cannot call the API, so this workflow, started by the tag
+# push, creates the GitHub Release with this repository's own GITHUB_TOKEN and attaches the files.
+# Tags without a release-assets/<tag> branch (for example promari-sns-share, released by
+# tools/publish.sh) are left alone.
+on:
+  push:
+    tags: ["promari-*-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the release and delete release-assets/<tag>
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true # deletes release-assets/<tag> at the end
+      - name: Fetch the release files pushed with the tag
+        id: assets
+        run: |
+          if ! git ls-remote --exit-code --heads origin "release-assets/$TAG" >/dev/null; then
+            echo "no release-assets/$TAG branch: not a portal plugin release, nothing to do"
+            echo "found=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git fetch --no-tags --depth 1 origin "refs/heads/release-assets/$TAG"
+          mkdir "$RUNNER_TEMP/assets"
+          git archive FETCH_HEAD | tar -x -C "$RUNNER_TEMP/assets"
+          ls -la "$RUNNER_TEMP/assets"
+          echo "found=true" >> "$GITHUB_OUTPUT"
+      - name: Verify the binaries against checksums.txt
+        if: steps.assets.outputs.found == 'true'
+        working-directory: ${{ runner.temp }}/assets
+        run: |
+          sed 's| |  |' checksums.txt | sha256sum --strict -c -
+          test -s sbom.spdx.json
+          test -s checksums.txt.sigstore.json
+          test -s .release-notes.md
+      - name: Create the GitHub Release
+        if: steps.assets.outputs.found == 'true'
+        working-directory: ${{ runner.temp }}/assets
+        run: |
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "❌ the release $TAG already exists (a published version never moves)" >&2; exit 1
+          fi
+          mapfile -t files < <(find . -maxdepth 1 -type f ! -name .release-notes.md -printf '%f\n' | sort)
+          gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TAG" --notes-file .release-notes.md "${files[@]}"
+          echo "✅ released $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Delete release-assets/<tag>
+        if: steps.assets.outputs.found == 'true'
+        run: git push origin --delete "release-assets/$TAG"
