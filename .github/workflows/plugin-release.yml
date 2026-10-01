@@ -8,7 +8,7 @@ name: Plugin release
 # refs/release-assets/<tag> is not under refs/heads/, so it is not a branch: GitHub does not list it
 # and does not show a "had recent pushes" notice for it. The branch release-assets/<tag>, which
 # portal pushed until 1.0.2, is still accepted so that either repository can be updated first.
-# Tags with neither (for example promari-sns-share, released by tools/publish.sh) are left alone.
+# Tags with neither (for example promari-sns-share up to 4.2.0, published by hand) are left alone.
 on:
   push:
     tags: ["promari-*-v*"]

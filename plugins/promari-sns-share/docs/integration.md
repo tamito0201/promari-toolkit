@@ -27,8 +27,8 @@
   integrity="sha384-..." crossorigin="anonymous"></script>
 ```
 
-Replace the placeholder with the integrity value printed by `tools/publish.sh`
-when publishing. Release notes can include the same snippet. Do not use a fixed
+Replace the placeholder with the integrity value from the release notes of
+the version you pin; each release's notes include the full snippet. Do not use a fixed
 SRI hash with a moving version such as `@1`, because its contents can change.
 
 ### Content Security Policy

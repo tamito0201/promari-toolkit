@@ -4,6 +4,7 @@
   "description": "Promari SNS Share: configurable social sharing for Web Components and WordPress",
   "license": "MIT",
   "private": true,
+  "packageManager": "pnpm@10.13.1",
   "type": "module",
   "scripts": {
     "build": "${PYTHON:-python3} tools/config.py --config config/share_config.example.toml --write",
@@ -29,5 +30,10 @@
   "dependencies": {
     "inversify": "^8.2.3",
     "reflect-metadata": "~0.2.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

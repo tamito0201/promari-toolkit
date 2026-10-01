@@ -1,9 +1,11 @@
 name: CI
 
+# Promari SNS Share is developed upstream and arrives here as a published copy with its own
+# package.json, pnpm-lock.yaml and .node-version. This re-runs its checks on main and on pull requests.
+# Releases are made by the upstream release workflow, so no tag starts this workflow.
 on:
   push:
     branches: [main]
-    tags: ["promari-sns-share-v*"]
   pull_request:
 
 permissions:
@@ -12,13 +14,19 @@ permissions:
 jobs:
   sns-share:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/promari-sns-share
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: plugins/promari-sns-share/package.json
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .node-version
+          node-version-file: plugins/promari-sns-share/.node-version
           cache: pnpm
+          cache-dependency-path: plugins/promari-sns-share/pnpm-lock.yaml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -27,6 +35,6 @@ jobs:
           php-version: "8.3"
       - run: pnpm install --frozen-lockfile
       - name: Verify Promari SNS Share
-        run: pnpm --filter @promari/sns-share verify
+        run: pnpm run verify
       - name: Check PHP syntax
-        run: find plugins/promari-sns-share/plugin -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
+        run: find plugin -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
