@@ -1,3 +1,5 @@
+<!-- generated: published from promari-portal; edit the source there -->
+
 # Promari SNS Share
 
 Social share buttons for Facebook, X, LINE, Hatena Bookmark, LinkedIn, email,
@@ -55,7 +57,7 @@ and less loading overhead.
 ```
 
 Pin `@promari-sns-share-v4.2.0` to select this component's release independently.
-Release tags are immutable. `tools/publish.sh` prints an installation snippet
+Release tags are immutable. Each release's notes include an installation snippet
 with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 
 ### B. WordPress plugin
@@ -162,14 +164,16 @@ Design decisions, with the options we rejected and the constraints behind them, 
 
 ## Development
 
-From the repository root, run `cd plugins/promari-sns-share` before the commands below.
+Run the commands below in this directory; it has its own `package.json` and `pnpm-lock.yaml`.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm run verify   # Types, TypeScript tests, Python tests, PHP tests, distribution drift
 pnpm run build    # Regenerate dist/promari-sns-share.min.js
-tools/publish.sh --dry-run
 ```
+
+This directory in promari-toolkit is a published copy and changes only on a release; see
+[Contributing](CONTRIBUTING.md#releases).
 
 Requirements: Node.js 22.6 or later (direct TypeScript execution), Python 3.13
 or later, and PHP 8.1 or later. See [Contributing](CONTRIBUTING.md).

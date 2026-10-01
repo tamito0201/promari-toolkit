@@ -227,8 +227,8 @@ Writes use temporary files and `os.replace` for atomic replacement.
 ## ブラウザで公開契約を確認する
 
 ```bash
-pnpm --filter @promari/sns-share build
-python3 plugins/promari-sns-share/web/test-browser.py
+pnpm run build
+python3 web/test-browser.py
 ```
 
 PythonのPlaywrightとChromiumを用意した環境で実行する。1440 / 390 / 320pxで、

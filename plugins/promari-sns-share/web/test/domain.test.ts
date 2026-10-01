@@ -66,7 +66,7 @@ describe('ドメインサービス', () => {
     assert.equal(UriEncoder.appendQuery('https://a.jp/p', { 'k!': "v'(*)" }), 'https://a.jp/p?k%21=v%27%28%2A%29');
   });
   it('mailto と下書きを送る共有先は小窓で開かない', () => {
-    assert.equal(ShareActionPolicy.canOpenInPopup({ href: 'mailto:someone@a.jp?subject=x', sendsDraft: false }), false);
+    assert.equal(ShareActionPolicy.canOpenInPopup({ href: 'mailto:someone@example.com?subject=x', sendsDraft: false }), false);
     assert.equal(ShareActionPolicy.canOpenInPopup({ href: 'https://a.jp/', sendsDraft: false }), true);
     // 下書きを送る共有先はサービスの投稿画面を開くので、小窓にしない（ADR-0004）。
     assert.equal(ShareActionPolicy.canOpenInPopup({ href: 'https://a.jp/', sendsDraft: true }), false);
@@ -159,7 +159,7 @@ describe('DraftTemplate（下書きのひな形）', () => {
     assert.equal(DraftTemplate.render({ template: '{title} {url}', format: 'text' }, request({ title: '{url}' })), '{url} https://a.jp/p?x=1&y=2');
   });
   it('{host} は URL の資格情報とポートを除いたホスト名', () => {
-    assert.equal(DraftTemplate.host('https://user:pw@promari.jp:8443/a?b#c'), 'promari.jp');
+    assert.equal(DraftTemplate.host('https://user:pw@example.com:8443/a?b#c'), 'example.com');
     assert.equal(DraftTemplate.host('https://[::1]:8080/'), '[::1]');
     assert.equal(DraftTemplate.host('/relative'), '');
   });

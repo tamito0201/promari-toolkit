@@ -8,6 +8,8 @@
 | Python | 3.13 or later | `tools/config.py`, using only the standard library |
 | PHP | 8.1 or later | Plugin syntax checks and rendering tests |
 
+Run the commands in this directory, which has its own `package.json` and `pnpm-lock.yaml`.
+
 ```bash
 pnpm install --frozen-lockfile
 export PYTHON=python3.13 # Set this when python3 is older than 3.13.
@@ -50,9 +52,15 @@ pnpm run build          # Regenerate dist/ after destination or TOML changes.
 
 ## Releases
 
-1. Update the component package version, PHP plugin version, and `web_version` in `config/share_config.example.toml` and record the
-   changes in `CHANGELOG.md`.
-2. Run `pnpm run build`, then commit the result.
-3. Run `tools/publish.sh --dry-run` to review the component release.
-4. Run `tools/publish.sh` to publish the namespaced tag, WordPress ZIP, JavaScript, and release notes with SRI.
-   Other components retain their existing versions. Never move a published tag.
+Releases are made by the maintainers' release workflow, not from this directory. This directory in
+promari-toolkit is a published copy that changes only on a release, so do not edit it here.
+
+1. Update the version in `package.json`, `pyproject.toml`, the PHP plugin header, and `web_version` and
+   `web_url` in `config/share_config.example.toml`, and record the changes in `CHANGELOG.md` under `## <version>`.
+2. Run `pnpm run build`, then commit the result (`dist/` is served by the CDN at the release tag).
+3. When the new version is merged, the release workflow checks it, builds the WordPress ZIP, signs
+   `checksums.txt`, publishes this directory and creates the `promari-sns-share-v<version>` tag and GitHub
+   Release with the ZIP, the JavaScript bundle, `checksums.txt`, its signature, and an SBOM. The release
+   notes contain the installation snippet with the SRI hash.
+
+Other components retain their existing versions. A published tag never moves; publish a new version instead.

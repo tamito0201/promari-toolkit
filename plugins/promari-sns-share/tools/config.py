@@ -396,7 +396,7 @@ def build_web(config: Config) -> bytes:
         path.write_text(text, encoding="utf-8")
     esbuild = ROOT / "node_modules/.bin/esbuild"
     if not esbuild.is_file():
-        raise ConfigError("esbuild is missing; run pnpm install --frozen-lockfile from the repository root")
+        raise ConfigError("esbuild is missing; run pnpm install --frozen-lockfile in this directory")
     banner = f"/*! Promari SNS Share v{config.workflow.web_version} — <promari-sns-share> Web Components | https://github.com/tamito0201/promari-toolkit | MIT */"
     result = subprocess.run(
         [str(esbuild), str(WEB_SRC / "index.ts"), "--bundle", "--minify", "--format=iife", "--target=es2022",

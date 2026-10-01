@@ -1,0 +1,9 @@
+# Release files written by tools/build-release.sh and the release workflow; they go to the GitHub
+# Release, not into the repository. dist/promari-sns-share.min.js stays tracked (the CDN serves it).
+dist/*.zip
+checksums.txt
+checksums.txt.sigstore.json
+sbom.spdx.json
+
+# Generated TypeScript inputs (pnpm run generate); the distribution bundle above is committed.
+web/src/generated/

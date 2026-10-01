@@ -22,7 +22,7 @@ errors.** Validation fails closed instead of silently ignoring invalid settings.
 | `plugin_output` | str | Directory for the WordPress plugin, relative to `target`. Empty disables plugin output |
 | `web_output` | str | Directory for the minified Web Component bundle. Empty disables output. CDN hosting is recommended |
 | `web_url` | str | HTTPS URL serving the bundle. Set both this and `web_output`, or leave both empty |
-| `web_version` | str | Semantic version used by `tools/publish.sh` to create a release tag |
+| `web_version` | str | Semantic version; the release workflow creates the tag `promari-sns-share-v<web_version>` |
 
 ## `[share]`: primary buttons
 
