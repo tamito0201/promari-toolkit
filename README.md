@@ -30,13 +30,16 @@ analytics, integration, and development instructions.
 
 ## Development
 
-Use Node.js from `.node-version`, pnpm, Python 3.13 or later, and PHP 8.1 or later.
+Each component is self-contained: it has its own manifest, lockfile, and tool versions, and its
+directory here is a published copy that changes only on a release. See each component's README
+for its development commands; for example, Promari SNS Share uses Node.js from its `.node-version`,
+pnpm, Python 3.13 or later, and PHP 8.1 or later:
 
 ```bash
+cd plugins/promari-sns-share
 pnpm install --frozen-lockfile
 export PYTHON=python3.13
-pnpm --filter @promari/sns-share verify
-pnpm --filter @promari/sns-share build
+pnpm run verify
 ```
 
 ## Independent releases
@@ -48,6 +51,9 @@ The automatically generated source archive contains the whole repository; use
 the component ZIP asset when installing a WordPress plugin.
 
 Released tags are immutable. Each release is identified by its component tag.
+Releases are published by a release workflow, which commits the component's
+directory, creates its tag, and attaches the release files, `checksums.txt`, its
+cosign signature, and an SBOM to the GitHub Release.
 All documentation and commit messages are written in English.
 
 ## License
