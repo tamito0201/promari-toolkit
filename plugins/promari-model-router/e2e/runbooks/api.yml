@@ -1,0 +1,48 @@
+desc: Local HTTP API validated against openapi/openapi.yaml
+steps:
+  health:
+    req:
+      /healthz:
+        get:
+          body: null
+    test: current.res.status == 200 && current.res.body.status == "ok"
+  explain:
+    req:
+      /v1/explain:
+        post:
+          body:
+            application/json:
+              prompt: "この関数の単体テストを書いて"
+    test: |
+      current.res.status == 200
+      && compare(pick(current.res.body.subagent_decision, "action", "target"), {"action": "inject", "target": "sonnet"})
+  explainRejectsUnknownField:
+    desc: The OpenAPI validator rejects fields the contract does not allow
+    req:
+      /v1/explain:
+        post:
+          body:
+            application/json:
+              prompt: "x"
+              extra: 1
+    test: current.res.status == 400
+  explainRejectsEmptyPrompt:
+    req:
+      /v1/explain:
+        post:
+          body:
+            application/json:
+              prompt: ""
+    test: current.res.status == 400
+  reportRejectsBadDays:
+    req:
+      /v1/report?days=0:
+        get:
+          body: null
+    test: current.res.status == 400
+  report:
+    req:
+      /v1/report?days=1:
+        get:
+          body: null
+    test: current.res.status == 200 && current.res.body.entries >= 0

@@ -1,0 +1,32 @@
+# GoReleaser v2 (pinned in tools/go.mod). The release workflow runs
+# `goreleaser build --clean` and copies dist/pmr_<os>_<arch> into the plugin.
+version: 2
+project_name: pmr
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: pmr
+    main: ./cmd/pmr
+    # dist/pmr_<os>_<arch>[.exe] is the name bin/pmr looks for.
+    binary: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/cli.Version={{.Version}}
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    no_unique_dist_dir: true
+
+sboms:
+  - artifacts: binary
+    cmd: sh
+    args: ["tools/run.sh", "syft", "$artifact", "--output", "spdx-json=$document"]
+
+checksum:
+  name_template: checksums.txt

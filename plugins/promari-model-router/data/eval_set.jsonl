@@ -1,0 +1,86 @@
+{"lang": "ja", "expect": "lookup", "text": "UserService がどこで定義されているか探して"}
+{"lang": "ja", "expect": "lookup", "text": "このリポジトリで fetchOrders を呼んでいる箇所を一覧にして"}
+{"lang": "ja", "expect": "lookup", "text": "docs/ja 配下の README の数を数えて"}
+{"lang": "ja", "expect": "lookup", "text": "設定ファイルに timeout の指定が存在するか確認して"}
+{"lang": "ja", "expect": "lookup", "text": "scripts/statusline のファイル構成を読んで要約して"}
+{"lang": "ja", "expect": "lookup", "text": "環境変数 DATABASE_URL の参照箇所を教えて"}
+{"lang": "ja", "expect": "lookup", "text": "この API のエンドポイント一覧を出して"}
+{"lang": "ja", "expect": "lookup", "text": "Makefile にどんなターゲットがあるか列挙して"}
+{"lang": "en", "expect": "lookup", "text": "find all call sites of parseConfig in the repo"}
+{"lang": "en", "expect": "lookup", "text": "where is the retry policy defined?"}
+{"lang": "en", "expect": "lookup", "text": "list all files under backend that import the payment client module"}
+{"lang": "en", "expect": "lookup", "text": "count the number of TODO comments in src"}
+{"lang": "mixed", "expect": "lookup", "text": "src/api 配下で useQuery を import している file を list all して"}
+{"lang": "ja", "expect": "mechanical", "text": "getUser を fetchUser にリネームして"}
+{"lang": "ja", "expect": "mechanical", "text": "README の誤字を直して"}
+{"lang": "ja", "expect": "mechanical", "text": "このファイルのインデントを整形して"}
+{"lang": "ja", "expect": "mechanical", "text": "package.json のバージョンを上げて"}
+{"lang": "ja", "expect": "mechanical", "text": "変更をコミットして push して"}
+{"lang": "ja", "expect": "mechanical", "text": "未使用の import を並べ替えて整理して"}
+{"lang": "ja", "expect": "mechanical", "text": "docs/old のファイルを docs/archive にファイルを移動して"}
+{"lang": "ja", "expect": "mechanical", "text": "エラーメッセージの文言を変更して。『失敗』を『エラー』に"}
+{"lang": "ja", "expect": "mechanical", "text": "末尾の空白を全部消して"}
+{"lang": "en", "expect": "mechanical", "text": "rename the variable tmp to buffer in utils.py"}
+{"lang": "en", "expect": "mechanical", "text": "fix the typo in CONTRIBUTING.md"}
+{"lang": "en", "expect": "mechanical", "text": "bump the version to 2.3.1 and commit"}
+{"lang": "en", "expect": "mechanical", "text": "sort imports in every python file"}
+{"lang": "mixed", "expect": "mechanical", "text": "eslint の lint を直して、format the files too"}
+{"lang": "ja", "expect": "standard", "text": "ユーザー一覧画面にページングを実装して"}
+{"lang": "ja", "expect": "standard", "text": "この関数の単体テストを書いて"}
+{"lang": "ja", "expect": "standard", "text": "CSV エクスポートの機能を追加して"}
+{"lang": "ja", "expect": "standard", "text": "フォームにメールアドレスのバリデーションを追加して"}
+{"lang": "ja", "expect": "standard", "text": "日付フォーマットのユーティリティ関数を書いて"}
+{"lang": "ja", "expect": "standard", "text": "既存のパターンに合わせて Order のエンドポイントを追加して"}
+{"lang": "ja", "expect": "standard", "text": "このコンポーネントをリファクタして読みやすくして"}
+{"lang": "ja", "expect": "standard", "text": "検索ボックスの不具合を修正して。空文字で検索すると全件出てしまう"}
+{"lang": "ja", "expect": "standard", "text": "設定値を読み込むスクリプトを書いて"}
+{"lang": "en", "expect": "standard", "text": "implement pagination for the orders list endpoint"}
+{"lang": "en", "expect": "standard", "text": "write tests for the date parsing helper"}
+{"lang": "en", "expect": "standard", "text": "add support for YAML config files alongside JSON"}
+{"lang": "en", "expect": "standard", "text": "create a component that shows the upload progress"}
+{"lang": "mixed", "expect": "standard", "text": "OrderRepository に findByStatus を implement して、テストも追加して"}
+{"lang": "ja", "expect": "complex", "text": "CI でたまに落ちるテストの原因を調べて"}
+{"lang": "ja", "expect": "complex", "text": "このテストが落ちる原因を特定して直して"}
+{"lang": "ja", "expect": "complex", "text": "本番ではないけどステージングでメモリリークしている原因を調査して"}
+{"lang": "ja", "expect": "complex", "text": "並列実行するとデッドロックする問題を解析して"}
+{"lang": "ja", "expect": "complex", "text": "先週のリリース以降に遅くなったのでボトルネックを探して原因を特定して"}
+{"lang": "ja", "expect": "complex", "text": "非同期ジョブが二重登録される原因を調べて"}
+{"lang": "ja", "expect": "complex", "text": "このスタックトレースの原因を調べて\nTraceback (most recent call last):\n  File \"app.py\", line 3\nKeyError: 'id'"}
+{"lang": "ja", "expect": "complex", "text": "再現しないけど時々ユーザーのセッションが消える不具合の原因を調査して"}
+{"lang": "en", "expect": "complex", "text": "debug why the integration test fails intermittently on CI"}
+{"lang": "en", "expect": "complex", "text": "find the root cause of the race condition in the job scheduler"}
+{"lang": "en", "expect": "complex", "text": "why does the build take twice as long since last week? bisect it"}
+{"lang": "en", "expect": "complex", "text": "investigate the memory leak in the websocket handler"}
+{"lang": "mixed", "expect": "complex", "text": "flaky な e2e test の root cause を調べて"}
+{"lang": "ja", "expect": "architecture", "text": "通知基盤のアーキテクチャを設計して"}
+{"lang": "ja", "expect": "architecture", "text": "キュー方式と定期実行方式を方式比較してトレードオフをまとめて"}
+{"lang": "ja", "expect": "architecture", "text": "モノリスをマイクロサービスへ分ける移行計画を立てて"}
+{"lang": "ja", "expect": "architecture", "text": "予約機能のテーブル設計をして"}
+{"lang": "ja", "expect": "architecture", "text": "ログ基盤の技術選定をして"}
+{"lang": "ja", "expect": "architecture", "text": "この設計書のアーキテクチャを見直して改善案を出して"}
+{"lang": "ja", "expect": "architecture", "text": "フロントの状態管理の全体設計を考えて、責務分割を決めて"}
+{"lang": "en", "expect": "architecture", "text": "design the architecture for a multi-tenant billing system"}
+{"lang": "en", "expect": "architecture", "text": "compare event sourcing and CRUD for this service and explain the trade-offs"}
+{"lang": "en", "expect": "architecture", "text": "write a migration plan from REST to GraphQL"}
+{"lang": "en", "expect": "architecture", "text": "redesign the caching layer across services"}
+{"lang": "mixed", "expect": "architecture", "text": "search 基盤の architecture を設計して、トレードオフも整理して"}
+{"lang": "ja", "expect": "abstain", "text": "続けて"}
+{"lang": "ja", "expect": "abstain", "text": "はい、それでお願いします"}
+{"lang": "ja", "expect": "abstain", "text": "OKです"}
+{"lang": "ja", "expect": "abstain", "text": "ありがとう"}
+{"lang": "ja", "expect": "abstain", "text": "いい感じ"}
+{"lang": "ja", "expect": "abstain", "text": "今日の天気は？"}
+{"lang": "en", "expect": "abstain", "text": "continue"}
+{"lang": "en", "expect": "abstain", "text": "sounds good"}
+{"lang": "en", "expect": "abstain", "text": "thanks!"}
+{"lang": "en", "expect": "abstain", "text": "hmm"}
+{"lang": "ja", "expect": "complex", "text": "本番の決済処理で二重課金が起きる原因を調べて", "danger": true}
+{"lang": "ja", "expect": "standard", "text": "ログイン画面にパスワード再設定の機能を追加して", "danger": true}
+{"lang": "ja", "expect": "architecture", "text": "認証基盤を OAuth へ移行する移行計画を立てて", "danger": true}
+{"lang": "ja", "expect": "mechanical", "text": "本番 DB の users テーブルの列名をリネームして", "danger": true}
+{"lang": "ja", "expect": "standard", "text": "マイグレーションを書いて orders に status 列を追加して", "danger": true}
+{"lang": "ja", "expect": "lookup", "text": "秘密鍵がリポジトリにコミットされていないか探して", "danger": true}
+{"lang": "en", "expect": "standard", "text": "add rate limiting to the authentication endpoint", "danger": true}
+{"lang": "en", "expect": "complex", "text": "debug why production payments fail with a timeout", "danger": true}
+{"lang": "en", "expect": "mechanical", "text": "rename the column in the production database", "danger": true}
+{"lang": "mixed", "expect": "standard", "text": "billing の invoice 生成を implement して", "danger": true}

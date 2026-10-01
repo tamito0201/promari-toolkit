@@ -1,0 +1,12 @@
+{
+  "name": "promari-model-router",
+  "version": "1.0.2",
+  "description": "Route Claude Code subagents to haiku/sonnet/opus by task difficulty (Japanese and English), keep safety-sensitive work on strong models, suggest Codex for bulk or second-opinion work, and log every decision.",
+  "author": {
+    "name": "Takaomi Murasaki"
+  },
+  "homepage": "https://github.com/tamito0201/promari-toolkit/tree/main/plugins/promari-model-router",
+  "repository": "https://github.com/tamito0201/promari-toolkit",
+  "license": "MIT",
+  "keywords": ["model-routing", "subagents", "cost", "hooks", "codex", "japanese"]
+}

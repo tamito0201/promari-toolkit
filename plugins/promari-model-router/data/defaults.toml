@@ -1,0 +1,212 @@
+# promari-model-router — built-in defaults.
+#
+# Every tunable value of the router lives here; the Go code holds no magic
+# numbers. Override any key in:
+#   ~/.claude/promari-model-router.toml            (user)
+#   <project>/.claude/promari-model-router.toml    (project, wins)
+# Layers are decoded on top of each other, so a file only needs the keys it
+# changes. Unknown keys are rejected (a typo fails loudly in `pmr doctor`
+# instead of being silently ignored).
+
+# ---------------------------------------------------------------- routing
+[routing]
+# enforce: rewrite subagent models | shadow: only record what would change | off
+mode = "enforce"
+# Ask the user before a subagent runs above the session model (fable always asks).
+ask_on_upgrade = true
+# Honour a leading `[route: <class>]` tag written by the main model.
+honor_route_tag = true
+# Tiers that may still be injected when the session model is unknown or uncertain.
+unknown_session_allows = ["haiku"]
+# Keep cheap routes on the session model when the brief depends on earlier conversation.
+context_hold = true
+# Do not downgrade a brief that this session already delegated once (a retry).
+retry_escalation = true
+# Built-in subagent types: "classify", "keep", or a fixed class name.
+[routing.subagents]
+Explore = "lookup"
+general-purpose = "classify"
+claude = "classify"
+default = "classify"
+Plan = "keep"
+
+# A long, structured brief only goes to a cheap tier on an overwhelming margin.
+[routing.long_prompt]
+chars = 400
+min_margin = 6
+
+# ---------------------------------------------------------------- classifier (rule stage)
+[classifier]
+strong_weight = 3        # points for a strong cue phrase
+weak_weight = 1          # points for a weak cue phrase
+class_cap = 9            # maximum points per class
+min_confidence = 3       # the top class needs at least this many points
+min_margin = 2           # ... and this lead over the runner-up
+confident_multiple = 2   # a lead below min_margin is accepted at confidence >= min_confidence * this
+continuation_max_chars = 24
+code_fence_bonus = 1     # points to "standard" for a ``` block
+stack_trace_bonus = 3    # points to "complex" for a stack trace
+long_prompt_chars = 1200 # a prompt this long ...
+long_prompt_lines = 40   # ... or with this many lines ...
+long_prompt_bonus = 1    # ... adds this to "architecture" and "complex"
+max_reason_hits = 2      # cue phrases listed per class in the trace
+max_danger_hits = 3      # danger phrases listed in the trace
+
+# ---------------------------------------------------------------- length buckets (Mondrian calibration)
+[buckets]
+short_max_chars = 120    # < this: short
+medium_max_chars = 400   # < this: medium, otherwise long
+
+# ---------------------------------------------------------------- learned stages
+[model]
+enabled = true
+# Let the synthetic embedded artifact drive routing (evaluation only; unsafe on real traffic).
+allow_embedded = false
+# Out-of-distribution guards; 0 = use the values learned into the artifact.
+max_unseen_ratio = 0.0
+min_neighbor_sim = 0.0
+neighbors_k = 1
+# Ledger posteriors (CADMAS-CTX): a tier is kept only if mean - gamma * sd >= target_success.
+posterior_gamma = 1.0
+target_success = 0.8
+min_observations = 8
+# CARROT: utility = success - cost_lambda * (median tokens / cost_scale_tokens).
+cost_lambda = 0.0
+cost_scale_tokens = 1000000
+
+[features]
+ngram_min = 1
+ngram_max = 3
+hash_buckets = 4096
+seen_bits = 65536        # bitset for the unseen-n-gram ratio
+dense_scale_log_chars = 8.0
+dense_context_cap = 3
+
+# ---------------------------------------------------------------- training (`pmr train`)
+[training]
+folds = 5
+alpha = 0.05             # target wrong-downgrade rate for the risk threshold (CRC)
+set_alpha = 0.1          # conformal miscoverage for prediction sets
+min_bucket_n = 20        # a length bucket with fewer calibration points uses the global tau
+isotonic_min_n = 1000    # isotonic calibration needs at least this many points
+tau_floor = 0.5          # a bucket's tau never goes below this
+epochs = 300
+learning_rate = 0.2
+l2 = 0.001
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+adam_eps = 1e-8
+neighbor_floor_quantile = 0.05   # similarity quantile below which a prompt is out of distribution
+max_unseen_ratio = 0.9
+ece_bins = 10
+granularity_decimals = 4         # score resolution when counting distinct values
+[training.temperature_grid]      # T = start + i * step, i integer (no float drift)
+start = 0.25
+stop = 5.0
+step = 0.05
+[training.tau_grid]
+start = 0.50
+stop = 1.00
+step = 0.01
+[training.triage]                # Triage (arXiv:2604.07494)
+min_auc = 0.56
+min_n = 8
+
+# ---------------------------------------------------------------- evaluation gate (`pmr eval`, CI)
+[eval]
+session_model = "claude-opus-5-5"
+min_accuracy = 0.85
+max_harmful = 0
+# Relative cost units used only to compare policies (not prices).
+[eval.relative_cost]
+haiku = 1.0
+sonnet = 3.0
+opus = 5.0
+fable = 10.0
+unknown = 5.0
+
+# ---------------------------------------------------------------- advice (UserPromptSubmit)
+[advice]
+enabled = true
+max_chars = 360
+min_prompt_chars = 12
+
+# ---------------------------------------------------------------- plan usage (status-line caches)
+[pressure]
+claude_rate_file = "~/.cache/claude-rate-limits.json"
+codex_rate_file = "~/.cache/codex-rate-statusline.json"
+five_hour_high = 85.0
+seven_day_high = 90.0
+codex_block_percent = 95.0
+max_age_hours = 6.0
+
+# ---------------------------------------------------------------- Codex delegation
+[codex]
+enabled = true
+model = "gpt-6-luna"
+effort = "medium"
+
+# ---------------------------------------------------------------- runtime
+[runtime]
+hook_timeout_ms = 4000
+stdin_limit_bytes = 33554432
+transcript_tail_bytes = 262144
+session_retention_days = 14
+ledger_retention_days = 180
+ledger_batch = 500
+inject_session_policy = true
+data_dir = ""            # "" = ${CLAUDE_PLUGIN_DATA} or ~/.claude/plugins/data/promari-model-router
+ledger_file = "ledger.db"
+artifact_file = "artifact.json"
+sqlite_busy_timeout_ms = 3000
+workflow_step_limit = 64         # cycle guard for the routing state graph
+error_detail_runes = 800         # tail of an error trace kept in the ledger
+error_write_timeout_ms = 500     # bound on recording a hook failure (runs after the hook's own deadline)
+last_error_file = "last_error"   # a failure the ledger could not take (first line: RFC 3339 time), read by `pmr doctor`
+
+[display]
+trace_decimals = 3               # rounding of probabilities in `pmr explain` and the ledger trace
+miss_chars = 70                  # prompt characters shown per miss in `pmr eval -v`
+error_chars = 160                # error characters shown by `pmr doctor`
+cost_decimals = 4                # decimals of USD estimates in `pmr report`
+
+[doctor]
+window_days = 7                  # how far back `pmr doctor` looks for hook errors
+
+[report]
+default_days = 7.0
+
+[query]
+default_limit = 200
+
+[serve]
+addr = "127.0.0.1:7457"
+sse_poll_ms = 1000
+read_header_timeout_ms = 5000
+shutdown_timeout_ms = 3000
+
+[cost]                   # default shape for `pmr cost` (Harness Tokenomics model)
+tool_calls = 10
+prompt = 8000
+tool_result = 1500
+output_per_call = 300
+report = 800
+
+# ---------------------------------------------------------------- messages (text/template)
+# Everything the router says to Claude. Placeholders use Go text/template syntax.
+[messages]
+prefix = "[promari-model-router]"
+session_policy = """Model routing is active. When you start a built-in subagent without a `model`, begin its prompt with a route tag naming the kind of work: `[route: lookup]` (find/list/read), `[route: mechanical]` (renames, formatting, fixed-shape edits), `[route: standard]` (clear-spec implementation), `[route: complex]` (debugging, root cause) or `[route: architecture]` (design, migrations). Omit the tag when unsure. The hook maps it to haiku/sonnet/opus, never above the session model. Fixed-tier agents: promari-model-router:scout (haiku, read-only), :worker (sonnet), :engineer (opus, high), :architect (opus, xhigh). Keep auth, payment, production and migration work on strong models. Do not start a subagent for work you can finish in a few tool calls. For bulk or second-opinion work, Codex is available through /codex:rescue and /codex:review."""
+force_disabled = "CLAUDE_CODE_SUBAGENT_MODEL_FORCE is set, so subagent routing is disabled for this session."
+danger = "Safety-sensitive request (auth, payment, production, migration, secrets): keep it on the session model; do not hand it to haiku or sonnet subagents."
+correction = "The user is correcting an earlier answer: treat the task as harder than it looks and do not delegate it to a cheaper model."
+deep_on_weak_session = "This looks like {{.Class}} work but the session runs on {{.Session}}. Suggest `/model opus` to the user if the first attempt struggles (a model switch re-reads the whole history once)."
+lookup = "Lookup task: if it needs more than a few searches, run it in an Explore or `promari-model-router:scout` subagent (haiku) and keep only the summary here."
+bulk_mechanical = "Bulk mechanical change: delegate it to `promari-model-router:worker` (sonnet) or Codex rather than doing every edit in the main thread."
+codex_blocked = "Codex usage is at {{printf \"%.0f\" .Used}}%; keep this in Claude."
+codex_review = "For an independent review, Codex is available: `/codex:review --background` (read-only) or `/codex:adversarial-review`."
+codex_task = "Codex can take this batch: `/codex:rescue --background --model {{.Model}} --effort {{.Effort}} <task>`; review its diff afterwards."
+pressure = "Claude plan usage is high ({{.Usage}}): prefer haiku/sonnet subagents or Codex for bulk work."
+ask_upgrade = "promari-model-router: this subagent asks for {{.Target}}, above the session model."
+config_rejected = "A configuration file was rejected, so it has no effect (the defaults and the other files apply): {{.Problem}}. Fix it or run `pmr doctor`."
+route_tags = ["[route: lookup]", "[route: mechanical]", "[route: standard]", "[route: complex]", "[route: architecture]"]

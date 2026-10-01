@@ -1,0 +1,150 @@
+# golangci-lint v2 (pinned in tools/go.mod). Run: task lint
+version: "2"
+
+run:
+  go: "1.27"
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - asasalint
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - gocognit
+    - gocritic
+    - gosec
+    - iface
+    - intrange
+    - mirror
+    - misspell
+    - mnd
+    - musttag
+    - nilerr
+    - nilnesserr
+    - noctx
+    - nolintlint
+    - perfsprint
+    - prealloc
+    - recvcheck
+    - revive
+    - sloglint
+    - sqlclosecheck
+    - testifylint
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+  settings:
+    depguard:
+      # The dependency direction of the layered architecture, checked by machine:
+      # the domain knows nothing outside itself, and use cases reach the outside
+      # world only through the ports in internal/domain/repository.
+      rules:
+        domain:
+          files: ["**/internal/domain/**", "!$test"]
+          deny:
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application
+              desc: the domain must not depend on use cases
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure
+              desc: the domain talks to the outside only through repository ports
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces
+              desc: the domain must not depend on entry points
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di
+              desc: the domain must not depend on the container
+            - pkg: gorm.io
+              desc: persistence belongs to infrastructure
+            - pkg: github.com/spf13/cobra
+              desc: the CLI belongs to interfaces
+        application:
+          files: ["**/internal/application/**", "!$test"]
+          deny:
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure
+              desc: use cases depend on repository ports, not on implementations
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces
+              desc: use cases must not depend on entry points
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di
+              desc: use cases must not depend on the container
+            # `$` makes these exact matches: "os" alone would also catch
+            # os/signal, and the module path would catch every package in it.
+            - pkg: os$
+              desc: files and the environment are reached through ports (CaseSource, ArtifactWriter, EnvReader)
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router$
+              desc: the embedded data is read by infrastructure adapters (cases, agents, artifact)
+        interfaces:
+          files: ["**/internal/interfaces/**", "!$test"]
+          deny:
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure
+              desc: entry points resolve use cases from the container (internal/di), never adapters directly
+            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service
+              desc: entry points call use cases; domain services are reached through them (policy, prices, messages)
+    errcheck:
+      # Writing human-facing text to the terminal: a failed write has no
+      # recovery path and must not fail the command.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*text/tabwriter.Writer).Flush
+    gocognit:
+      min-complexity: 30
+    exhaustive:
+      default-signifies-exhaustive: true
+    mnd:
+      # Tunable numbers belong in data/defaults.toml; this linter catches new
+      # magic numbers in code. Common unit conversions are allowed.
+      ignored-numbers: ["0", "1", "2", "10", "24", "100", "1000", "0o600", "0o700", "0o644"]
+      ignored-functions: ["^math\\.", "^time\\.Duration$", "^strings\\.Repeat$", "^make$"]
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+    gosec:
+      excludes:
+        # G304 (file path from a variable): every path read comes from the
+        # defaults, the user's own ~/.claude file, the CLAUDE_* variables Claude
+        # Code sets, or a command-line argument the user typed. A project file,
+        # which arrives with a cloned repository, cannot set any path (the
+        # project layer is an allow-list: see internal/infrastructure/settings).
+        - G304
+    gocritic:
+      enabled-tags: [diagnostic, style, performance]
+      disabled-checks: [hugeParam, paramTypeCombine, unnamedResult, whyNoLint]
+  exclusions:
+    generated: strict
+    paths:
+      - internal/interfaces/web/api/api.gen.go
+    rules:
+      - path: _test\.go
+        linters: [mnd, gosec, forcetypeassert, gocognit]
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/tamito0201/promari-toolkit/plugins/promari-model-router)

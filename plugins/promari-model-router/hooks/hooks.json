@@ -1,0 +1,63 @@
+{
+  "description": "promari-model-router: route subagents by task difficulty and log every decision",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pmr\" hook SessionStart",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pmr\" hook PostModelSwitch",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pmr\" hook UserPromptSubmit",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pmr\" hook PreToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pmr\" hook PostToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

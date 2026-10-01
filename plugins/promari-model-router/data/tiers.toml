@@ -1,0 +1,50 @@
+# Model tiers — the single source of truth. Agent frontmatter under agents/ must
+# match [agents.*]; `pmr lint` checks it. fable is never chosen automatically.
+order = ["haiku", "sonnet", "opus", "fable"]
+auto_route_ceiling = "opus"
+builtin_agents = ["general-purpose", "Explore", "Plan", "claude", "default"]
+
+[classes.lookup]
+model = "haiku"
+effort = ""
+summary = "Find, list, or read without changing anything"
+
+[classes.mechanical]
+model = "haiku"
+effort = ""
+summary = "Formatting, renames, version bumps, git chores, fixed-shape edits"
+
+[classes.standard]
+model = "sonnet"
+effort = "medium"
+summary = "Ordinary implementation, tests, and bounded fixes with a clear spec"
+
+[classes.complex]
+model = "opus"
+effort = "high"
+summary = "Debugging, root-cause analysis, concurrency, regressions"
+
+[classes.architecture]
+model = "opus"
+effort = "xhigh"
+summary = "Design decisions, trade-offs, migrations, multi-system plans"
+
+[agents.scout]
+model = "haiku"
+effort = ""
+class = "lookup"
+
+[agents.worker]
+model = "sonnet"
+effort = "medium"
+class = "standard"
+
+[agents.engineer]
+model = "opus"
+effort = "high"
+class = "complex"
+
+[agents.architect]
+model = "opus"
+effort = "xhigh"
+class = "architecture"

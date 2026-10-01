@@ -1,0 +1,10 @@
+{
+  "name": "@promari/model-router",
+  "version": "1.0.2",
+  "description": "Claude Code plugin (Go): route subagents to haiku/sonnet/opus by task difficulty in Japanese and English, and log every decision",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "verify": "go tool -modfile=tools/go.mod task default"
+  }
+}

@@ -1,0 +1,49 @@
+desc: CLI commands over the ledger written by the hook runbook
+steps:
+  report:
+    exec:
+      command: '{{ env.PMR_BIN }} report --json --days 1'
+    test: |
+      current.exit_code == 0
+      && compare(fromJSON(current.stdout).subagents.calls, 5)
+      && compare(fromJSON(current.stdout).results.joined_to_decision, 1)
+      && compare(fromJSON(current.stdout).results.calls_by_resolved_tier, {"haiku": 1})
+  verify:
+    desc: The hash chain of the ledger is intact
+    exec:
+      command: '{{ env.PMR_BIN }} verify'
+    test: current.exit_code == 0 && current.stdout contains "chain intact"
+  queryReadOnly:
+    exec:
+      command: |
+        {{ env.PMR_BIN }} query --json "SELECT action, target FROM ledger WHERE tool_use_id = 't-1' AND event = 'subagent'"
+    test: |
+      compare(fromJSON(current.stdout), [{"action": "inject", "target": "haiku"}])
+  queryRejectsWrites:
+    desc: Anything but a single SELECT is refused before it reaches SQLite
+    exec:
+      command: '{{ env.PMR_BIN }} query "DELETE FROM ledger"'
+    test: current.exit_code == 1 && current.stderr contains "read-only"
+  lint:
+    exec:
+      command: '{{ env.PMR_BIN }} lint'
+    test: current.exit_code == 0
+  eval:
+    desc: The evaluation gate passes on the embedded set
+    exec:
+      command: '{{ env.PMR_BIN }} eval --json'
+    test: |
+      current.exit_code == 0
+      && fromJSON(current.stdout).passed == true
+      && compare(fromJSON(current.stdout).danger_leaks, 0)
+      && compare(fromJSON(current.stdout).harmful_downgrades, 0)
+  explain:
+    exec:
+      command: '{{ env.PMR_BIN }} explain --json "CIでたまに落ちるテストの原因を調べて"'
+    test: |
+      compare(pick(fromJSON(current.stdout), "class", "danger", "lang"), {"class": "complex", "danger": false, "lang": "ja"})
+  cost:
+    exec:
+      command: '{{ env.PMR_BIN }} cost --json --tool-calls 10'
+    test: |
+      fromJSON(current.stdout).usd_by_tier.haiku < fromJSON(current.stdout).usd_by_tier.opus

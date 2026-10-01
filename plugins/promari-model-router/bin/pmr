@@ -1,0 +1,187 @@
+#!/bin/sh
+# promari-model-router launcher.
+#
+# Resolution order:
+#   1. dist/pmr_<os>_<arch>[.exe] next to the plugin (snapshot builds)
+#   2. <data>/bin/pmr-<version>[.exe], installed earlier by this script
+#   3. release install: download the binary for this platform from the
+#      promari-toolkit GitHub release in the background and install it only if
+#      its SHA-256 matches checksums.txt shipped in this plugin directory
+#   4. development checkout: `go build` once into <data>/bin
+# It never blocks Claude Code: while no binary is available, a hook call exits
+# 0 without output ("no decision"), and the next call picks the binary up.
+#
+# The binary learns where it came from through PMR_LAUNCHER_SOURCE
+# (dist | installed), so `pmr doctor` can warn when a stale dist/ is in use.
+#
+# Failures (download, checksum mismatch, build) are written to
+# <data>/launcher_error in the same format as the binary's own last_error:
+# line 1 is the UTC time in RFC 3339, the following lines are the message.
+# `pmr doctor` reads it. A successful install removes it.
+set -u
+
+# A stalled download must not hold the install lock forever, and the next
+# hook call must not start a second download meanwhile: bound every transfer.
+# Binaries are ~15 MB, so two minutes covers a slow link with room to spare.
+CURL_CONNECT_TIMEOUT=10
+CURL_MAX_TIME=120
+CURL_RETRY_MAX_TIME=300
+# A lock older than this is left over from a killed or crashed install and is
+# taken over. It exceeds the worst case of one install: 3 attempts
+# (--retry 2) x CURL_MAX_TIME plus curl's retry delays, about 365 s.
+LOCK_STALE_SECONDS=600
+# After a failure, hook calls wait this long before trying again, so a broken
+# release or network does not start a download on every prompt.
+RETRY_BACKOFF_SECONDS=300
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+case "$(uname -m)" in
+  x86_64|amd64) arch=amd64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) arch=$(uname -m) ;;
+esac
+case "$os" in mingw*|msys*|cygwin*) os=windows ;; esac
+ext=""; [ "$os" = windows ] && ext=".exe"
+asset="pmr_${os}_${arch}${ext}"
+version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json" | head -n 1)
+data="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/promari-model-router}"
+installed="$data/bin/pmr-${version}${ext}"
+errfile="$data/launcher_error"
+retryfile="$data/bin/.retry-after"
+is_hook=false; [ "${1:-}" = hook ] && is_hook=true
+
+now() { date +%s; }
+sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
+
+# record_error MESSAGE: keep the failure for `pmr doctor` and back off retries.
+record_error() {
+  mkdir -p "$data/bin" 2>/dev/null || return 0
+  tmp="$errfile.tmp.$$"
+  { date -u +%Y-%m-%dT%H:%M:%SZ; printf '%s\n' "$1"; } >"$tmp" 2>/dev/null && mv -f "$tmp" "$errfile" 2>/dev/null
+  echo $(( $(now) + RETRY_BACKOFF_SECONDS )) >"$retryfile" 2>/dev/null
+  return 0
+}
+
+clear_error() { rm -f "$errfile" "$retryfile" 2>/dev/null; return 0; }
+
+# backing_off: true while a recent failure asks hook calls to wait.
+backing_off() {
+  [ -f "$retryfile" ] || return 1
+  until=$(cat "$retryfile" 2>/dev/null)
+  case "$until" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$(now)" -lt "$until" ]
+}
+
+# lock_stale DIR: the owner process is gone, or the lock is too old.
+# owner holds "<pid> <epoch>"; a lock without it (killed between mkdir and
+# the write) is judged by the directory's age.
+lock_stale() {
+  if [ -f "$1/owner" ]; then
+    read -r pid since <"$1/owner" 2>/dev/null || return 0
+    case "$pid$since" in ''|*[!0-9]*) return 0 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 0
+    [ $(( $(now) - since )) -ge "$LOCK_STALE_SECONDS" ]
+  else
+    [ -n "$(find "$1" -maxdepth 0 -mmin +$(( LOCK_STALE_SECONDS / 60 )) 2>/dev/null)" ]
+  fi
+}
+
+# take_lock DIR: mkdir is atomic; a stale lock is renamed away (only one
+# process wins the rename) and then taken.
+take_lock() {
+  mkdir "$1" 2>/dev/null && return 0
+  lock_stale "$1" || return 1
+  mv "$1" "$1.stale.$$" 2>/dev/null || return 1
+  rm -rf "$1.stale.$$"
+  mkdir "$1" 2>/dev/null
+}
+
+# write_owner DIR PID
+write_owner() { echo "$2 $(now)" >"$1/owner" 2>/dev/null; return 0; }
+
+release_lock() { rm -rf "$1" 2>/dev/null; return 0; }
+
+install_release() {
+  want=$(awk -v f="$asset" '$2 == f { print $1 }' "$root/checksums.txt")
+  if [ -z "$want" ]; then record_error "checksums.txt has no entry for $asset (no release binary for ${os}/${arch})"; return 1; fi
+  url="https://github.com/tamito0201/promari-toolkit/releases/download/promari-model-router-v${version}/${asset}"
+  mkdir -p "$data/bin" || { record_error "cannot create $data/bin"; return 1; }
+  tmp="$data/bin/.download.$$"
+  if ! out=$(curl -fsSL --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" \
+      --retry 2 --retry-max-time "$CURL_RETRY_MAX_TIME" -o "$tmp" "$url" 2>&1); then
+    rm -f "$tmp"
+    record_error "download failed: $url
+$out"
+    return 1
+  fi
+  got=$(sha256 "$tmp")
+  if [ "$got" = "$want" ]; then
+    chmod 0755 "$tmp" && mv "$tmp" "$installed" && clear_error && return 0
+    rm -f "$tmp"
+    record_error "cannot install $installed"
+    return 1
+  fi
+  rm -f "$tmp"
+  record_error "checksum mismatch for $asset: want $want, got $got; not installed"
+  echo "promari-model-router: checksum mismatch for $asset; not installed" >&2
+  return 1
+}
+
+build() {
+  if out=$(cd "$root" && go build -trimpath -o "$installed.tmp.$$" ./cmd/pmr 2>&1) && mv "$installed.tmp.$$" "$installed"; then
+    clear_error
+    return 0
+  fi
+  rm -f "$installed.tmp.$$"
+  record_error "go build failed in $root
+$out"
+  return 1
+}
+
+# provision JOB: run install_release or build under the lock. A hook call runs
+# it in the background and returns at once; any other command waits for it.
+provision() {
+  mkdir -p "$data/bin" 2>/dev/null || { $is_hook && exit 0; record_error "cannot create $data/bin"; return 1; }
+  lock="$data/bin/.installing"
+  if $is_hook; then
+    backing_off && exit 0
+    take_lock "$lock" || exit 0
+    ( "$1"; release_lock "$lock" ) </dev/null >/dev/null 2>&1 &
+    write_owner "$lock" "$!"
+    exit 0
+  fi
+  if ! take_lock "$lock"; then
+    echo "promari-model-router: another install is in progress ($lock)" >&2
+    return 1
+  fi
+  write_owner "$lock" "$$"
+  "$1"; rc=$?
+  release_lock "$lock"
+  return $rc
+}
+
+bin="$root/dist/$asset"
+PMR_LAUNCHER_SOURCE=dist
+if [ ! -x "$bin" ]; then
+  bin="$installed"
+  PMR_LAUNCHER_SOURCE=installed
+fi
+if [ ! -x "$bin" ]; then
+  if [ -f "$root/checksums.txt" ] && command -v curl >/dev/null 2>&1; then
+    provision install_release || true
+  elif command -v go >/dev/null 2>&1 && [ -f "$root/go.mod" ]; then
+    # A first build can take longer than the hook timeout: hooks build in the background.
+    provision build >/dev/null 2>&1 || true
+  else
+    $is_hook && exit 0
+    record_error "no release checksums (or curl) and no Go toolchain: cannot provide a binary for ${os}/${arch}"
+  fi
+fi
+if [ ! -x "$bin" ]; then
+  $is_hook && exit 0
+  echo "promari-model-router: no binary for ${os}/${arch} yet (see $errfile; run \`pmr doctor\` again in a moment, or install Go to build one)" >&2
+  exit 1
+fi
+export PMR_LAUNCHER_SOURCE
+exec "$bin" "$@"

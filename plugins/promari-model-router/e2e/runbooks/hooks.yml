@@ -1,0 +1,84 @@
+desc: Claude Code hook round trips through the real binary (stdin JSON -> stdout JSON)
+steps:
+  sessionStart:
+    desc: SessionStart injects the routing policy and records the session model
+    exec:
+      command: '{{ env.PMR_BIN }} hook SessionStart'
+      stdin: '{"session_id":"e2e","hook_event_name":"SessionStart","source":"startup","model":"claude-opus-5-5"}'
+    test: |
+      current.exit_code == 0
+      && fromJSON(current.stdout).hookSpecificOutput.hookEventName == "SessionStart"
+      && fromJSON(current.stdout).hookSpecificOutput.additionalContext contains "Model routing is active"
+  routeLookupJapanese:
+    desc: A Japanese lookup brief without a model is rewritten to haiku, every other field kept, no permissionDecision
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Agent","tool_use_id":"t-1","tool_input":{"prompt":"UserService がどこで定義されているか探して","description":"find","subagent_type":"general-purpose","run_in_background":false}}'
+    test: |
+      current.exit_code == 0
+      && compare(fromJSON(current.stdout).hookSpecificOutput, {
+        "hookEventName": "PreToolUse",
+        "updatedInput": {
+          "prompt": "UserService がどこで定義されているか探して",
+          "description": "find",
+          "subagent_type": "general-purpose",
+          "run_in_background": false,
+          "model": "haiku"
+        }
+      })
+  routeTag:
+    desc: A route tag written by the main model decides the class
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Agent","tool_use_id":"t-2","tool_input":{"prompt":"[route: standard]\nあなたは実装担当です。既存のパターンに合わせてエンドポイントを追加してください。","subagent_type":"general-purpose"}}'
+    test: |
+      compare(fromJSON(current.stdout).hookSpecificOutput.updatedInput.model, "sonnet")
+  dangerKeeps:
+    desc: Safety-sensitive work is never downgraded (no output = no change)
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Agent","tool_use_id":"t-3","tool_input":{"prompt":"[route: mechanical] 本番 DB の users テーブルの列名をリネームして","subagent_type":"general-purpose"}}'
+    test: |
+      current.exit_code == 0 && current.stdout == ""
+  explicitUpgradeAsks:
+    desc: An explicit model above the session asks the user instead of allowing silently
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Agent","tool_use_id":"t-4","tool_input":{"prompt":"x","subagent_type":"general-purpose","model":"fable"}}'
+    test: |
+      compare(fromJSON(current.stdout).hookSpecificOutput, {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "ask",
+        "permissionDecisionReason": "promari-model-router: this subagent asks for fable, above the session model."
+      })
+  customAgentUntouched:
+    desc: Custom agents keep their own frontmatter model
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Agent","tool_use_id":"t-5","tool_input":{"prompt":"探して一覧にして","subagent_type":"promari-model-router:scout"}}'
+    test: current.stdout == ""
+  nonAgentIgnored:
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Bash","tool_input":{"command":"ls"}}'
+    test: current.exit_code == 0 && current.stdout == ""
+  postToolUse:
+    desc: The result is recorded and joined by tool_use_id; the hook prints nothing
+    exec:
+      command: '{{ env.PMR_BIN }} hook PostToolUse'
+      stdin: '{"session_id":"e2e","tool_name":"Agent","tool_use_id":"t-1","tool_input":{"prompt":"UserService がどこで定義されているか探して","subagent_type":"general-purpose","model":"haiku"},"tool_response":{"resolvedModel":"claude-haiku-4-5-20251001","status":"completed","totalTokens":1200,"totalDurationMs":800,"usage":{"input_tokens":10,"output_tokens":90,"cache_read_input_tokens":1100}}}'
+    test: current.exit_code == 0 && current.stdout == ""
+  malformedFailsOpen:
+    desc: Broken input never blocks Claude Code
+    exec:
+      command: '{{ env.PMR_BIN }} hook PreToolUse'
+      stdin: '{not json'
+    test: current.exit_code == 0 && current.stdout == ""
+  dangerAdvice:
+    desc: UserPromptSubmit advises (never blocks) on safety-sensitive requests
+    exec:
+      command: '{{ env.PMR_BIN }} hook UserPromptSubmit'
+      stdin: '{"session_id":"e2e","prompt":"本番の決済処理でタイムアウトする原因を調べて"}'
+    test: |
+      current.exit_code == 0
+      && fromJSON(current.stdout).hookSpecificOutput.additionalContext contains "Safety-sensitive"
