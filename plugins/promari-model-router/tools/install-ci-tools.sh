@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the official linux/amd64 release binaries of pinned tools into $PMR_TOOL_BIN:
-#   tools/install-ci-tools.sh <tool>...   (into $PMR_TOOL_BIN, default ~/.cache/pmr-tool-bin)
+#   tools/install-ci-tools.sh <tool>...   (into $PMR_TOOL_BIN, default $CLAUDE_PLUGIN_TOOL_BIN, else ~/.cache/claude-plugin-tools/<plugin>)
 #
 # Building these tools from source cost CI most of its time (tools/go.mod alone pulled in over a
 # thousand modules). The version of each tool is still read from the modfile that declares it,
@@ -8,7 +8,8 @@
 # release's own checksum file; tools/run.sh then prefers these binaries.
 set -euo pipefail
 
-PMR_TOOL_BIN=${PMR_TOOL_BIN:-$HOME/.cache/pmr-tool-bin}
+plugin=$(basename "$(cd "$(dirname "$0")/../.." && pwd)") # plugins/<plugin>/plugin/tools -> <plugin>
+PMR_TOOL_BIN=${PMR_TOOL_BIN:-${CLAUDE_PLUGIN_TOOL_BIN:-$HOME/.cache/claude-plugin-tools/$plugin}}
 [[ $# -ge 1 ]] || { echo "usage: tools/install-ci-tools.sh <tool>..." >&2; exit 2; }
 
 # tool | GitHub repository | release asset | checksum file | binary inside the archive (empty: the asset is the binary)

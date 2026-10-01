@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 — 2026-10-02
+
+- Fix: `bin/pmr` builds the binary with Go when the release has no binary for the platform
+  (1.0.2 shipped `linux_amd64` only) or the download fails. Before, a plugin with `checksums.txt`
+  only tried the download, so on macOS the hooks silently did nothing and retried every five
+  minutes. A checksum mismatch still stops without building, and stays in `launcher_error`.
+- The release also ships `darwin_arm64`.
+- `tools/test-launcher.sh` checks every way the launcher provides a binary; `task ci` runs it.
+
 ## 1.0.2 — 2026-10-01
 
 The first published release. It is released to promari-toolkit (files, tag and GitHub Release) but

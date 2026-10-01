@@ -18,16 +18,88 @@ tasks:
     cmds: [task: generate-check, task: lint, task: test, task: eval, task: security]
 
   ci:
-    desc: Everything CI runs, in one pass (the tests run once, with the race detector and coverage)
+    desc: 'Everything CI runs, in one pass (the tests run twice, side by side: once with the race detector, once for coverage)'
+    # Order: the generated code first (everything else compiles it), then the file scan before
+    # anything writes dist/ or .cover/, then the independent checks side by side, then the scans
+    # that read every file (gitleaks) once the outputs exist, as before.
     cmds:
       - task: generate-check
-      - task: lint
+      - task: lint-files
+      - task: ci-parallel
+      - task: security
+      - task: actionlint
+
+  ci-parallel:
+    desc: The independent checks of ci, side by side
+    internal: true
+    # Each takes from tens of seconds (deadcode) to several minutes (the race-detector tests, the
+    # cross-compilation) on CI, and none reads what another writes: the tests write .cover/ and build
+    # the E2E binary in a temporary directory, goreleaser writes dist/, the linters only read the
+    # sources. The test run spends most of its time in a few long packages, which leaves cores idle.
+    #
+    # The race detector and coverage run apart: together (-race with atomic coverage of ./...) every
+    # instrumented block of the training loops takes an atomic counter the race detector then tracks,
+    # which made usecase and cli take 116 s against 16 s (race only) + 3 s (coverage only), measured
+    # on the same machine. Two lighter runs side by side beat one heavy run.
+    deps:
+      - task: lint-code
+      - task: race
+      - task: launcher-test
       - task: coverage
-        vars: { RACE: -race }
+      - task: build
+      - task: eval
+
+  ci-lint:
+    desc: 'The checks of ci other than the tests and the build (CI runs each group below as its own job)'
+    cmds:
+      - task: generate-check
+      - task: lint-files
+      - task: ci-lint-parallel
+      - task: actionlint
+
+  ci-lint-parallel:
+    internal: true
+    # None of them writes a file another reads.
+    deps: [lint-code, eval, security]
+
+  # CI runs the lint checks as three jobs: together on one 2-vCPU, 8 GB runner they peaked at 7.4 GB
+  # of memory (measured by the runner telemetry), golangci-lint and deadcode being the heaviest.
+  ci-lint-golangci:
+    desc: go vet and golangci-lint (a CI job of its own)
+    cmds:
+      - '{{.GO}} vet ./...'
+      - '{{.TOOL}} golangci-lint run ./...'
+
+  ci-lint-deadcode:
+    desc: deadcode, a whole-program analysis (a CI job of its own)
+    cmds: ['{{.TOOL}} deadcode -test ./...']
+
+  ci-lint-misc:
+    desc: 'The light checks: generated code, editorconfig, agent tiers, eval, vulnerabilities, secrets, workflows (a CI job of its own)'
+    cmds:
+      - task: generate-check
+      - task: lint-files
+      - '{{.GO}} run ./cmd/pmr lint'
+      - task: launcher-test
       - task: eval
       - task: security
-      - task: build
       - task: actionlint
+
+  race:
+    desc: The tests with the race detector (no coverage; see ci-parallel)
+    # -race needs cgo on linux (not on darwin), so the global CGO_ENABLED=0 would fail only in CI.
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      # With GOTEST_REPORT set (CI), every test event also goes to that file as JSON (each test's
+      # duration, for the CI dashboard); the log still shows go test's usual output.
+      - |
+        {{if .GOTEST_REPORT}}set -o pipefail
+        {{.GO}} test -race -json ./... | tee "{{.GOTEST_REPORT}}" | jq -rj 'select(.Action == "output") | .Output'{{else}}{{.GO}} test -race ./...{{end}}
+
+  launcher-test:
+    desc: How bin/pmr provides a binary (release download, Go build, checksum mismatch, hook), with fake go and curl
+    cmds: ['sh tools/test-launcher.sh']
 
   generate:
     desc: Regenerate the HTTP server from openapi/openapi.yaml
@@ -45,12 +117,19 @@ tasks:
 
   lint:
     desc: golangci-lint v2, go vet, deadcode, editorconfig, embedded agent tiers
+    cmds: [task: lint-code, task: lint-files]
+
+  lint-code:
+    desc: go vet, golangci-lint v2, deadcode, embedded agent tiers (read the sources only)
     cmds:
       - '{{.GO}} vet ./...'
       - '{{.TOOL}} golangci-lint run ./...'
       - '{{.TOOL}} deadcode -test ./...'
-      - '{{.TOOL}} editorconfig-checker'
       - '{{.GO}} run ./cmd/pmr lint'
+
+  lint-files:
+    desc: editorconfig (reads every file, so ci runs it before anything writes dist/ or .cover/)
+    cmds: ['{{.TOOL}} editorconfig-checker']
 
   test:
     desc: Unit, table-driven and runn E2E tests with coverage
@@ -70,7 +149,9 @@ tasks:
       # RACE=-race adds the race detector, which needs cgo on linux and counts in atomic mode;
       # GOFLAGS makes the E2E binary the tests build count in the same mode, or covdata cannot merge them.
       CGO_ENABLED: '{{if .RACE}}1{{else}}0{{end}}'
-      GOFLAGS: '{{if .RACE}}-covermode=atomic{{end}}'
+      # set mode unless RACE: -race would silently switch coverage to atomic, which made the tests 6x
+      # slower (go help testflag: "The default is 'set' unless -race is enabled").
+      GOFLAGS: '{{if .RACE}}-covermode=atomic{{else}}-covermode=set{{end}}'
     cmds:
       - rm -rf .cover && mkdir -p .cover
       - '{{.GO}} test {{.RACE}} -cover -coverpkg=./... ./... -args -test.gocoverdir={{.ROOT_DIR}}/.cover'

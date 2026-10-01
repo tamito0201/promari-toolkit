@@ -7,7 +7,10 @@
 #   3. release install: download the binary for this platform from the
 #      promari-toolkit GitHub release in the background and install it only if
 #      its SHA-256 matches checksums.txt shipped in this plugin directory
-#   4. development checkout: `go build` once into <data>/bin
+#   4. `go build` once into <data>/bin, when Go is installed: in a development
+#      checkout, and in a release whose checksums.txt has no binary for this
+#      platform or whose download failed. A checksum mismatch never falls back
+#      to a build, so the mismatch stays in launcher_error.
 # It never blocks Claude Code: while no binary is available, a hook call exits
 # 0 without output ("no decision"), and the next call picks the binary up.
 #
@@ -102,9 +105,13 @@ write_owner() { echo "$2 $(now)" >"$1/owner" 2>/dev/null; return 0; }
 
 release_lock() { rm -rf "$1" 2>/dev/null; return 0; }
 
+can_build() { command -v go >/dev/null 2>&1 && [ -f "$root/go.mod" ]; }
+
+# install_release returns 2 for a checksum mismatch, which must not be built over.
 install_release() {
   want=$(awk -v f="$asset" '$2 == f { print $1 }' "$root/checksums.txt")
   if [ -z "$want" ]; then record_error "checksums.txt has no entry for $asset (no release binary for ${os}/${arch})"; return 1; fi
+  if ! command -v curl >/dev/null 2>&1; then record_error "curl is not installed: cannot download $asset"; return 1; fi
   url="https://github.com/tamito0201/promari-toolkit/releases/download/promari-model-router-v${version}/${asset}"
   mkdir -p "$data/bin" || { record_error "cannot create $data/bin"; return 1; }
   tmp="$data/bin/.download.$$"
@@ -125,7 +132,18 @@ $out"
   rm -f "$tmp"
   record_error "checksum mismatch for $asset: want $want, got $got; not installed"
   echo "promari-model-router: checksum mismatch for $asset; not installed" >&2
-  return 1
+  return 2
+}
+
+# obtain: the release binary first; a build when the release has none for this
+# platform or could not be downloaded.
+obtain() {
+  if [ -f "$root/checksums.txt" ]; then
+    install_release
+    rc=$?
+    { [ $rc -eq 0 ] || [ $rc -eq 2 ] || ! can_build; } && return $rc
+  fi
+  build
 }
 
 build() {
@@ -168,11 +186,9 @@ if [ ! -x "$bin" ]; then
   PMR_LAUNCHER_SOURCE=installed
 fi
 if [ ! -x "$bin" ]; then
-  if [ -f "$root/checksums.txt" ] && command -v curl >/dev/null 2>&1; then
-    provision install_release || true
-  elif command -v go >/dev/null 2>&1 && [ -f "$root/go.mod" ]; then
-    # A first build can take longer than the hook timeout: hooks build in the background.
-    provision build >/dev/null 2>&1 || true
+  if [ -f "$root/checksums.txt" ] || can_build; then
+    # A download or a first build can take longer than the hook timeout: hooks run it in the background.
+    provision obtain >/dev/null || true
   else
     $is_hook && exit 0
     record_error "no release checksums (or curl) and no Go toolchain: cannot provide a binary for ${os}/${arch}"

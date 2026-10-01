@@ -52,7 +52,10 @@ claude --plugin-dir promari-toolkit/plugins/promari-model-router
 ```
 
 The first hook call downloads the binary for your platform from the release and installs it
-only if its SHA-256 matches `checksums.txt`. Until then hooks do nothing.
+only if its SHA-256 matches `checksums.txt`. When the release has no binary for your platform
+or the download fails, it builds one with Go instead (Go must be installed; the toolchain the
+module asks for is fetched automatically). A checksum mismatch is never built over. Until a
+binary is ready hooks do nothing; `pmr doctor` shows why.
 
 ## Configure
 

@@ -32,7 +32,8 @@ dups=$(printf '%s\n' "$targets" | sort | uniq -d)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-goreleaser=${PMR_TOOL_BIN:-$HOME/.cache/pmr-tool-bin}/goreleaser
+plugin=$(basename "$(cd "$(dirname "$0")/../.." && pwd)") # plugins/<plugin>/plugin/tools -> <plugin>
+goreleaser=${PMR_TOOL_BIN:-${CLAUDE_PLUGIN_TOOL_BIN:-$HOME/.cache/claude-plugin-tools/$plugin}}/goreleaser
 if [ ! -x "$goreleaser" ]; then
   env -u GOOS -u GOARCH go build -modfile=tools/go.mod -o "$work/goreleaser" github.com/goreleaser/goreleaser/v2
   goreleaser=$work/goreleaser

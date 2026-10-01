@@ -2,7 +2,8 @@
 # Run a pinned tool by name: tools/run.sh <tool> [args...]
 #
 # The modfiles under tools/ are the only place that pins versions. CI installs the official
-# release binaries of those exact versions into $PMR_TOOL_BIN (default ~/.cache/pmr-tool-bin, see
+# release binaries of those exact versions into $PMR_TOOL_BIN (default $CLAUDE_PLUGIN_TOOL_BIN, else
+# ~/.cache/claude-plugin-tools/<plugin>, the directory .github/actions/setup-go-plugin restores; see
 # tools/install-ci-tools.sh), and they win when present; everywhere else the tool is built by
 # `go tool` from the modfile that declares it, so no caller needs to know which modfile that is.
 set -eu
@@ -11,7 +12,8 @@ set -eu
 name=$1
 shift
 
-bin_dir=${PMR_TOOL_BIN:-$HOME/.cache/pmr-tool-bin}
+plugin=$(basename "$(cd "$(dirname "$0")/../.." && pwd)") # plugins/<plugin>/plugin/tools -> <plugin>
+bin_dir=${PMR_TOOL_BIN:-${CLAUDE_PLUGIN_TOOL_BIN:-$HOME/.cache/claude-plugin-tools/$plugin}}
 if [ -x "$bin_dir/$name" ]; then
   exec "$bin_dir/$name" "$@"
 fi

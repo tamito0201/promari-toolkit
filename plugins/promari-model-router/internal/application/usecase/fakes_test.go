@@ -247,6 +247,13 @@ type fixtureOpt func(*fixture)
 func newFixture(t *testing.T, opts ...fixtureOpt) *fixture {
 	t.Helper()
 	env(t)
+	return newFixtureInEnv(t, opts...)
+}
+
+// newFixtureInEnv is newFixture for a parallel subtest: its parent has already
+// called env, since t.Setenv is not allowed in a parallel test.
+func newFixtureInEnv(t *testing.T, opts ...fixtureOpt) *fixture {
+	t.Helper()
 	f := &fixture{
 		ledger:    &memLedger{},
 		sessions:  &memSessions{m: map[string]model.Session{}},

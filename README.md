@@ -9,7 +9,7 @@ The repository has no shared product version.
 | Component | Purpose | Location | Release tags |
 |---|---|---|---|
 | [Promari SNS Share](plugins/promari-sns-share/README.md) | Social sharing for Web Components and WordPress | `plugins/promari-sns-share/` | `promari-sns-share-v4.2.0` |
-| [Promari Model Router](plugins/promari-model-router/README.md) | Route Claude Code subagents to haiku/sonnet/opus by task difficulty (Japanese and English), keep safety-sensitive work on strong models, suggest Codex for bulk or second-opinion work, and log every decision | `plugins/promari-model-router/` | `promari-model-router-v1.0.2` |
+| [Promari Model Router](plugins/promari-model-router/README.md) | Route Claude Code subagents to haiku/sonnet/opus by task difficulty (Japanese and English), keep safety-sensitive work on strong models, suggest Codex for bulk or second-opinion work, and log every decision | `plugins/promari-model-router/` | `promari-model-router-v1.0.3` |
 
 Website plugins live under `plugins/`. Standalone tools will live under `tools/`
 when they are added; plugin-specific build tools stay with their plugin.

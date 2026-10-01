@@ -19,7 +19,14 @@ import (
 	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
 )
 
+// Each case is a full training run (CPU-bound, about 5 minutes for the table
+// under CI's race detector and atomic coverage when run one after another), so
+// the cases run in parallel. The parent cannot: it isolates HOME once for all of
+// them with t.Setenv, which t.Parallel forbids.
+//
+//nolint:tparallel // see above: t.Setenv in the parent rules out t.Parallel there
 func TestTrain(t *testing.T) {
+	env(t)
 	good := `{"lang":"ja","expect":"lookup","text":"` + lookupPrompt + `"}` + "\n" +
 		`{"lang":"ja","expect":"standard","text":"ログイン画面のバリデーションを実装してテストを書いて"}` + "\n"
 	ledger := []model.Entry{
@@ -115,7 +122,8 @@ func TestTrain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFixture(t)
+			t.Parallel()
+			f := newFixtureInEnv(t)
 			f.ledger.entries, f.ledger.sinceErr = tt.ledger, tt.sinceErr
 			f.artifacts.path, f.artifacts.saveErr = "/store/artifact.json", tt.saveErr
 			in := tt.in(t)
