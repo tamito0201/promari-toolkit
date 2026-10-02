@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.0.0 — 2026-10-03
+## 1.0.1 — 2026-10-03
+
+- Fix: the release ships `checksums.txt`. 1.0.0 was published without it (the plugin's
+  `.gitignore` listed the file, and it applied in promari-toolkit as well), so `bin/psl` could not
+  download the release binary and only worked where Go was installed to build one.
+- The binaries are the same code as 1.0.0.
+
+## 1.0.0 — 2026-10-03 (published without checksums.txt; use 1.0.1)
 
 The first release. It is released to promari-toolkit (files, tag and GitHub Release) but not
 listed in the toolkit marketplace yet, so install it from a clone (see the README).

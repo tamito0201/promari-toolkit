@@ -5,4 +5,3 @@ sbom.spdx.json
 .cover/
 coverage.all.out
 checksums.txt.sigstore.json
-checksums.txt
