@@ -22,7 +22,9 @@ Present the lines to the user. For each ❌ or ⚠️ line, explain what it mean
 - `differs from the running binary`: the plugin was updated after the last setup. The next
   session start refreshes the copy; `psl setup` does it now.
 - `git`, `gh`, `ccusage`, `nowplaying-cli` not found: optional. The line names the chips that
-  are not shown without the tool.
+  are not shown without the tool and how to install it. Offer the command; run it only when the
+  user agrees. A tool that is installed and still not found is missing from the `PATH` Claude
+  Code was started with (a version manager that sets `PATH` per shell).
 - `terminal width`: the width the layout plans for, and where the number came from. If lines
   are cut at the right edge, compare it with the real width of the terminal.
 - `launcher` (download failed, checksum mismatch, or build failed): the binary could not be

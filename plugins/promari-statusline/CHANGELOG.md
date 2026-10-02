@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 — 2026-10-03
+
+- A category a few cells too wide for the terminal is packed onto one line (its chips stand
+  closer, `│` for ` │ `) before it is broken into numbered lines. In a 76-cell terminal the
+  session this was measured on went from four continuation lines to none.
+- The pull request is a category of its own (`🔀 PR`), so a long branch name no longer pushes
+  Git onto a second line. `CacheSave` moved from Perf to Cache, where it is `Save`.
+- `$/Line` and `$/Turn` show the digits their size needs (37.1, 2.44, 0.13, 0.0035). A small
+  cost per line was rounded to 0.00.
+- `psl doctor` says how to install an optional tool that is missing.
+
 ## 1.0.1 — 2026-10-03
 
 - Fix: the release ships `checksums.txt`. 1.0.0 was published without it (the plugin's

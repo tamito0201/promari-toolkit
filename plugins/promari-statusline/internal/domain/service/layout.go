@@ -9,6 +9,8 @@ import (
 const (
 	// SeparatorCells is the width of " │ " between chips and " ┃ " between groups.
 	SeparatorCells = 3
+	// TightSeparatorCells is the width of "│" between the chips of a packed group.
+	TightSeparatorCells = 1
 	// labelColumn is the cell where every line's label starts. A line that
 	// begins with an emoji (two cells and a space) reaches it by itself; a
 	// line that begins with text is indented to it.
@@ -25,10 +27,12 @@ func Budget(terminalCells int) int { return max(MinBudget, terminalCells-margin)
 // Layout packs the groups into lines no wider than budget cells.
 //
 // A group stays together. It joins the current line when it fits behind what
-// is already there; otherwise it starts a new line. Only a group wider than a
-// whole line is broken, between its chips, and each continuation repeats the
-// group's title with a number ("🚀 Perf 2") so that every line still says
-// what it shows.
+// is already there; otherwise it starts a new line. A group a little wider than
+// a whole line is packed: its chips stand closer ("│" for " │ "), which keeps
+// it on one line in a terminal a few cells too narrow. Only a group that does
+// not fit even then is broken, between its chips, and each continuation
+// repeats the group's title with a number ("🚀 Perf 2") so that every line
+// still says what it shows.
 func Layout(groups []model.Group, budget int) []model.Line {
 	l := layouter{budget: budget}
 	for _, g := range groups {
@@ -57,22 +61,27 @@ func (l *layouter) place(g model.Group) {
 	indent := indentOf(unit[0])
 	switch {
 	case len(l.cur.Items) > 0 && l.used+SeparatorCells+width <= l.budget:
-		l.add(model.SepGroup, unit, SeparatorCells+width)
+		l.add(model.SepGroup, model.SepChip, unit, SeparatorCells+width)
 	case indent+width <= l.budget:
 		l.flush()
 		l.cur.Indent = indent
-		l.add(model.SepNone, unit, indent+width)
+		l.add(model.SepNone, model.SepChip, unit, indent+width)
+	case indent+tightCells(unit) <= l.budget:
+		l.flush()
+		l.cur.Indent = indent
+		l.add(model.SepNone, model.SepTight, unit, indent+tightCells(unit))
 	default:
 		l.flush()
 		l.wrap(g)
 	}
 }
 
-// add puts the chips of one unit on the current line, the first behind sep.
-func (l *layouter) add(sep model.Separator, unit []model.Chip, cells int) {
+// add puts the chips of one unit on the current line: the first behind sep,
+// the others behind between.
+func (l *layouter) add(sep, between model.Separator, unit []model.Chip, cells int) {
 	for i, c := range unit {
 		if i > 0 {
-			sep = model.SepChip
+			sep = between
 		}
 		l.cur.Items = append(l.cur.Items, model.Item{Sep: sep, Chip: c})
 	}
@@ -88,7 +97,7 @@ func (l *layouter) wrap(g model.Group) {
 			l.flush()
 		}
 		if len(l.cur.Items) > 0 {
-			l.add(model.SepChip, []model.Chip{c}, SeparatorCells+width)
+			l.add(model.SepChip, model.SepChip, []model.Chip{c}, SeparatorCells+width)
 			continue
 		}
 		part++
@@ -97,7 +106,7 @@ func (l *layouter) wrap(g model.Group) {
 			unit = []model.Chip{header(g, part), c}
 		}
 		l.cur.Indent = indentOf(unit[0])
-		l.add(model.SepNone, unit, l.cur.Indent+unitCells(unit))
+		l.add(model.SepNone, model.SepChip, unit, l.cur.Indent+unitCells(unit))
 	}
 }
 
@@ -124,6 +133,11 @@ func unitCells(chips []model.Chip) int {
 		cells += Cells(c.Text())
 	}
 	return cells
+}
+
+// tightCells returns the width of chips joined by tight separators.
+func tightCells(chips []model.Chip) int {
+	return unitCells(chips) - (SeparatorCells-TightSeparatorCells)*(len(chips)-1)
 }
 
 // indentOf returns the indent that brings a line starting with c to the label

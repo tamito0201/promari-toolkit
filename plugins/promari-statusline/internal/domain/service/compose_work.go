@@ -71,20 +71,22 @@ func gitChips(v *View) []model.Chip {
 	if !git.LastCommit.IsZero() {
 		chips = append(chips, chip(model.ToneMuted, "📅 Cmt "+span(v.Now.Sub(git.LastCommit))))
 	}
-	if pull, ok := v.Facts.Pull.Get(); ok && pull.Number > 0 {
-		chips = append(chips, pullChip(pull))
-	}
 	return chips
 }
 
-// pullChip shows a pull request: its number, the worst state of its checks,
-// and the review decision.
-func pullChip(pull model.PullRequest) model.Chip {
-	c := model.Chip{
-		text(model.TonePlain, "🔀 "),
-		text(model.ToneMuted, "PR"),
-		text(model.TonePlain, " #"+strconv.Itoa(pull.Number)),
+// pullChips shows the pull request of the branch: its number, the worst state
+// of its checks, and the review decision. It is a category of its own, not a
+// chip of Git: behind a long branch name it would push Git onto a second line.
+func pullChips(v *View) []model.Chip {
+	// A pull request belongs to a branch: without one there is none to show.
+	if git, ok := v.Facts.Git.Get(); !ok || git.Branch == "" {
+		return nil
 	}
+	pull, ok := v.Facts.Pull.Get()
+	if !ok || pull.Number <= 0 {
+		return nil
+	}
+	c := chip(model.TonePlain, "#"+strconv.Itoa(pull.Number))
 	switch {
 	case pull.Failed > 0:
 		c = append(c, space(), text(model.ToneDanger, "CI ❌ "+strconv.Itoa(pull.Failed)))
@@ -101,7 +103,7 @@ func pullChip(pull model.PullRequest) model.Chip {
 	case model.ReviewRequired:
 		c = append(c, space(), text(model.ToneCaution, "review"))
 	}
-	return c
+	return []model.Chip{c}
 }
 
 // sessionChips shows the name of the session, which tells sessions apart when

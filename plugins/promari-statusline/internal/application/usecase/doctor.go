@@ -32,15 +32,17 @@ func NewDiagnose(deps DiagnoseDeps) *Diagnose { return &Diagnose{deps: deps} }
 type optionalTool struct {
 	name  string
 	chips string
+	// install says how to get the tool: a command, or where to find one.
+	install string
 }
 
 // optionalTools lists the tools the status line uses when they are there.
 func optionalTools() []optionalTool {
 	return []optionalTool{
-		{"git", "🌿 Git"},
-		{"gh", "🔀 PR and CI"},
-		{"ccusage", "Today, Blk, $/h and Est"},
-		{"nowplaying-cli", "🎵 Music"},
+		{"git", "🌿 Git", "https://git-scm.com/downloads"},
+		{"gh", "🔀 PR", "https://cli.github.com"},
+		{"ccusage", "Today, Blk, $/h and Est", "npm install -g ccusage"},
+		{"nowplaying-cli", "🎵 Music", "brew install nowplaying-cli (macOS)"},
 	}
 }
 
@@ -56,7 +58,7 @@ func (u *Diagnose) Execute() []model.Check {
 			checks = append(checks, model.Check{Level: model.CheckOK, Name: tool.name, Detail: path})
 			continue
 		}
-		checks = append(checks, model.Check{Level: model.CheckWarn, Name: tool.name, Detail: "not found; " + tool.chips + " will not be shown"})
+		checks = append(checks, model.Check{Level: model.CheckWarn, Name: tool.name, Detail: "not found; " + tool.chips + " will not be shown (install: " + tool.install + ")"})
 	}
 	cells, source := u.deps.Terminal.Width()
 	return append(checks, model.Check{

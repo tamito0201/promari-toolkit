@@ -238,7 +238,7 @@ func TestRenderGathersEveryFact(t *testing.T) {
 	lines := text(got)
 	for _, want := range []string{
 		"🌐 API minor: Slow", "42%", "🤖 Codex 5h", "Today $45.67", "Turns ×1", "✅ Todo 1/2", "Tools ×3 Read3",
-		"develop", "📝 2 Files", "🔀 PR #7 CI ✅ 3", "Opus", "⛵ Proc ×2", "👤 someone", "🆙 Update v2.1.287", "Take Five",
+		"develop", "📝 2 Files", "🔀 PR | #7 CI ✅ 3", "Opus", "⛵ Proc ×2", "👤 someone", "🆙 Update v2.1.287", "Take Five",
 	} {
 		if !contains(lines, want) {
 			t.Errorf("the status line lacks %q:\n  %s", want, strings.Join(lines, "\n  "))

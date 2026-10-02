@@ -151,7 +151,7 @@ func TestCompose(t *testing.T) {
 			[]string{
 				"💰 Cost: Sess $12.50 | Today $45.67 | Blk $8.90 (残 2h15m) | Est $16",
 				"🔥 Burn: $3.21/h | ⏰ 2h00m (API 3h00m) | Active 1h00m | Streak 20m | Idle 20m",
-				"📈 KPI: Lines +1200-30 | Focus 75% | Lines/h 1,200 | $/Line 0.01 | $/Turn 0.5",
+				"📈 KPI: Lines +1200-30 | Focus 75% | Lines/h 1,200 | $/Line 0.010 | $/Turn 0.50",
 				"🚀 Perf: Parallel ×1.50 | Thruput 500 tok/s",
 				"📊 Tokens: In 5.40M / Out 120k",
 				"🔧 Work: Turns ×25",
@@ -184,12 +184,12 @@ func TestCompose(t *testing.T) {
 			View{Session: model.Session{Cache: model.PromptCache{
 				HitRatio: model.Some(0.93), Misses: 2, LastMissCause: "ttl", ExpiresAt: now.Add(55 * time.Minute), RecacheTokens: 84_000,
 			}}},
-			[]string{"🚀 Perf: CacheSave 84%", "📦 Cache: Hit 93% 2 Miss (ttl) 残 55m | 🧊 Cold 84k", env, system},
+			[]string{"📦 Cache: Hit 93% 2 Miss (ttl) 残 55m | Save 84% | 🧊 Cold 84k", env, system},
 		},
 		{
 			"a cache without misses or expiry",
 			View{Session: model.Session{Cache: model.PromptCache{HitRatio: model.Some(1.0), ExpiresAt: now.Add(-time.Minute)}}},
-			[]string{"🚀 Perf: CacheSave 90%", "📦 Cache: Hit 100%", env, system},
+			[]string{"📦 Cache: Hit 100% | Save 90%", env, system},
 		},
 		{
 			"tokens: the surcharge and compactions",
@@ -218,7 +218,7 @@ func TestCompose(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "develop", Changed: 2, Ahead: 1, Behind: 16, Stashes: 3, LastCommit: now.Add(-21*time.Hour - 28*time.Minute)}),
 				Pull: model.Some(model.PullRequest{Number: 2996, Passed: 10, Failed: 2, Pending: 1, Review: model.ReviewChangesRequested}),
 			}},
-			[]string{"🌿 Git: develop | 📝 2 Files | 🔼 1 Ahead | 🔽 16 Behind | 📚 3 Stash | 📅 Cmt 21h28m | 🔀 PR #2996 CI ❌ 2 changes", env, system},
+			[]string{"🌿 Git: develop | 📝 2 Files | 🔼 1 Ahead | 🔽 16 Behind | 📚 3 Stash | 📅 Cmt 21h28m", "🔀 PR: #2996 CI ❌ 2 changes", env, system},
 		},
 		{
 			"git: a clean branch with a pending, unreviewed pull request",
@@ -226,7 +226,7 @@ func TestCompose(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "main"}),
 				Pull: model.Some(model.PullRequest{Number: 7, Passed: 3, Pending: 1, Review: model.ReviewRequired}),
 			}},
-			[]string{"🌿 Git: main | 🔀 PR #7 CI ⏳ 1 review", env, system},
+			[]string{"🌿 Git: main", "🔀 PR: #7 CI ⏳ 1 review", env, system},
 		},
 		{
 			"git: an approved pull request with green checks, and one without checks",
@@ -234,12 +234,12 @@ func TestCompose(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "main"}),
 				Pull: model.Some(model.PullRequest{Number: 8, Passed: 3, Review: model.ReviewApproved}),
 			}},
-			[]string{"🌿 Git: main | 🔀 PR #8 CI ✅ 3 approved", env, system},
+			[]string{"🌿 Git: main", "🔀 PR: #8 CI ✅ 3 approved", env, system},
 		},
 		{
 			"git: a pull request with nothing to say but its number",
 			View{Facts: model.Facts{Git: model.Some(model.Git{Branch: "main"}), Pull: model.Some(model.PullRequest{Number: 9})}},
-			[]string{"🌿 Git: main | 🔀 PR #9", env, system},
+			[]string{"🌿 Git: main", "🔀 PR: #9", env, system},
 		},
 		{
 			"no branch, no git group",

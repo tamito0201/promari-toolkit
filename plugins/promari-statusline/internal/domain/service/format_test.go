@@ -222,3 +222,36 @@ func TestNewer(t *testing.T) {
 		})
 	}
 }
+
+func TestRate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		v    float64
+		want string
+	}{
+		{1234.5, "1,234"},
+		{100, "100"},
+		{99.94, "99.9"},
+		{37.08, "37.1"},
+		{10, "10.0"},
+		{9.994, "9.99"},
+		{2.4, "2.40"},
+		{0.13, "0.13"},
+		{0.1, "0.10"},
+		// Below a tenth two significant digits are shown, so that a small rate is
+		// not rounded to 0.00 ($37.08 for 10,522 lines is 0.0035 a line).
+		{0.0996, "0.100"},
+		{0.0104, "0.010"},
+		{0.00352, "0.0035"},
+		{0.000012, "0.000012"},
+		{0.000001, "0.0000010"},
+		{0.0000009, "0"},
+		{0, "0"},
+		{-1, "0"},
+	}
+	for _, tt := range tests {
+		if got := rate(tt.v); got != tt.want {
+			t.Errorf("rate(%v) = %q, want %q", tt.v, got, tt.want)
+		}
+	}
+}

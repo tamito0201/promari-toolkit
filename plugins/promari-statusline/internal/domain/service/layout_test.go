@@ -20,6 +20,8 @@ func draw(lines []model.Line) []string {
 				b.WriteString(" │ ")
 			case model.SepGroup:
 				b.WriteString(" ┃ ")
+			case model.SepTight:
+				b.WriteString("│")
 			case model.SepNone:
 			}
 			b.WriteString(item.Chip.Text())
@@ -86,10 +88,48 @@ func TestLayout(t *testing.T) {
 		},
 		{
 			"the next group joins the last line of a wrapped group",
-			// "🚀 Perf 2 │ bbbbbbbbbbbb" is 24 cells, the separator 3, "🌿 G │ x" 8: 35.
-			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb"), group("🌿 G", "x")},
-			35,
-			[]string{"🚀 Perf │ aaaaaaaaaaaa", "🚀 Perf 2 │ bbbbbbbbbbbb ┃ 🌿 G │ x"},
+			// "🚀 Perf 2 │ bbbbbbbbbbbbbbb" is 27 cells, the separator 3, "🌿 G │ x" 8: 38.
+			// (Packed, the first group would be 39.)
+			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbb"), group("🌿 G", "x")},
+			38,
+			[]string{"🚀 Perf │ aaaaaaaaaaaaaaa", "🚀 Perf 2 │ bbbbbbbbbbbbbbb ┃ 🌿 G │ x"},
+		},
+		// "🚀 Perf │ aaaaaaaaaaaa │ bbbbbbbbbbbb" is 37 cells; packed it is 33.
+		{
+			"a group that fits a line keeps its separators",
+			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb")},
+			37,
+			[]string{"🚀 Perf │ aaaaaaaaaaaa │ bbbbbbbbbbbb"},
+		},
+		{
+			"a group one cell too wide is packed onto the line",
+			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb")},
+			36,
+			[]string{"🚀 Perf│aaaaaaaaaaaa│bbbbbbbbbbbb"},
+		},
+		{
+			"a packed group may fill the line to its last cell",
+			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb")},
+			33,
+			[]string{"🚀 Perf│aaaaaaaaaaaa│bbbbbbbbbbbb"},
+		},
+		{
+			"a group too wide even when packed is broken, with its usual separators",
+			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb")},
+			32,
+			[]string{"🚀 Perf │ aaaaaaaaaaaa", "🚀 Perf 2 │ bbbbbbbbbbbb"},
+		},
+		{
+			"a packed group starts a line of its own, and the next group does not join a line that is full",
+			[]model.Group{group("🧠 A", "one"), group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb"), group("🌿 G", "x")},
+			36,
+			[]string{"🧠 A │ one", "🚀 Perf│aaaaaaaaaaaa│bbbbbbbbbbbb", "🌿 G │ x"},
+		},
+		{
+			"a packed group without a title is indented like any other",
+			[]model.Group{group("", "aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")},
+			37,
+			[]string{"   aaaaaaaaaaaaaaaa│bbbbbbbbbbbbbbbb"},
 		},
 		{
 			"a group without a title that starts with text is indented to the label column",
@@ -160,8 +200,12 @@ func TestLayoutNeverOverflows(t *testing.T) {
 			width := line.Indent
 			widest := 0
 			for _, item := range line.Items {
-				if item.Sep != model.SepNone {
+				switch item.Sep {
+				case model.SepChip, model.SepGroup:
 					width += SeparatorCells
+				case model.SepTight:
+					width += TightSeparatorCells
+				case model.SepNone:
 				}
 				cells := Cells(item.Chip.Text())
 				width += cells

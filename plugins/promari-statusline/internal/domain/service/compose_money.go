@@ -96,10 +96,10 @@ func kpiChips(v *View) []model.Chip {
 	}
 	total := cost.TotalUSD.Or(0)
 	if total != 0 && added > 0 {
-		chips = append(chips, chip(model.ToneMoney, "$/Line "+fixed(total/added, 2)))
+		chips = append(chips, chip(model.ToneMoney, "$/Line "+rate(total/added)))
 	}
 	if total != 0 && tracked && activity.Turns > 0 {
-		chips = append(chips, chip(model.ToneMoney, "$/Turn "+fixed(total/float64(activity.Turns), 1)))
+		chips = append(chips, chip(model.ToneMoney, "$/Turn "+rate(total/float64(activity.Turns))))
 	}
 	return chips
 }
@@ -119,13 +119,11 @@ func perfChips(v *View) []model.Chip {
 			chips = append(chips, chip(severity(rate, errRateWarn, errRateBad), "ErrRate "+fixed(rate, 1)+"%"))
 		}
 	}
-	if hit, ok := v.Session.Cache.HitRatio.Get(); ok {
-		chips = append(chips, chip(model.ToneNote, "CacheSave "+fixed(hit*cacheSaving, 0)+"%"))
-	}
 	return chips
 }
 
-// cacheChips shows the state of the prompt cache.
+// cacheChips shows the state of the prompt cache: how much of the input is read
+// from it, what that saves, and what a cold start would cost.
 func cacheChips(v *View) []model.Chip {
 	cache := v.Session.Cache
 	hit, ok := cache.HitRatio.Get()
@@ -142,7 +140,7 @@ func cacheChips(v *View) []model.Chip {
 	if cache.ExpiresAt.After(v.Now) {
 		c = append(c, space(), text(model.ToneMuted, "残 "+until(cache.ExpiresAt, v.Now)))
 	}
-	chips := []model.Chip{c}
+	chips := []model.Chip{c, chip(model.ToneNote, "Save "+fixed(hit*cacheSaving, 0)+"%")}
 	if cache.RecacheTokens > 0 {
 		chips = append(chips, chip(model.ToneMuted, "🧊 Cold "+tokens(cache.RecacheTokens)))
 	}

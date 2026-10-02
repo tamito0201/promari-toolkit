@@ -10,7 +10,7 @@ git and the pull request look like, and how the machine is doing.
 ```text
 🧠 Context │ ████░░░░░░ 42% 84k/200k 残 116k ⏳ ETA 1h56m │ ⚡ Claude 5h ░░░░░ 1% 🔄 4h40m 7d ████░ 73% 🔄 4d7h Pace ×1.9
 💰 Cost │ Sess $12.50 │ Today $45.67 │ Blk $8.90 (残 2h15m) │ 🔥 Burn │ ⏰ 10m (API 5m) │ Active 8m
-🌿 Git │ develop │ 📝 2 Files │ 🔽 16 Behind │ 🔀 PR #2996 CI ✅ 3 approved
+🌿 Git │ develop │ 📝 2 Files │ 🔽 16 Behind ┃ 🔀 PR │ #2996 CI ✅ 3 approved
 🧭 Env │ Opus 5.5 │ Mode high·think │ 📂 promari │ 💻 System │ 🕐 04:09 │ CPU 3.9/10c │ 🔌 Bat 100%
 ```
 
@@ -30,9 +30,10 @@ Code); it sends none of your data.
 | 🤖 Codex | Codex's usage windows and balance, read from its newest session log |
 | 💰 Cost | Session cost; with `ccusage`: today, the billing block, the burn rate and an estimate for the block |
 | 🔥 Burn, 📈 KPI, 🚀 Perf | Wall and API time, active time and streak, cost per turn and per line, lines changed and per hour, focus, parallelism, throughput, tool error rate |
-| 📦 Cache, 📊 Tokens | Prompt cache hit ratio and the time until it expires, tokens in and out, compactions, the surcharge above 200k |
+| 📦 Cache, 📊 Tokens | Prompt cache hit ratio, what it saves and the time until it expires, tokens in and out, compactions, the surcharge above 200k |
 | 🔧 Work | The session's to-do list, tool calls by tool |
-| 🌿 Git | Branch, changed files, ahead and behind, stashes, time since the last commit; with `gh`: the pull request, its checks and its review |
+| 🌿 Git | Branch, changed files, ahead and behind, stashes, time since the last commit |
+| 🔀 PR | With `gh`: the pull request of the branch, its checks and its review |
 | 🔖 Session, 🧭 Env | Session name, model, effort, thinking and fast mode, project, output style |
 | 💻 System, 🧾 Meta | Clock, terminal uptime, load, memory, disk, battery, Claude Code processes, account, version and whether a newer one is released |
 | 🎵 Music | The song that is playing (macOS, with `nowplaying-cli`) |
@@ -98,13 +99,18 @@ inside Claude Code.
 ## Optional tools
 
 Each is looked up on `PATH`; without it its chips are not shown, and nothing else changes.
+`psl doctor` lists the ones that are missing, with how to install them.
 
-| Tool | Chips |
-|---|---|
-| `git` | 🌿 Git |
-| `gh` (signed in) | The pull request of the branch, its checks and review |
-| [`ccusage`](https://github.com/ryoppippi/ccusage) | Today, Blk, $/h and Est in 💰 Cost |
-| `nowplaying-cli` (macOS) | 🎵 Music |
+| Tool | Chips | Install |
+|---|---|---|
+| `git` | 🌿 Git | <https://git-scm.com/downloads> |
+| `gh` (signed in) | 🔀 PR | <https://cli.github.com> |
+| [`ccusage`](https://github.com/ryoppippi/ccusage) | Today, Blk, $/h and Est in 💰 Cost | `npm install -g ccusage` |
+| `nowplaying-cli` (macOS) | 🎵 Music | `brew install nowplaying-cli` |
+
+The status line runs with the `PATH` Claude Code was started with. A tool installed by a
+version manager that changes `PATH` per shell is found only if Claude Code was started from
+such a shell.
 
 ## Files
 
@@ -143,8 +149,9 @@ Times are Unix seconds. A window that is not known is left out.
 
 A terminal cuts a line that is too long without saying so, so the layout is planned in
 display cells (an emoji or a CJK character takes two) for the width in `COLUMNS`, which
-Claude Code sets for a status line. Sections are packed onto lines in a fixed order; a section
-that does not fit is wrapped at a chip, and its continuation lines are numbered.
+Claude Code sets for a status line. Sections are put onto lines in a fixed order. A section
+a few cells too wide for a line is packed (its chips stand closer, `│` for ` │ `); one that
+does not fit even then is wrapped at a chip, and its continuation lines are numbered.
 `psl doctor` prints the width that is used and where it came from.
 
 ## Development

@@ -269,7 +269,7 @@ func TestDiagnose(t *testing.T) {
 			map[string]line{
 				"settings /h/.claude/settings.json":                  {model.CheckFail, "no statusLine; run `psl setup`"},
 				"installed binary /h/.claude/promari-statusline/psl": {model.CheckFail, "not installed; run `psl setup`"},
-				"ccusage": {model.CheckWarn, "not found; Today, Blk, $/h and Est will not be shown"},
+				"ccusage": {model.CheckWarn, "not found; Today, Blk, $/h and Est will not be shown (install: npm install -g ccusage)"},
 			},
 		},
 		{

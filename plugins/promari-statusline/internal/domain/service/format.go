@@ -33,6 +33,35 @@ func fixed(v float64, decimals int) string {
 	return strconv.FormatFloat(v, 'f', decimals, 64)
 }
 
+// Where rate changes the digits it shows.
+const (
+	rateWhole       = 100.0
+	rateOneDecimal  = 10.0
+	rateTwoDecimals = 0.1
+	// rateSmallest is the smallest rate that is shown as a number; below it a
+	// cost per unit is nothing.
+	rateSmallest = 1e-6
+)
+
+// rate formats an amount per unit with the digits its size needs: 1,234, 37.1,
+// 2.44, 0.13, and two significant digits below that (0.0035), so that a small
+// rate is not rounded to 0.00.
+func rate(v float64) string {
+	switch {
+	case v >= rateWhole:
+		return grouped(v)
+	case v >= rateOneDecimal:
+		return fixed(v, 1)
+	case v >= rateTwoDecimals:
+		return fixed(v, 2)
+	case v < rateSmallest:
+		return "0"
+	default:
+		// 0.0035 has its first digit at the third decimal; one more is shown.
+		return fixed(v, 1-int(math.Floor(math.Log10(v))))
+	}
+}
+
 // plain formats a number with as few digits as it needs (3, not 3.0).
 func plain(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 

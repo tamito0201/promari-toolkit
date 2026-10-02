@@ -18,6 +18,7 @@ const (
 
 	chipSeparator  = " │ "
 	groupSeparator = " ┃ "
+	tightSeparator = "│"
 )
 
 // colour returns the SGR sequence of a tone, or "" for plain text.
@@ -67,6 +68,8 @@ func Present(lines []model.Line, at time.Time) string {
 				b.WriteString(colour(model.ToneMuted) + chipSeparator + reset)
 			case model.SepGroup:
 				b.WriteString(colour(model.ToneMuted) + groupSeparator + reset)
+			case model.SepTight:
+				b.WriteString(colour(model.ToneMuted) + tightSeparator + reset)
 			case model.SepNone:
 			}
 			writeChip(&b, item.Chip, flash)

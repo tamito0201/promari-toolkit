@@ -185,6 +185,12 @@ func TestPresent(t *testing.T) {
 				muted + " ┃ " + reset + "plain" + "\n" + "   " + accent + "Test" + reset,
 		},
 		{
+			"the chips of a packed group stand closer",
+			[]model.Line{{Items: []model.Item{{Chip: header}, {Sep: model.SepTight, Chip: model.Chip{{Text: "a"}}}, {Sep: model.SepTight, Chip: model.Chip{{Text: "b"}}}}}},
+			even,
+			accent + bold + "🧠 Context" + reset + muted + "│" + reset + "a" + muted + "│" + reset + "b",
+		},
+		{
 			"an alarm on an even second keeps its colours",
 			[]model.Line{{Items: []model.Item{{Chip: alarm}}}},
 			even,
