@@ -1,0 +1,181 @@
+// Package usecase holds what the plugin does: render the status line, install
+// it into Claude Code's settings, keep the installed copy current and
+// diagnose the installation. A use case knows the domain and the ports in
+// internal/domain/repository; it never names an adapter.
+package usecase
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"promari-statusline/internal/domain/model"
+	"promari-statusline/internal/domain/repository"
+	"promari-statusline/internal/domain/service"
+)
+
+// limitsKept is how long remembered rate limits are still worth showing.
+const limitsKept = 7 * 24 * time.Hour
+
+// Sources are the readers a render asks for facts.
+type Sources struct {
+	Git      repository.GitReader
+	Pulls    repository.PullRequestReader
+	Spend    repository.SpendReader
+	Codex    repository.CodexReader
+	Tools    repository.ToolStatsReader
+	Todos    repository.TodoReader
+	Track    repository.TrackReader
+	Incident repository.IncidentReader
+	Release  repository.ReleaseReader
+	Account  repository.AccountReader
+	Machine  repository.MachineReader
+}
+
+// RenderDeps is what RenderStatusLine depends on.
+type RenderDeps struct {
+	Clock      repository.Clock
+	Sources    Sources
+	Activities repository.ActivityStore
+	Limits     repository.RateLimitMemory
+	Board      repository.UsageBoard
+	Terminal   repository.Terminal
+	Recorder   repository.Recorder
+	Switches   repository.Switches
+}
+
+// RenderStatusLine turns one session report into the lines of the status line.
+type RenderStatusLine struct {
+	deps RenderDeps
+}
+
+// NewRenderStatusLine returns the use case.
+func NewRenderStatusLine(deps RenderDeps) *RenderStatusLine {
+	return &RenderStatusLine{deps: deps}
+}
+
+// RenderRequest is one render: the session as Claude Code reported it, and the
+// report as it arrived.
+type RenderRequest struct {
+	Session model.Session
+	Raw     []byte
+}
+
+// Rendered is the status line of one render.
+type Rendered struct {
+	Lines []model.Line
+	// At is the moment the render describes; the blink of an alarm follows it.
+	At time.Time
+}
+
+// Execute renders the status line. It never fails: a fact that cannot be read
+// is left out, and what is known is shown.
+func (u *RenderStatusLine) Execute(ctx context.Context, req RenderRequest) Rendered {
+	d := u.deps
+	now := d.Clock.Now()
+	d.Recorder.Input(req.Raw)
+
+	view := service.View{Now: now, Session: req.Session, AlarmAll: d.Switches.BlinkDemo()}
+	view.Limits, view.LimitsSeen, view.Forecasts = u.limits(req.Session.Limits, now)
+	if usage, ok := req.Session.Context.Usage(); ok {
+		view.Usage = model.Some(usage)
+		view.Activity = u.observe(&req.Session, usage.Used, now)
+	}
+	view.Facts = u.gather(ctx, req)
+	if codex, ok := view.Facts.Codex.Get(); ok {
+		// A board that cannot be written costs another tool its advice, not this render.
+		_ = d.Board.PostCodex(codex, now)
+	}
+
+	cells, source := d.Terminal.Width()
+	budget := service.Budget(cells)
+	d.Recorder.Width(source, budget)
+	return Rendered{Lines: service.Layout(service.Compose(&view), budget), At: now}
+}
+
+// limits returns the rate limits to show. Limits that came with this render
+// are remembered, posted on the board for other tools and added to the
+// history the forecasts are made from. A render without limits (the first of a
+// session) shows the remembered ones with the time they were seen, and neither
+// posts them nor makes a forecast from them: a stale value is not a new
+// measurement.
+func (u *RenderStatusLine) limits(reported model.RateLimits, now time.Time) (model.RateLimits, time.Time, []model.Forecast) {
+	memory := u.deps.Limits
+	if reported.Empty() {
+		last, seen, err := memory.Last()
+		if err != nil || now.Sub(seen) >= limitsKept {
+			return model.RateLimits{}, time.Time{}, nil
+		}
+		return last, seen, nil
+	}
+	// Memory that cannot be written costs the next session its first chip and
+	// the forecast its history; this render shows what it has.
+	_ = memory.Remember(reported, now)
+	_ = u.deps.Board.PostClaude(reported, now)
+	history := memory.History().Record(reported, now)
+	_ = memory.SaveHistory(history)
+	return reported, time.Time{}, history.Forecasts(reported, now)
+}
+
+// observe records this render in the session's activity. A session without a
+// usable id has no activity: its counters are unknown, not zero.
+func (u *RenderStatusLine) observe(s *model.Session, used float64, now time.Time) model.Optional[model.Activity] {
+	key, ok := s.Key()
+	if !ok {
+		return model.Optional[model.Activity]{}
+	}
+	activity := u.deps.Activities.Load(key)
+	activity.Observe(used, s.PromptID, now)
+	// An activity that cannot be saved is still right for this render.
+	_ = u.deps.Activities.Save(key, activity)
+	return model.Some(activity)
+}
+
+// gather asks every source at once. Each question runs in its own goroutine,
+// which ends when its reader returns; every reader is bounded by the timeout
+// of the command or request behind it. The number of goroutines is the number
+// of sources, fixed in this function. Each writes one field of its own.
+func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) model.Facts {
+	src := u.deps.Sources
+	s := &req.Session
+	var facts model.Facts
+	var wg sync.WaitGroup
+	wg.Go(func() { facts.Git, facts.Pull = u.gitAndPull(ctx, s.WorkDir()) })
+	wg.Go(func() { facts.Spend = read(func() (model.Spend, error) { return src.Spend.Spend(ctx, req.Raw) }) })
+	wg.Go(func() { facts.Codex = read(func() (model.CodexLimits, error) { return src.Codex.Codex(ctx) }) })
+	wg.Go(func() { facts.Track = read(func() (model.Track, error) { return src.Track.Track(ctx) }) })
+	wg.Go(func() { facts.Incident = read(func() (model.Incident, error) { return src.Incident.Incident(ctx) }) })
+	wg.Go(func() { facts.Latest = read(func() (string, error) { return src.Release.Latest(ctx) }) })
+	wg.Go(func() { facts.Account = read(func() (string, error) { return src.Account.Account(ctx) }) })
+	wg.Go(func() { facts.Machine = src.Machine.Machine(ctx, s.WorkDir()) })
+	if s.TranscriptPath != "" {
+		wg.Go(func() {
+			facts.Tools = read(func() (model.ToolStats, error) { return src.Tools.ToolStats(ctx, s.TranscriptPath) })
+		})
+	}
+	if key, ok := s.Key(); ok {
+		wg.Go(func() { facts.Todos = read(func() (model.Todos, error) { return src.Todos.Todos(ctx, key) }) })
+	}
+	wg.Wait()
+	return facts
+}
+
+// gitAndPull reads the working tree and then the pull request of its branch.
+func (u *RenderStatusLine) gitAndPull(ctx context.Context, dir string) (model.Optional[model.Git], model.Optional[model.PullRequest]) {
+	git, err := u.deps.Sources.Git.Git(ctx, dir)
+	if err != nil || git.Branch == "" {
+		return model.Optional[model.Git]{}, model.Optional[model.PullRequest]{}
+	}
+	pull := read(func() (model.PullRequest, error) { return u.deps.Sources.Pulls.PullRequest(ctx, dir, git.Branch) })
+	return model.Some(git), pull
+}
+
+// read turns a reader's answer into an optional fact: any error, a failure as
+// much as "nothing to report", leaves the fact absent.
+func read[T any](ask func() (T, error)) model.Optional[T] {
+	v, err := ask()
+	if err != nil {
+		return model.Optional[T]{}
+	}
+	return model.Some(v)
+}

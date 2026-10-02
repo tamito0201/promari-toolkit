@@ -1,0 +1,9 @@
+psl is the status line of the promari-statusline plugin for Claude Code.
+
+Usage:
+  psl render             draw the status line (reads Claude Code's JSON on standard input)
+  psl setup [--dry-run]  copy the binary to a stable path and point Claude Code's settings at it
+  psl uninstall          take the status line out of the settings and remove the copy
+  psl doctor             check the installation
+  psl hook <event>       handle a Claude Code hook (SessionStart keeps the copy current)
+  psl version            print the version

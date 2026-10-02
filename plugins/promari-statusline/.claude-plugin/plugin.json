@@ -1,0 +1,12 @@
+{
+  "name": "promari-statusline",
+  "version": "1.0.0",
+  "description": "A multi-line status line for Claude Code: context, rate limits with pace and forecast, cost, KPIs, git and pull request, tools and system at a glance, laid out to the width of your terminal.",
+  "author": {
+    "name": "Takaomi Murasaki"
+  },
+  "homepage": "https://github.com/tamito0201/promari-toolkit/tree/main/plugins/promari-statusline",
+  "repository": "https://github.com/tamito0201/promari-toolkit",
+  "license": "MIT",
+  "keywords": ["statusline", "rate-limits", "cost", "context", "git", "go"]
+}

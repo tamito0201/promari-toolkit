@@ -1,0 +1,192 @@
+# golangci-lint v2 (pinned in tools/go.mod). Run: task lint
+version: "2"
+
+run:
+  go: "1.27"
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - asasalint
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - gocognit
+    - gocritic
+    - gosec
+    - iface
+    - intrange
+    - mirror
+    - misspell
+    - mnd
+    - musttag
+    - nilerr
+    - nilnesserr
+    - noctx
+    - nolintlint
+    - perfsprint
+    - prealloc
+    - recvcheck
+    - revive
+    - sloglint
+    - sqlclosecheck
+    - testifylint
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+  settings:
+    depguard:
+      # The dependency direction of the layered architecture, checked by machine:
+      #
+      #   interfaces -> application -> domain <- infrastructure      (di knows all)
+      #
+      # The domain knows nothing outside itself and touches no file, process or
+      # socket. Use cases reach the outside world only through the ports in
+      # internal/domain/repository. Entry points call use cases and never an
+      # adapter. `$` makes a pattern an exact match: "os" alone would also
+      # catch os/signal.
+      rules:
+        domain:
+          files: ["**/internal/domain/**", "!$test"]
+          deny:
+            - pkg: promari-statusline/internal/application
+              desc: the domain must not depend on use cases
+            - pkg: promari-statusline/internal/infrastructure
+              desc: the domain talks to the outside only through repository ports
+            - pkg: promari-statusline/internal/interfaces
+              desc: the domain must not depend on entry points
+            - pkg: promari-statusline/internal/di
+              desc: the domain must not depend on the composition root
+            - pkg: os$
+              desc: files and the environment are reached through repository ports
+            - pkg: os/exec$
+              desc: processes are started by infrastructure adapters
+            - pkg: net/http$
+              desc: the network is reached by infrastructure adapters
+        application:
+          files: ["**/internal/application/**", "!$test"]
+          deny:
+            - pkg: promari-statusline/internal/infrastructure
+              desc: use cases depend on repository ports, not on implementations
+            - pkg: promari-statusline/internal/interfaces
+              desc: use cases must not depend on entry points
+            - pkg: promari-statusline/internal/di
+              desc: use cases must not depend on the composition root
+            - pkg: os$
+              desc: files and the environment are reached through repository ports
+            - pkg: os/exec$
+              desc: processes are started by infrastructure adapters
+            - pkg: net/http$
+              desc: the network is reached by infrastructure adapters
+        infrastructure:
+          files: ["**/internal/infrastructure/**", "!$test"]
+          deny:
+            - pkg: promari-statusline/internal/application
+              desc: adapters implement ports; they do not call use cases
+            - pkg: promari-statusline/internal/interfaces
+              desc: adapters must not depend on entry points
+            - pkg: promari-statusline/internal/di
+              desc: adapters must not depend on the composition root
+        adapters:
+          # Every adapter reaches the machine through platform.System, which is
+          # what lets a test replace the machine with the in-memory fake.
+          files: ["**/internal/infrastructure/**", "!**/internal/infrastructure/platform/**", "!$test"]
+          deny:
+            - pkg: os$
+              desc: files are reached through platform.System
+            - pkg: os/exec$
+              desc: processes are started through platform.System
+            - pkg: net/http$
+              desc: the network is reached through platform.System
+        interfaces:
+          files: ["**/internal/interfaces/**", "!$test"]
+          deny:
+            - pkg: promari-statusline/internal/infrastructure
+              desc: entry points receive use cases from the composition root (internal/di), never adapters
+            - pkg: promari-statusline/internal/domain/service
+              desc: entry points call use cases; domain services are reached through them
+            - pkg: promari-statusline/internal/domain/repository
+              desc: entry points call use cases; ports are for use cases and adapters
+            - pkg: promari-statusline/internal/di
+              desc: entry points must not depend on the composition root
+        pkg:
+          files: ["**/pkg/**", "!$test"]
+          deny:
+            - pkg: promari-statusline/internal
+              desc: pkg holds helpers that know nothing about the plugin
+    errcheck:
+      # Writing human-facing text to the terminal: a failed write has no
+      # recovery path and must not fail the command.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*text/tabwriter.Writer).Flush
+    gocognit:
+      min-complexity: 30
+    exhaustive:
+      default-signifies-exhaustive: true
+    mnd:
+      # A number with a meaning gets a name; this linter catches new magic
+      # numbers in code. Common unit conversions are allowed.
+      ignored-numbers: ["0", "1", "2", "10", "24", "100", "1000", "0o600", "0o700", "0o644"]
+      ignored-functions: ["^math\\.", "^time\\.Duration$", "^strings\\.Repeat$", "^make$"]
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+    gosec:
+      excludes:
+        # G304 (file path from a variable): every path read is built from the
+        # user's home, cache and Claude Code configuration directories, or is
+        # the transcript path Claude Code itself passes on standard input. The
+        # one value from outside that becomes part of a file name, the session
+        # id, is refused unless it is a plain name (model.Session.Key).
+        - G304
+        # G204 (subprocess with a variable): every command name is a constant
+        # in an adapter (git, gh, ps, ...). The variables are arguments, passed
+        # as an argument vector and never through a shell.
+        - G204
+    gocritic:
+      enabled-tags: [diagnostic, style, performance]
+      disabled-checks: [hugeParam, paramTypeCombine, unnamedResult, whyNoLint]
+  exclusions:
+    generated: strict
+    rules:
+      - path: _test\.go
+        linters: [mnd, gosec, forcetypeassert, gocognit]
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+  settings:
+    gofumpt:
+      # The module path has no dot, which gofumpt would otherwise read as the
+      # standard library and pull into the first import group.
+      module-path: promari-statusline
+      extra:
+        group-params: true
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(promari-statusline)

@@ -1,0 +1,161 @@
+// Package repository declares the ports through which the status line reaches
+// the world outside the process. The use cases depend on these interfaces
+// only; the adapters in internal/infrastructure implement them. Each port is
+// one source with one question, so a use case names exactly what it needs and
+// a test replaces exactly that.
+package repository
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"promari-statusline/internal/domain/model"
+)
+
+// ErrNone is returned by a reader that looked and found nothing to report: no
+// pull request, no song, no incident. It is an answer, not a failure.
+var ErrNone = errors.New("nothing to report")
+
+// Clock tells the time.
+type Clock interface {
+	Now() time.Time
+}
+
+// GitReader reads the state of a working tree. It returns ErrNone outside a
+// repository or on a detached HEAD.
+type GitReader interface {
+	Git(ctx context.Context, dir string) (model.Git, error)
+}
+
+// PullRequestReader reads the pull request of a branch.
+type PullRequestReader interface {
+	PullRequest(ctx context.Context, dir, branch string) (model.PullRequest, error)
+}
+
+// SpendReader reads the estimated spending. input is the session report as
+// Claude Code sent it, which the estimator reads on its standard input.
+type SpendReader interface {
+	Spend(ctx context.Context, input []byte) (model.Spend, error)
+}
+
+// CodexReader reads the usage windows Codex last reported.
+type CodexReader interface {
+	Codex(ctx context.Context) (model.CodexLimits, error)
+}
+
+// ToolStatsReader counts the tool calls recorded in a transcript.
+type ToolStatsReader interface {
+	ToolStats(ctx context.Context, transcript string) (model.ToolStats, error)
+}
+
+// TodoReader reads the to-do list of a session.
+type TodoReader interface {
+	Todos(ctx context.Context, sessionKey string) (model.Todos, error)
+}
+
+// TrackReader reads the song that is playing.
+type TrackReader interface {
+	Track(ctx context.Context) (model.Track, error)
+}
+
+// IncidentReader reads the API's status page. It returns ErrNone while
+// everything is operational.
+type IncidentReader interface {
+	Incident(ctx context.Context) (model.Incident, error)
+}
+
+// ReleaseReader reads the newest released version of Claude Code.
+type ReleaseReader interface {
+	Latest(ctx context.Context) (string, error)
+}
+
+// AccountReader reads the name of the signed-in account.
+type AccountReader interface {
+	Account(ctx context.Context) (string, error)
+}
+
+// MachineReader reads the state of the computer. dir is the directory whose
+// disk is measured.
+type MachineReader interface {
+	Machine(ctx context.Context, dir string) model.Machine
+}
+
+// ActivityStore keeps each session's Activity between renders.
+type ActivityStore interface {
+	// Load returns the stored activity, or a new one for an unknown session.
+	Load(sessionKey string) model.Activity
+	Save(sessionKey string, a model.Activity) error
+}
+
+// RateLimitMemory remembers the rate limits across renders and sessions: the
+// first render of a session does not carry them.
+type RateLimitMemory interface {
+	// Last returns the limits last seen and when. It returns ErrNone when none
+	// were remembered.
+	Last() (model.RateLimits, time.Time, error)
+	Remember(l model.RateLimits, at time.Time) error
+	History() model.RateHistory
+	SaveHistory(h model.RateHistory) error
+}
+
+// UsageBoard shares the plan usage with other tools on this machine. Claude
+// Code tells the rate limits to the status line only; a hook is not told, so a
+// tool that runs as a hook reads them from the board.
+type UsageBoard interface {
+	PostClaude(l model.RateLimits, at time.Time) error
+	PostCodex(l model.CodexLimits, at time.Time) error
+}
+
+// Terminal measures the terminal the status line is drawn in.
+type Terminal interface {
+	// Width returns the width in cells and where the number came from.
+	Width() (cells int, source string)
+}
+
+// Recorder keeps what the last render saw, for diagnosis.
+type Recorder interface {
+	Input(raw []byte)
+	Width(source string, budget int)
+}
+
+// Switches are the user's on/off choices outside the settings file.
+type Switches interface {
+	// BlinkDemo makes every warning blink, to check that blinking works.
+	BlinkDemo() bool
+}
+
+// SettingsStore reads and edits Claude Code's user settings.
+type SettingsStore interface {
+	Path() string
+	// StatusLine returns the current entry. It returns ErrNone when there is none.
+	StatusLine() (model.StatusLineSetting, error)
+	// SetStatusLine writes the entry and returns the path of the backup it
+	// made of the previous file, or "" when there was nothing to back up.
+	SetStatusLine(s model.StatusLineSetting) (backup string, err error)
+	RemoveStatusLine() (backup string, err error)
+}
+
+// BinaryStore keeps a copy of the running binary at a path that does not
+// change between plugin versions, which is what the settings point at.
+type BinaryStore interface {
+	// Command returns the command line that runs the installed copy.
+	Command() string
+	Path() string
+	// InSync reports whether the installed copy is the running binary. It
+	// returns ErrNone when no copy is installed.
+	InSync() (bool, error)
+	Install() error
+	Remove() error
+}
+
+// ToolFinder looks for the optional tools on PATH.
+type ToolFinder interface {
+	Find(name string) (path string, ok bool)
+}
+
+// LauncherLog reads the failure the launcher (bin/psl) last recorded while it
+// tried to provide a binary. It returns ErrNone when there is none.
+type LauncherLog interface {
+	LastError() (string, error)
+}

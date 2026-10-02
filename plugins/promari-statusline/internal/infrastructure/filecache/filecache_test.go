@@ -1,0 +1,249 @@
+package filecache_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"promari-statusline/internal/domain/model"
+	"promari-statusline/internal/domain/repository"
+	"promari-statusline/internal/infrastructure/filecache"
+	"promari-statusline/internal/infrastructure/platform"
+	"promari-statusline/internal/infrastructure/platform/platformtest"
+)
+
+var t0 = time.Date(2026, 10, 3, 4, 9, 0, 0, time.UTC)
+
+var errBroken = errors.New("broken")
+
+func TestStorePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		xdg  string
+		want string
+	}{
+		{"under the home directory", "", "/h/.cache/promari-statusline/sessions/s1.json"},
+		{"under XDG_CACHE_HOME", "/xdg", "/xdg/promari-statusline/sessions/s1.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sys := platformtest.New(t0)
+			sys.Env["XDG_CACHE_HOME"] = tt.xdg
+			if got := filecache.NewStore(sys).Path("sessions", "s1.json"); got != tt.want {
+				t.Errorf("Path() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadAndSave(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	store := filecache.NewStore(sys)
+
+	if _, ok := filecache.Load[model.Track](store, "track.json"); ok {
+		t.Error("Load of a missing file is ok")
+	}
+	if store.Exists("track.json") {
+		t.Error("a missing file exists")
+	}
+	if err := filecache.Save(store, model.Track{Title: "Take Five"}, "track.json"); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := filecache.Load[model.Track](store, "track.json"); !ok || got.Title != "Take Five" {
+		t.Errorf("Load = %+v, %v", got, ok)
+	}
+	if !store.Exists("track.json") {
+		t.Error("the saved file does not exist")
+	}
+	if mode := sys.Modes[store.Path("track.json")]; mode != platform.Private {
+		t.Errorf("saved with mode %v, want private", mode)
+	}
+
+	sys.Files[store.Path("broken.json")] = []byte(`{"title": 5`)
+	if got, ok := filecache.Load[model.Track](store, "broken.json"); ok || got != (model.Track{}) {
+		t.Errorf("Load of invalid JSON = %+v, %v; want the zero value", got, ok)
+	}
+	sys.Files[store.Path("wrong.json")] = []byte(`{"title": 5}`)
+	if got, ok := filecache.Load[model.Track](store, "wrong.json"); ok || got != (model.Track{}) {
+		t.Errorf("Load of another type = %+v, %v; want the zero value", got, ok)
+	}
+
+	if err := store.WriteRaw("raw.txt", []byte("as is")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sys.File(store.Path("raw.txt")); got != "as is" {
+		t.Errorf("WriteRaw stored %q", got)
+	}
+	if err := filecache.Save(store, func() {}, "func.json"); err == nil {
+		t.Error("Save of a value that has no JSON form succeeded")
+	}
+}
+
+func TestMemo(t *testing.T) {
+	t.Parallel()
+	const ttl = time.Minute
+	type call struct {
+		after time.Duration
+		key   string
+		value string
+		err   error
+	}
+	tests := []struct {
+		name      string
+		calls     []call
+		wantAsked int
+		wantLast  string
+		wantErr   error
+	}{
+		{"asked once, then remembered", []call{{0, "k", "a", nil}, {59 * time.Second, "k", "b", nil}}, 1, "a", nil},
+		{"asked again when the answer is as old as the limit", []call{{0, "k", "a", nil}, {ttl, "k", "b", nil}}, 2, "b", nil},
+		{"asked again for another key", []call{{0, "k", "a", nil}, {time.Second, "other", "b", nil}}, 2, "b", nil},
+		{"nothing to report is remembered too", []call{{0, "k", "", repository.ErrNone}, {time.Second, "k", "b", nil}}, 1, "", repository.ErrNone},
+		{"a failure is remembered as nothing", []call{{0, "k", "", errBroken}, {time.Second, "k", "b", nil}}, 1, "", repository.ErrNone},
+		{"the failure itself is returned to the first caller", []call{{0, "k", "", errBroken}}, 1, "", errBroken},
+		{"an answer from the future is not trusted", []call{{0, "k", "a", nil}, {-time.Hour, "k", "b", nil}}, 2, "b", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sys := platformtest.New(t0)
+			store := filecache.NewStore(sys)
+			asked := 0
+			var got string
+			var err error
+			for _, c := range tt.calls {
+				sys.T = sys.T.Add(c.after)
+				got, err = filecache.Memo(store, "memo.json", c.key, ttl, func() (string, error) {
+					asked++
+					return c.value, c.err
+				})
+			}
+			if asked != tt.wantAsked || got != tt.wantLast || !errors.Is(err, tt.wantErr) {
+				t.Errorf("asked %d times, last = %q, %v; want %d times, %q, %v", asked, got, err, tt.wantAsked, tt.wantLast, tt.wantErr)
+			}
+		})
+	}
+	t.Run("a cache that cannot be written asks every time and still answers", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		sys.ReadOnly = true
+		store := filecache.NewStore(sys)
+		asked := 0
+		for range 2 {
+			got, err := filecache.Memo(store, "memo.json", "k", ttl, func() (string, error) { asked++; return "a", nil })
+			if got != "a" || err != nil {
+				t.Fatalf("Memo = %q, %v", got, err)
+			}
+		}
+		if asked != 2 {
+			t.Errorf("asked %d times, want 2", asked)
+		}
+	})
+}
+
+// next counts the questions that reach the wrapped reader.
+type next struct{ asked int }
+
+func (n *next) PullRequest(context.Context, string, string) (model.PullRequest, error) {
+	n.asked++
+	return model.PullRequest{Number: n.asked}, nil
+}
+
+func (n *next) Track(context.Context) (model.Track, error) {
+	n.asked++
+	return model.Track{Title: "t"}, nil
+}
+
+func (n *next) ToolStats(context.Context, string) (model.ToolStats, error) {
+	n.asked++
+	return model.ToolStats{Total: n.asked}, nil
+}
+
+func (n *next) Incident(context.Context) (model.Incident, error) {
+	n.asked++
+	return model.Incident{Indicator: "minor"}, nil
+}
+
+func (n *next) Latest(context.Context) (string, error) { n.asked++; return "1.0.0", nil }
+
+func (n *next) Codex(context.Context) (model.CodexLimits, error) {
+	n.asked++
+	return model.CodexLimits{Balance: model.Some(1.0)}, nil
+}
+
+func (n *next) Account(context.Context) (string, error) { n.asked++; return "someone@example.com", nil }
+
+func TestDecoratorsRememberTheirAnswers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	tests := []struct {
+		name string
+		ttl  time.Duration
+		ask  func(*filecache.Store, *next) error
+	}{
+		{"pull request", 5 * time.Minute, func(s *filecache.Store, n *next) error {
+			_, err := filecache.PullRequests{Store: s, Next: n}.PullRequest(ctx, "/work", "develop")
+			return err
+		}},
+		{"track", 15 * time.Second, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Tracks{Store: s, Next: n}.Track(ctx)
+			return err
+		}},
+		{"tool stats", 30 * time.Second, func(s *filecache.Store, n *next) error {
+			_, err := filecache.ToolStats{Store: s, Next: n}.ToolStats(ctx, "/t.jsonl")
+			return err
+		}},
+		{"incident", 5 * time.Minute, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Incidents{Store: s, Next: n}.Incident(ctx)
+			return err
+		}},
+		{"release", 6 * time.Hour, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Releases{Store: s, Next: n}.Latest(ctx)
+			return err
+		}},
+		{"codex", time.Minute, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Codex{Store: s, Next: n}.Codex(ctx)
+			return err
+		}},
+		{"account", time.Hour, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Accounts{Store: s, Next: n}.Account(ctx)
+			return err
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sys := platformtest.New(t0)
+			store, n := filecache.NewStore(sys), &next{}
+			for _, step := range []struct {
+				after time.Duration
+				want  int
+			}{{0, 1}, {tt.ttl - time.Second, 1}, {time.Second, 2}} {
+				sys.T = sys.T.Add(step.after)
+				if err := tt.ask(store, n); err != nil {
+					t.Fatal(err)
+				}
+				if n.asked != step.want {
+					t.Fatalf("after %v: asked %d times, want %d", sys.T.Sub(t0), n.asked, step.want)
+				}
+			}
+		})
+	}
+	t.Run("the pull request is remembered per directory and branch", func(t *testing.T) {
+		t.Parallel()
+		store, n := filecache.NewStore(platformtest.New(t0)), &next{}
+		pulls := filecache.PullRequests{Store: store, Next: n}
+		for _, branch := range []string{"develop", "develop", "feature"} {
+			if _, err := pulls.PullRequest(ctx, "/work", branch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if n.asked != 2 {
+			t.Errorf("asked %d times for two branches, want 2", n.asked)
+		}
+	})
+}
