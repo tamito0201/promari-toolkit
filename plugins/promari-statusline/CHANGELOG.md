@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 — 2026-10-03
+
+- Fix: `Tools` and `ErrRate` count tool calls only. Every `"name"` in the transcript was
+  counted, so a git remote showed up as a tool (`origin52`) and the total was too high: 502
+  for 380 calls in the session this was found in, which also made the error rate too low
+  (2.2 % for 2.9 %).
+- The tools of an MCP server whose names have digits, dots or hyphens are counted.
+
 ## 1.1.0 — 2026-10-03
 
 - A category a few cells too wide for the terminal is packed onto one line (its chips stand

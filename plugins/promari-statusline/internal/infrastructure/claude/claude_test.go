@@ -52,9 +52,50 @@ func TestTranscript(t *testing.T) {
 			nil,
 		},
 		{
-			"names with other characters are not tool names",
-			`{"name":"mcp__docs__read"} {"name":"claude-3"} {"name":"a b"} {"name":"`,
-			model.ToolStats{Total: 1, Top: []model.ToolCount{{Name: "mcp__docs__read", Count: 1}}},
+			"the calls as Claude Code writes them, with the tools of an MCP server",
+			`{"message":{"content":[{"type":"tool_use","id":"toolu_01","name":"Bash","input":{"command":"ls"}}]}}
+{"message":{"content":[{"type":"tool_use","id":"toolu_02","name":"mcp__notion__API-post-page","input":{}}]}}
+{"message":{"content":[{"type":"tool_use","id":"toolu_03","name":"mcp__docs.v2__read","input":{}}]}}
+`,
+			model.ToolStats{Total: 3, Top: []model.ToolCount{
+				{Name: "Bash", Count: 1}, {Name: "mcp__notion__API-post-page", Count: 1}, {Name: "mcp__docs.v2__read", Count: 1},
+			}},
+			nil,
+		},
+		{
+			// A transcript is full of other names; a git remote is the one that
+			// showed up as a tool ("origin41").
+			"a name that is not the name of a tool call is not a tool",
+			`{"remotes":[{"name":"origin","host":"github.com"}],"model":{"name":"claude-opus"}}
+{"type":"tool_use","id":"toolu_01","name":"Read","input":{"file_path":"/a"}}
+`,
+			model.ToolStats{Total: 1, Top: []model.ToolCount{{Name: "Read", Count: 1}}},
+			nil,
+		},
+		{
+			"a name inside the input of a call is not the name of the call",
+			`{"type":"tool_use","id":"toolu_01","input":{"name":"notatool"}}
+{"type":"tool_use","id":"toolu_02","name":"Edit","input":{"name":"x"}}
+`,
+			model.ToolStats{Total: 1, Top: []model.ToolCount{{Name: "Edit", Count: 1}}},
+			nil,
+		},
+		{
+			"text that quotes a tool call is not a call",
+			`{"type":"text","text":"{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\"}"}` + "\n",
+			model.ToolStats{},
+			repository.ErrNone,
+		},
+		{
+			"a call without a usable name is not counted",
+			`{"type":"tool_use","id":"a","name":"a b"} {"type":"tool_use","id":"b","name":""} {"type":"tool_use","id":"c","name":"` + strings.Repeat("x", 129) + `"} {"type":"tool_use","id":"d","name":"cut off` + "\n" + `{"type":"tool_use","id":"e"} {"type":"tool_use"`,
+			model.ToolStats{},
+			repository.ErrNone,
+		},
+		{
+			"a name of the longest length is a name",
+			`{"type":"tool_use","id":"a","name":"` + strings.Repeat("x", 128) + `"}`,
+			model.ToolStats{Total: 1, Top: []model.ToolCount{{Name: strings.Repeat("x", 128), Count: 1}}},
 			nil,
 		},
 		{"a transcript without tool calls", `{"type":"user"}`, model.ToolStats{}, repository.ErrNone},
