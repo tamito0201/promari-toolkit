@@ -53,12 +53,14 @@ func forecastChips(v *View) []model.Chip {
 
 // contextChips shows how full the context window is and when it will be full.
 func contextChips(v *View) []model.Chip {
+	t, read := v.Facts.Transcript.Get()
+	compactions := compactionChips(v, t, read)
 	usage, ok := v.Usage.Get()
 	if !ok {
 		if v.Session.Reported {
-			return []model.Chip{chip(model.ToneMuted, "初回応答待ち")}
+			return append([]model.Chip{chip(model.ToneMuted, "初回応答待ち")}, compactions...)
 		}
-		return nil
+		return compactions
 	}
 	tone := severity(usage.Pct, warnPct, badPct)
 	c := slices.Concat(model.Chip(bar(usage.Pct, contextBarCells)), model.Chip{
@@ -72,7 +74,7 @@ func contextChips(v *View) []model.Chip {
 			c = append(c, space(), text(tone, "⏳ ETA "+span(eta)))
 		}
 	}
-	return []model.Chip{alarmIf(usage.Pct >= v.alarmAt(), c)}
+	return append([]model.Chip{alarmIf(usage.Pct >= v.alarmAt(), c)}, compactions...)
 }
 
 // claudeChips shows the subscription's usage windows in one chip.

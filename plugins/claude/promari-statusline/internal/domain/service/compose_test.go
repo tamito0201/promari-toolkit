@@ -191,7 +191,7 @@ func TestCompose(t *testing.T) {
 		{
 			"tokens: the surcharge and compactions",
 			View{Session: model.Session{Over200k: true}, Activity: model.Some(model.Activity{Compactions: 2, StreakStart: now})},
-			[]string{"🔥 Burn: Active 0m | Streak 0m", "📊 Tokens: 🚧 200k超割増 | compact ×2", env, system},
+			[]string{"🧠 Context: compact ×2", "🔥 Burn: Active 0m | Streak 0m", "📊 Tokens: 🚧 200k超割増", env, system},
 		},
 		{
 			"work: to-dos and tools with errors",

@@ -252,7 +252,6 @@ func tokenChips(v *View) []model.Chip {
 	if v.Session.Over200k {
 		chips = append(chips, chip(model.ToneCaution, "🚧 200k超割増"))
 	}
-	chips = append(chips, compactionChips(v, t, read)...)
 	return chips
 }
 

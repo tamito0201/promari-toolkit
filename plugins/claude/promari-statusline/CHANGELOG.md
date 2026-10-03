@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1 — 2026-10-03
+
+- A section too wide for a line no longer repeats its title with a number on the next line
+  (`📦 Cache 2`), which read as a section of its own. Its continuation lines carry no title and
+  hang under the chips of its first line, behind the same `│`.
+- The compactions (`compact ×N`, with the time since the last) move from `📊 Tokens` to
+  `🧠 Context`, where they belong, and `📊 Tokens` wraps less often.
+
+
 ## 1.4.0 — 2026-10-03
 
 - Everything Claude Code reports that was not read yet: the spend limit's dollars and period,

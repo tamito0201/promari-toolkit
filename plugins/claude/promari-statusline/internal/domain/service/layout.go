@@ -1,10 +1,6 @@
 package service
 
-import (
-	"strconv"
-
-	"promari-statusline/internal/domain/model"
-)
+import "promari-statusline/internal/domain/model"
 
 const (
 	// SeparatorCells is the width of " │ " between chips and " ┃ " between groups.
@@ -30,9 +26,10 @@ func Budget(terminalCells int) int { return max(MinBudget, terminalCells-margin)
 // is already there; otherwise it starts a new line. A group a little wider than
 // a whole line is packed: its chips stand closer ("│" for " │ "), which keeps
 // it on one line in a terminal a few cells too narrow. Only a group that does
-// not fit even then is broken, between its chips, and each continuation
-// repeats the group's title with a number ("🚀 Perf 2") so that every line
-// still says what it shows.
+// not fit even then is broken, between its chips. Its continuation lines carry
+// no title: they hang under the chips of its first line, behind the same
+// separator, so that each category is named once and its lines read as one
+// block. A numbered title ("🚀 Perf 2") read as a category of its own.
 func Layout(groups []model.Group, budget int) []model.Line {
 	l := layouter{budget: budget}
 	for _, g := range groups {
@@ -55,7 +52,7 @@ type layouter struct {
 func (l *layouter) place(g model.Group) {
 	unit := g.Chips
 	if g.Title != "" {
-		unit = append([]model.Chip{header(g, 1)}, g.Chips...)
+		unit = append([]model.Chip{header(g)}, g.Chips...)
 	}
 	width := unitCells(unit)
 	indent := indentOf(unit[0])
@@ -88,25 +85,38 @@ func (l *layouter) add(sep, between model.Separator, unit []model.Chip, cells in
 	l.used += cells
 }
 
-// wrap breaks a group that is wider than a line between its chips.
+// wrap breaks a group that is wider than a line between its chips. The first
+// line starts with the title; each continuation line is indented to the end of
+// the title and starts with the chip separator, so its chips stand under those
+// of the first line. A chip too wide to hang there starts at the label column.
 func (l *layouter) wrap(g model.Group) {
-	part := 0
+	hang := -1 // the indent of continuation lines; unknown before the first line
 	for _, c := range g.Chips {
 		width := Cells(c.Text())
 		if len(l.cur.Items) > 0 && l.used+SeparatorCells+width > l.budget {
 			l.flush()
 		}
-		if len(l.cur.Items) > 0 {
+		switch {
+		case len(l.cur.Items) > 0:
 			l.add(model.SepChip, model.SepChip, []model.Chip{c}, SeparatorCells+width)
-			continue
+		case hang < 0:
+			unit := []model.Chip{c}
+			if g.Title != "" {
+				unit = []model.Chip{header(g), c}
+			}
+			l.cur.Indent = indentOf(unit[0])
+			l.add(model.SepNone, model.SepChip, unit, l.cur.Indent+unitCells(unit))
+			hang = l.cur.Indent
+			if g.Title != "" {
+				hang += Cells(g.Title)
+			}
+		case g.Title != "" && hang+SeparatorCells+width <= l.budget:
+			l.cur.Indent = hang
+			l.add(model.SepChip, model.SepChip, []model.Chip{c}, hang+SeparatorCells+width)
+		default:
+			l.cur.Indent = indentOf(c)
+			l.add(model.SepNone, model.SepChip, []model.Chip{c}, l.cur.Indent+width)
 		}
-		part++
-		unit := []model.Chip{c}
-		if g.Title != "" {
-			unit = []model.Chip{header(g, part), c}
-		}
-		l.cur.Indent = indentOf(unit[0])
-		l.add(model.SepNone, model.SepChip, unit, l.cur.Indent+unitCells(unit))
 	}
 }
 
@@ -117,13 +127,9 @@ func (l *layouter) flush() {
 	l.cur, l.used = model.Line{}, 0
 }
 
-// header returns the title chip of a group; continuation lines are numbered.
-func header(g model.Group, part int) model.Chip {
-	title := g.Title
-	if part > 1 {
-		title += " " + strconv.Itoa(part)
-	}
-	return model.Chip{{Text: title, Tone: g.Tone, Bold: true}}
+// header returns the title chip of a group.
+func header(g model.Group) model.Chip {
+	return model.Chip{{Text: g.Title, Tone: g.Tone, Bold: true}}
 }
 
 // unitCells returns the width of chips joined by chip separators.

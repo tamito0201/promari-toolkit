@@ -25,12 +25,12 @@ Code); it sends none of your data.
 |---|---|
 | 🚨 Alert | An incident on the API's status page (shown only while there is one) |
 | 📉 Forecast | When a rate limit would run out, if that is before its reset |
-| 🧠 Context | Usage bar, tokens used and left, time until the context is full at the session's pace |
+| 🧠 Context | Usage bar, tokens used and left, time until the context is full at the session's pace, compactions and the time since the last |
 | ⚡ Claude | The 5-hour and 7-day windows with the time to their reset, the pace against the window, a forecast when the usage would run out before the reset, the spend limit with its dollars and period |
 | 🤖 Codex | Codex's usage windows and balance, read from its newest session log |
 | 💰 Cost | Session cost; with `ccusage`: today, the billing block, the burn rate and an estimate for the block |
 | 🔥 Burn, 📈 KPI, 🚀 Perf | Wall and API time, active time and streak, cost per turn and per line, lines changed (and net) and per hour, focus, deep work (streaks of 23 minutes or more), the longest streak and the breaks, parallelism, turn times (last, median, 90th percentile), thinking time, tool error rate |
-| 📦 Cache, 📊 Tokens | Prompt cache hit ratio, lifetime (5m/1h), whether it went cold, the last miss with its cause and age, misses by cause, tokens written (and by misses), expected rebuilds, what it saves; tokens over the whole session (subagents included) with the cached share and the thinking share, requests, the last request's input split, compactions and the time since the last, the surcharge above 200k; "Caching off" when no response reported cache tokens |
+| 📦 Cache, 📊 Tokens | Prompt cache hit ratio, lifetime (5m/1h), whether it went cold, the last miss with its cause and age, misses by cause, tokens written (and by misses), expected rebuilds, what it saves; tokens over the whole session (subagents included) with the cached share and the thinking share, requests, the last request's input split, the surcharge above 200k; "Caching off" when no response reported cache tokens |
 | 🔧 Work | The session's to-do list, tool calls by tool, files edited, hooks run (and failed), editor diagnostics handed to the model |
 | 🤝 Agent | Prompts typed, tool calls per prompt (autonomy), interventions (interrupts and refused tool calls per prompt), refusals, responses cut at the output limit, prompts queued while the agent worked, web searches and fetches, subagent requests, the models that answered |
 | 🌿 Git | Branch, worktree, an operation in progress (rebase, merge, cherry-pick, revert, bisect), conflicts, changed, staged and new files, the lines changed against HEAD (yellow above 400, red above 1,000), ahead and behind, stashes, time since the last commit and the commits of today |
@@ -195,7 +195,8 @@ A terminal cuts a line that is too long without saying so, so the layout is plan
 display cells (an emoji or a CJK character takes two) for the width in `COLUMNS`, which
 Claude Code sets for a status line. Sections are put onto lines in a fixed order. A section
 a few cells too wide for a line is packed (its chips stand closer, `│` for ` │ `); one that
-does not fit even then is wrapped at a chip, and its continuation lines are numbered.
+does not fit even then is wrapped at a chip. Its continuation lines carry no title: they
+hang under the chips of its first line, so every section is named once.
 `psl doctor` prints the width that is used and where it came from.
 
 ## Development

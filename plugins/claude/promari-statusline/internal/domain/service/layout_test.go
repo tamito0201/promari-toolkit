@@ -75,24 +75,37 @@ func TestLayout(t *testing.T) {
 			[]string{"🧠 A │ 01234", "💰 B │ 01234"},
 		},
 		{
-			"a group wider than a line wraps between its chips and numbers its continuation",
+			"a group wider than a line wraps between its chips and hangs its continuation under them",
 			[]model.Group{group("🚀 Perf", "aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc")},
 			24,
-			[]string{"🚀 Perf │ aaaaaaaaaa", "🚀 Perf 2 │ bbbbbbbbbb", "🚀 Perf 3 │ cccccccccc"},
+			[]string{"🚀 Perf │ aaaaaaaaaa", "        │ bbbbbbbbbb", "        │ cccccccccc"},
 		},
 		{
 			"a wrapped group fills each line as far as it goes",
 			[]model.Group{group("🚀 Perf", "aaaa", "bbbb", "cccc", "dddd")},
 			24,
-			[]string{"🚀 Perf │ aaaa │ bbbb", "🚀 Perf 2 │ cccc │ dddd"},
+			[]string{"🚀 Perf │ aaaa │ bbbb", "        │ cccc │ dddd"},
 		},
 		{
 			"the next group joins the last line of a wrapped group",
-			// "🚀 Perf 2 │ bbbbbbbbbbbbbbb" is 27 cells, the separator 3, "🌿 G │ x" 8: 38.
+			// "        │ bbbbbbbbbbbbbbb" is 25 cells, the separator 3, "🌿 G │ x" 8: 36.
 			// (Packed, the first group would be 39.)
 			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbb"), group("🌿 G", "x")},
 			38,
-			[]string{"🚀 Perf │ aaaaaaaaaaaaaaa", "🚀 Perf 2 │ bbbbbbbbbbbbbbb ┃ 🌿 G │ x"},
+			[]string{"🚀 Perf │ aaaaaaaaaaaaaaa", "        │ bbbbbbbbbbbbbbb ┃ 🌿 G │ x"},
+		},
+		{
+			"a chip too wide to hang under the title starts at the label column",
+			// Hung, "        │ " and the chip would be 27 cells.
+			[]model.Group{group("🚀 Perf", "aaaa", "bbbbbbbbbbbbbbbbb")},
+			24,
+			[]string{"🚀 Perf │ aaaa", "   bbbbbbbbbbbbbbbbb"},
+		},
+		{
+			"a group without a title wraps at its own indent",
+			[]model.Group{{Chips: []model.Chip{{{Text: "⚡ Claude aaaaaaaa"}}, {{Text: "bbbbbbbbbbbb"}}}}},
+			24,
+			[]string{"⚡ Claude aaaaaaaa", "   bbbbbbbbbbbb"},
 		},
 		// "🚀 Perf │ aaaaaaaaaaaa │ bbbbbbbbbbbb" is 37 cells; packed it is 33.
 		{
@@ -117,7 +130,7 @@ func TestLayout(t *testing.T) {
 			"a group too wide even when packed is broken, with its usual separators",
 			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb")},
 			32,
-			[]string{"🚀 Perf │ aaaaaaaaaaaa", "🚀 Perf 2 │ bbbbbbbbbbbb"},
+			[]string{"🚀 Perf │ aaaaaaaaaaaa", "        │ bbbbbbbbbbbb"},
 		},
 		{
 			"a packed group starts a line of its own, and the next group does not join a line that is full",
