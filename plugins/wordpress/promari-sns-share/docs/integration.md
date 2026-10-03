@@ -43,7 +43,7 @@ iframes. Share dialogs use `window.open`; set `popup="false"` for normal links.
 
 ```bash
 git clone https://github.com/tamito0201/promari-toolkit.git
-cp promari-toolkit/plugins/promari-sns-share/config/share_config.example.toml <site-repository>/.config/share_config.toml
+cp promari-toolkit/plugins/wordpress/promari-sns-share/config/share_config.example.toml <site-repository>/.config/share_config.toml
 ```
 
 Edit `[workflow]` in `.config/share_config.toml`:
@@ -57,7 +57,7 @@ web_url = ""
 ```
 
 ```bash
-python3 promari-toolkit/plugins/promari-sns-share/tools/config.py --config <site-repository>/.config/share_config.toml --write
+python3 promari-toolkit/plugins/wordpress/promari-sns-share/tools/config.py --config <site-repository>/.config/share_config.toml --write
 wp plugin activate promari-sns-share
 ```
 

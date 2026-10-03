@@ -5,7 +5,7 @@
   "author": {
     "name": "Takaomi Murasaki"
   },
-  "homepage": "https://github.com/tamito0201/promari-toolkit/tree/main/plugins/promari-statusline",
+  "homepage": "https://github.com/tamito0201/promari-toolkit/tree/main/plugins/claude/promari-statusline",
   "repository": "https://github.com/tamito0201/promari-toolkit",
   "license": "MIT",
   "keywords": ["statusline", "rate-limits", "cost", "context", "git", "go"]

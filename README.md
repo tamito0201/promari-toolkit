@@ -8,11 +8,11 @@ The repository has no shared product version.
 
 | Component | Purpose | Location | Release tags |
 |---|---|---|---|
-| [Promari SNS Share](plugins/promari-sns-share/README.md) | Social sharing for Web Components and WordPress | `plugins/promari-sns-share/` | `promari-sns-share-v4.2.1` |
-| [Promari Model Router](plugins/promari-model-router/README.md) | Route Claude Code subagents to haiku/sonnet/opus by task difficulty (Japanese and English), keep safety-sensitive work on strong models, suggest Codex for bulk or second-opinion work, and log every decision | `plugins/promari-model-router/` | `promari-model-router-v1.1.1` |
-| [Promari Statusline](plugins/promari-statusline/README.md) | A multi-line status line for Claude Code: context, rate limits with pace and forecast, cost, KPIs, git and pull request, tools and system at a glance, laid out to the width of your terminal | `plugins/promari-statusline/` | `promari-statusline-v1.1.1` |
+| [Promari SNS Share](plugins/wordpress/promari-sns-share/README.md) | Social sharing for Web Components and WordPress | `plugins/wordpress/promari-sns-share/` | `promari-sns-share-v4.2.1` |
+| [Promari Model Router](plugins/claude/promari-model-router/README.md) | Route Claude Code subagents to haiku/sonnet/opus by task difficulty (Japanese and English), keep safety-sensitive work on strong models, suggest Codex for bulk or second-opinion work, and log every decision | `plugins/claude/promari-model-router/` | `promari-model-router-v1.1.1` |
+| [Promari Statusline](plugins/claude/promari-statusline/README.md) | A multi-line status line for Claude Code: context, rate limits with pace and forecast, cost, KPIs, git and pull request, tools and system at a glance, laid out to the width of your terminal | `plugins/claude/promari-statusline/` | `promari-statusline-v1.1.1` |
 
-Website plugins live under `plugins/`. Standalone tools will live under `tools/`
+Plugins live under `plugins/<kind>/` (`claude/` for Claude Code, `wordpress/` for WordPress). Standalone tools will live under `tools/`
 when they are added; plugin-specific build tools stay with their plugin.
 
 ## Use Promari SNS Share from the CDN
@@ -26,7 +26,7 @@ Pin the component's complete release tag. Updating another component does not
 change this URL. WordPress plugins are also distributed as component-specific
 ZIP assets on [GitHub Releases](https://github.com/tamito0201/promari-toolkit/releases).
 
-See the [plugin README](plugins/promari-sns-share/README.md) for configuration,
+See the [plugin README](plugins/wordpress/promari-sns-share/README.md) for configuration,
 analytics, integration, and development instructions.
 
 ## Development
@@ -37,7 +37,7 @@ for its development commands; for example, Promari SNS Share uses Node.js from i
 pnpm, Python 3.13 or later, and PHP 8.1 or later:
 
 ```bash
-cd plugins/promari-sns-share
+cd plugins/wordpress/promari-sns-share
 pnpm install --frozen-lockfile
 export PYTHON=python3.13
 pnpm run verify
