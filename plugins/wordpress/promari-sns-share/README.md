@@ -64,9 +64,9 @@ with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 
 ```bash
 git clone https://github.com/tamito0201/promari-toolkit.git
-cp promari-toolkit/plugins/promari-sns-share/config/share_config.example.toml <your-repository>/.config/share_config.toml
+cp promari-toolkit/plugins/wordpress/promari-sns-share/config/share_config.example.toml <your-repository>/.config/share_config.toml
 # Set plugin_output, and set web_output and web_url so the plugin can load the bundle.
-python3 promari-toolkit/plugins/promari-sns-share/tools/config.py --config <your-repository>/.config/share_config.toml --write
+python3 promari-toolkit/plugins/wordpress/promari-sns-share/tools/config.py --config <your-repository>/.config/share_config.toml --write
 wp plugin activate promari-sns-share
 ```
 

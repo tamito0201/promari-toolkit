@@ -16,17 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/promari-sns-share
+        working-directory: plugins/wordpress/promari-sns-share
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          package_json_file: plugins/promari-sns-share/package.json
+          package_json_file: plugins/wordpress/promari-sns-share/package.json
       - uses: actions/setup-node@v4
         with:
-          node-version-file: plugins/promari-sns-share/.node-version
+          node-version-file: plugins/wordpress/promari-sns-share/.node-version
           cache: pnpm
-          cache-dependency-path: plugins/promari-sns-share/pnpm-lock.yaml
+          cache-dependency-path: plugins/wordpress/promari-sns-share/pnpm-lock.yaml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"

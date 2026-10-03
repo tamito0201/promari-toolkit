@@ -20,4 +20,4 @@ component's manifest, configuration version, and changelog, together with its
 rebuilt distribution files. Tags use `<component>-v<version>` and are never
 moved after publication.
 
-For Promari SNS Share, see its [contributor guide](plugins/promari-sns-share/CONTRIBUTING.md).
+For Promari SNS Share, see its [contributor guide](plugins/wordpress/promari-sns-share/CONTRIBUTING.md).

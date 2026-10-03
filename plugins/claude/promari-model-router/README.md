@@ -48,7 +48,7 @@ The plugin is released in promari-toolkit but not listed in its marketplace yet,
 
 ```bash
 git clone https://github.com/tamito0201/promari-toolkit
-claude --plugin-dir promari-toolkit/plugins/promari-model-router
+claude --plugin-dir promari-toolkit/plugins/claude/promari-model-router
 ```
 
 The first hook call downloads the binary for your platform from the release and installs it
