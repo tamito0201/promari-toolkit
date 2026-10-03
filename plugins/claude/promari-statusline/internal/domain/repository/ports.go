@@ -150,6 +150,26 @@ type SettingsStore interface {
 	RemoveStatusLine() (backup string, err error)
 }
 
+// ProjectStore reaches the projects Claude Code has opened. A project's
+// settings take precedence over the user's, so a project that sets its own
+// status line hides the user's on every terminal opened in it.
+type ProjectStore interface {
+	// Projects returns the directories of the projects Claude Code has opened
+	// that still exist, the user's home (whose settings are the user's) left out.
+	Projects() ([]string, error)
+	// Shared is the project's settings file shared through the repository
+	// (.claude/settings.json); it is read, never written.
+	Shared(dir string) SettingsStore
+	// Local is the project's personal settings file (.claude/settings.local.json),
+	// which takes precedence over the shared one.
+	Local(dir string) SettingsStore
+	// KeepOutOfGit makes sure the personal settings file is not picked up by
+	// git: it is ignored already, or it is added to the repository's own
+	// exclude list (.git/info/exclude, never shared). added is false when
+	// nothing had to change, and for a directory outside a repository.
+	KeepOutOfGit(dir string) (added bool, err error)
+}
+
 // BinaryStore keeps a copy of the running binary at a path that does not
 // change between plugin versions, which is what the settings point at.
 type BinaryStore interface {

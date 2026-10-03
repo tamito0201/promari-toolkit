@@ -23,7 +23,8 @@ const (
 	backupStamp = "20060102-150405"
 )
 
-// Settings edits Claude Code's user settings file.
+// Settings edits a Claude Code settings file: the user's, or the one named by
+// File (a project's personal .claude/settings.local.json).
 //
 // The file belongs to the user. An edit changes the statusLine member and
 // nothing else: every other member keeps its value and its place, and the file
@@ -31,12 +32,19 @@ const (
 // never overwritten.
 type Settings struct {
 	Sys platform.System
+	// File is the settings file; empty means the user's settings.json.
+	File string
 }
 
 var _ repository.SettingsStore = Settings{}
 
 // Path implements repository.SettingsStore.
-func (s Settings) Path() string { return filepath.Join(ConfigDir(s.Sys), settingsFile) }
+func (s Settings) Path() string {
+	if s.File != "" {
+		return s.File
+	}
+	return filepath.Join(ConfigDir(s.Sys), settingsFile)
+}
 
 // StatusLine implements repository.SettingsStore.
 func (s Settings) StatusLine() (model.StatusLineSetting, error) {

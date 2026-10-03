@@ -183,11 +183,16 @@ var _ repository.AccountReader = Account{}
 
 // File returns the file that holds the login: .claude.json in CLAUDE_CONFIG_DIR
 // when it is set, and in the home directory otherwise.
-func (a Account) File() string {
-	if dir := a.Sys.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+func (a Account) File() string { return StateFile(a.Sys) }
+
+// StateFile returns Claude Code's state file (.claude.json): in CLAUDE_CONFIG_DIR
+// when it is set, and in the home directory otherwise. It holds the login and
+// the projects Claude Code has opened.
+func StateFile(sys platform.System) string {
+	if dir := sys.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
 		return filepath.Join(dir, ".claude.json")
 	}
-	return filepath.Join(a.Sys.HomeDir(), ".claude.json")
+	return filepath.Join(sys.HomeDir(), ".claude.json")
 }
 
 // Account implements repository.AccountReader.

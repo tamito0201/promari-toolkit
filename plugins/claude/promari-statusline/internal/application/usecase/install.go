@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"promari-statusline/internal/domain/model"
 	"promari-statusline/internal/domain/repository"
 )
 
@@ -12,6 +11,7 @@ import (
 type InstallDeps struct {
 	Settings repository.SettingsStore
 	Binary   repository.BinaryStore
+	Projects repository.ProjectStore
 }
 
 // InstallReport says what an installation did, or would do.
@@ -47,7 +47,7 @@ func NewInstall(deps InstallDeps) *Install { return &Install{deps: deps} }
 // Execute installs the status line. With dryRun it only reports what it would do.
 func (u *Install) Execute(dryRun bool) (InstallReport, error) {
 	d := u.deps
-	want := model.StatusLineSetting{Type: model.CommandType, Command: d.Binary.Command(), RefreshInterval: model.RefreshSeconds}
+	want := wanted(d.Binary.Command())
 	report := InstallReport{Binary: d.Binary.Path(), Settings: d.Settings.Path(), Command: want.Command, DryRun: dryRun}
 
 	current, err := d.Settings.StatusLine()
@@ -83,6 +83,9 @@ type UninstallReport struct {
 	// Other is the command of a status line that is not this plugin's, or "".
 	Other  string
 	Backup string
+	// Projects are the personal settings files of projects the status line was
+	// taken out of (a global installation put it there).
+	Projects []string
 }
 
 // Uninstall takes the status line out of Claude Code's settings and removes
@@ -111,10 +114,39 @@ func (u *Uninstall) Execute() (UninstallReport, error) {
 		}
 		report.Removed = true
 	}
+	projects, err := u.unsetProjects()
+	report.Projects = projects
+	if err != nil {
+		return report, err
+	}
 	if err := d.Binary.Remove(); err != nil {
 		return report, fmt.Errorf("remove the binary: %w", err)
 	}
 	return report, nil
+}
+
+// unsetProjects takes this plugin's status line out of the personal settings of
+// every project, so that no project is left running a binary that is gone. A
+// status line of another command is left alone.
+func (u *Uninstall) unsetProjects() ([]string, error) {
+	d := u.deps
+	dirs, err := d.Projects.Projects()
+	if err != nil {
+		return nil, fmt.Errorf("list the projects: %w", err)
+	}
+	var done []string
+	for _, dir := range dirs {
+		local := d.Projects.Local(dir)
+		s, err := local.StatusLine()
+		if err != nil || s.Command != d.Binary.Command() {
+			continue
+		}
+		if _, err := local.RemoveStatusLine(); err != nil {
+			return done, fmt.Errorf("write %s: %w", local.Path(), err)
+		}
+		done = append(done, local.Path())
+	}
+	return done, nil
 }
 
 // Refresh brings the installed copy of the binary up to the running one. It

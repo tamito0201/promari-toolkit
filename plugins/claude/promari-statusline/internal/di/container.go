@@ -32,7 +32,8 @@ func New(sys platform.System, streams Streams) *cli.App {
 	terminal := host.Terminal{Sys: sys}
 	settings := claude.Settings{Sys: sys}
 	binary := claude.Binary{Sys: sys, Suffix: executableSuffix()}
-	install := usecase.InstallDeps{Settings: settings, Binary: binary}
+	projects := claude.Projects{Sys: sys}
+	install := usecase.InstallDeps{Settings: settings, Binary: binary, Projects: projects}
 
 	render := usecase.NewRenderStatusLine(usecase.RenderDeps{
 		Clock:      host.Clock{Sys: sys},
@@ -49,6 +50,7 @@ func New(sys platform.System, streams Streams) *cli.App {
 	return &cli.App{
 		Render:    statusline.Handler{Render: render},
 		Install:   usecase.NewInstall(install),
+		Global:    usecase.NewInstallGlobal(install),
 		Uninstall: usecase.NewUninstall(install),
 		Refresh:   usecase.NewRefresh(binary),
 		Diagnose: usecase.NewDiagnose(usecase.DiagnoseDeps{
@@ -57,6 +59,7 @@ func New(sys platform.System, streams Streams) *cli.App {
 			Tools:    host.Tools{Sys: sys},
 			Terminal: terminal,
 			Launcher: claude.Launcher{Sys: sys},
+			Projects: projects,
 		}),
 		In:  streams.In,
 		Out: streams.Out,

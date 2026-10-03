@@ -38,6 +38,11 @@ type Installer interface {
 	Execute(dryRun bool) (usecase.InstallReport, error)
 }
 
+// GlobalInstaller is the setup use case for every project.
+type GlobalInstaller interface {
+	Execute(dryRun bool) (usecase.GlobalReport, error)
+}
+
 // Uninstaller is the uninstall use case.
 type Uninstaller interface {
 	Execute() (usecase.UninstallReport, error)
@@ -57,6 +62,7 @@ type Diagnoser interface {
 type App struct {
 	Render    Renderer
 	Install   Installer
+	Global    GlobalInstaller
 	Uninstall Uninstaller
 	Refresh   Refresher
 	Diagnose  Diagnoser
@@ -108,13 +114,61 @@ func (a *App) setup(args []string) int {
 	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
 	flags.SetOutput(a.Err)
 	dryRun := flags.Bool("dry-run", false, "show what would change without writing anything")
+	global := flags.Bool("global", false, "also put the status line into every project that shows another one")
 	if err := flags.Parse(args); err != nil {
 		return exitUsage
+	}
+	if *global {
+		return a.setupGlobal(*dryRun)
 	}
 	r, err := a.Install.Execute(*dryRun)
 	if err != nil {
 		return a.report(err)
 	}
+	a.printInstall(r)
+	if !r.DryRun {
+		fmt.Fprintln(a.Out, "The status line appears on Claude Code's next redraw. A statusLine in a project's .claude/settings.json takes precedence over this one; `psl setup --global` covers those projects as well.")
+	}
+	return exitOK
+}
+
+// setupGlobal installs the status line for the user and for every project.
+func (a *App) setupGlobal(dryRun bool) int {
+	r, err := a.Global.Execute(dryRun)
+	a.printInstall(r.User)
+	if err != nil {
+		return a.report(err)
+	}
+	failed := 0
+	for _, f := range r.Fixes {
+		switch {
+		case f.Err != "":
+			failed++
+			fmt.Fprintf(a.Err, "❌ %s: %s\n", f.Dir, f.Err)
+		case dryRun:
+			fmt.Fprintf(a.Out, "would set statusLine in %s (it shows: %s)\n", f.Settings, f.Previous)
+		default:
+			fmt.Fprintf(a.Out, "✅ statusLine in %s now runs: %s (it showed: %s)\n", f.Settings, r.User.Command, f.Previous)
+			if f.Excluded {
+				fmt.Fprintf(a.Out, "   added to the repository's .git/info/exclude, so git does not pick it up\n")
+			}
+			if f.Backup != "" {
+				fmt.Fprintf(a.Out, "   backup: %s\n", f.Backup)
+			}
+		}
+	}
+	fmt.Fprintf(a.Out, "projects: %d checked, %d showing another status line\n", r.Checked, len(r.Fixes))
+	if !dryRun {
+		fmt.Fprintln(a.Out, "Every terminal shows the status line on Claude Code's next redraw. A project's shared .claude/settings.json is never changed.")
+	}
+	if failed > 0 {
+		return exitError
+	}
+	return exitOK
+}
+
+// printInstall prints what the installation for the user did.
+func (a *App) printInstall(r usecase.InstallReport) {
 	verb := "✅ installed"
 	if r.DryRun {
 		verb = "would install"
@@ -134,10 +188,6 @@ func (a *App) setup(args []string) int {
 	if r.Backup != "" {
 		fmt.Fprintf(a.Out, "backup: %s\n", r.Backup)
 	}
-	if !r.DryRun {
-		fmt.Fprintln(a.Out, "The status line appears on Claude Code's next redraw. A statusLine in a project's .claude/settings.json takes precedence over this one.")
-	}
-	return exitOK
 }
 
 func (a *App) uninstall() int {
@@ -155,6 +205,9 @@ func (a *App) uninstall() int {
 	}
 	if r.Backup != "" {
 		fmt.Fprintf(a.Out, "backup: %s\n", r.Backup)
+	}
+	for _, path := range r.Projects {
+		fmt.Fprintf(a.Out, "✅ removed statusLine from %s\n", path)
 	}
 	fmt.Fprintln(a.Out, "✅ removed the installed binary")
 	return exitOK

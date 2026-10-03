@@ -60,6 +60,8 @@ type Fake struct {
 	URLs map[string][]byte
 	// Width is the terminal width; zero means no controlling terminal.
 	Width int
+	// ReadErr makes ReadFile fail for the files it names.
+	ReadErr map[string]error
 	// ReadOnly makes WriteFile and Remove fail.
 	ReadOnly bool
 	// Path maps the name of an executable on PATH to its location.
@@ -173,6 +175,9 @@ func (f *Fake) Get(_ context.Context, url string, _ time.Duration) ([]byte, erro
 func (f *Fake) ReadFile(name string) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := f.ReadErr[name]; err != nil {
+		return nil, err
+	}
 	data, ok := f.Files[name]
 	if !ok {
 		return nil, fs.ErrNotExist

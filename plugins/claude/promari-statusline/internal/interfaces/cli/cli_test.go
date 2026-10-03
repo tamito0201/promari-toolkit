@@ -19,6 +19,7 @@ var errBroken = errors.New("broken")
 type fakes struct {
 	err      error
 	install  usecase.InstallReport
+	global   usecase.GlobalReport
 	remove   usecase.UninstallReport
 	checks   []model.Check
 	dryRun   bool
@@ -42,6 +43,15 @@ func (i installer) Execute(dryRun bool) (usecase.InstallReport, error) {
 	return report, i.err
 }
 
+type globalInstaller struct{ *fakes }
+
+func (g globalInstaller) Execute(dryRun bool) (usecase.GlobalReport, error) {
+	g.dryRun = dryRun
+	report := g.global
+	report.User.DryRun = dryRun
+	return report, g.err
+}
+
 type uninstaller struct{ *fakes }
 
 func (u uninstaller) Execute() (usecase.UninstallReport, error) { return u.remove, u.err }
@@ -60,7 +70,7 @@ func (d diagnoser) Execute() []model.Check { return d.checks }
 func run(f *fakes, stdin string, args ...string) (code int, stdout, stderr string) {
 	var out, errOut bytes.Buffer
 	app := &cli.App{
-		Render: f, Install: installer{f}, Uninstall: uninstaller{f}, Refresh: refresher{f}, Diagnose: diagnoser{f},
+		Render: f, Install: installer{f}, Global: globalInstaller{f}, Uninstall: uninstaller{f}, Refresh: refresher{f}, Diagnose: diagnoser{f},
 		In: strings.NewReader(stdin), Out: &out, Err: &errOut,
 	}
 	code = app.Run(context.Background(), args)
@@ -192,5 +202,68 @@ func TestSetupPassesDryRun(t *testing.T) {
 		if f.dryRun != tt.want {
 			t.Errorf("%v: dryRun = %v, want %v", tt.args, f.dryRun, tt.want)
 		}
+	}
+}
+
+func TestSetupGlobal(t *testing.T) {
+	t.Parallel()
+	report := usecase.GlobalReport{
+		User:    usecase.InstallReport{Binary: binary, Settings: settings, Command: command, Changed: true},
+		Checked: 4,
+		Fixes: []usecase.ProjectFix{
+			{Dir: "/w/a", Previous: "~/.claude/statusline.sh", Settings: "/w/a/.claude/settings.local.json", Excluded: true, Backup: "/w/a/.claude/settings.local.json.bak"},
+			{Dir: "/w/b", Previous: "~/.claude/statusline.sh", Settings: "/w/b/.claude/settings.local.json"},
+		},
+	}
+	t.Run("apply", func(t *testing.T) {
+		t.Parallel()
+		f := &fakes{global: report}
+		code, out, errOut := run(f, "", "setup", "--global")
+		for _, want := range []string{
+			"✅ statusLine in /w/a/.claude/settings.local.json now runs: " + command + " (it showed: ~/.claude/statusline.sh)",
+			"added to the repository's .git/info/exclude",
+			"backup: /w/a/.claude/settings.local.json.bak",
+			"projects: 4 checked, 2 showing another status line",
+			"shared .claude/settings.json is never changed",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("missing %q in:\n%s", want, out)
+			}
+		}
+		if code != 0 || errOut != "" || f.dryRun {
+			t.Errorf("code %d, stderr %q, dryRun %v", code, errOut, f.dryRun)
+		}
+	})
+	t.Run("dry run", func(t *testing.T) {
+		t.Parallel()
+		f := &fakes{global: report}
+		code, out, _ := run(f, "", "setup", "--global", "--dry-run")
+		if code != 0 || !f.dryRun || !strings.Contains(out, "would set statusLine in /w/b/.claude/settings.local.json (it shows: ~/.claude/statusline.sh)") {
+			t.Errorf("code %d, dryRun %v:\n%s", code, f.dryRun, out)
+		}
+	})
+	t.Run("a project that could not be set up fails the command", func(t *testing.T) {
+		t.Parallel()
+		broken := report
+		broken.Fixes = []usecase.ProjectFix{{Dir: "/w/c", Err: "broken"}}
+		code, _, errOut := run(&fakes{global: broken}, "", "setup", "--global")
+		if code != 1 || !strings.Contains(errOut, "/w/c: broken") {
+			t.Errorf("code %d, stderr %q", code, errOut)
+		}
+	})
+	t.Run("the installation fails", func(t *testing.T) {
+		t.Parallel()
+		code, _, errOut := run(&fakes{err: errors.New("no settings")}, "", "setup", "--global")
+		if code != 1 || !strings.Contains(errOut, "no settings") {
+			t.Errorf("code %d, stderr %q", code, errOut)
+		}
+	})
+}
+
+func TestUninstallReportsTheProjects(t *testing.T) {
+	t.Parallel()
+	f := &fakes{remove: usecase.UninstallReport{Settings: settings, Removed: true, Projects: []string{"/w/a/.claude/settings.local.json"}}}
+	if _, out, _ := run(f, "", "uninstall"); !strings.Contains(out, "✅ removed statusLine from /w/a/.claude/settings.local.json") {
+		t.Errorf("out:\n%s", out)
 	}
 }

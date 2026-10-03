@@ -3,6 +3,7 @@ package usecase
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"promari-statusline/internal/domain/model"
 	"promari-statusline/internal/domain/repository"
@@ -16,6 +17,7 @@ type DiagnoseDeps struct {
 	Tools    repository.ToolFinder
 	Terminal repository.Terminal
 	Launcher repository.LauncherLog
+	Projects repository.ProjectStore
 }
 
 // Diagnose checks the installation: whether the settings point at the status
@@ -48,7 +50,7 @@ func optionalTools() []optionalTool {
 
 // Execute returns the checks, in the order they should be read.
 func (u *Diagnose) Execute() []model.Check {
-	checks := []model.Check{u.settings(), u.binary()}
+	checks := []model.Check{u.settings(), u.projects(), u.binary()}
 	if failure, err := u.deps.Launcher.LastError(); err == nil {
 		checks = append(checks, model.Check{Level: model.CheckWarn, Name: "launcher", Detail: failure})
 	}
@@ -66,6 +68,42 @@ func (u *Diagnose) Execute() []model.Check {
 		Name:   "terminal width",
 		Detail: strconv.Itoa(cells) + " cells (" + source + "), " + strconv.Itoa(service.Budget(cells)) + " used per line",
 	})
+}
+
+// projectsShown is how many projects that show another status line are named
+// in the check; the rest are counted.
+const projectsShown = 5
+
+// projects checks that no project hides this status line behind one of its
+// own: a project's settings take precedence over the user's.
+func (u *Diagnose) projects() model.Check {
+	check := model.Check{Name: "projects"}
+	dirs, err := u.deps.Projects.Projects()
+	if err != nil {
+		check.Level, check.Detail = model.CheckWarn, "cannot be listed: "+err.Error()
+		return check
+	}
+	want := wanted(u.deps.Binary.Command())
+	var others []string
+	for _, dir := range dirs {
+		shown, err := shownIn(u.deps.Projects, dir)
+		if s, ok := shown.Get(); err != nil || (ok && s != want) {
+			others = append(others, dir)
+		}
+	}
+	if len(others) == 0 {
+		check.Detail = strconv.Itoa(len(dirs)) + " projects show this status line"
+		return check
+	}
+	named := others[:min(len(others), projectsShown)]
+	more := ""
+	if len(others) > len(named) {
+		more = " and " + strconv.Itoa(len(others)-len(named)) + " more"
+	}
+	check.Level = model.CheckWarn
+	check.Detail = strconv.Itoa(len(others)) + " of " + strconv.Itoa(len(dirs)) + " projects show another status line (" +
+		strings.Join(named, ", ") + more + "); run `psl setup --global`"
+	return check
 }
 
 func (u *Diagnose) settings() model.Check {

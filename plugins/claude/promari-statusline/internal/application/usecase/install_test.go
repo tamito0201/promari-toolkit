@@ -14,13 +14,19 @@ const ourCommand = "~/.claude/promari-statusline/psl render"
 
 // settings is a settings file in memory.
 type settings struct {
+	path     string
 	line     *model.StatusLineSetting
 	readErr  error
 	writeErr error
 	writes   int
 }
 
-func (s *settings) Path() string { return "/h/.claude/settings.json" }
+func (s *settings) Path() string {
+	if s.path != "" {
+		return s.path
+	}
+	return "/h/.claude/settings.json"
+}
 
 func (s *settings) StatusLine() (model.StatusLineSetting, error) {
 	switch {
@@ -48,6 +54,51 @@ func (s *settings) RemoveStatusLine() (string, error) {
 	s.line = nil
 	s.writes++
 	return "/h/.claude/settings.json.bak", nil
+}
+
+// projects are the projects Claude Code has opened, in memory. A project's
+// settings files are created empty when first asked for.
+type projects struct {
+	dirs       []string
+	listErr    error
+	shared     map[string]*settings
+	local      map[string]*settings
+	excludeErr error
+	excluded   []string
+}
+
+func newProjects(dirs ...string) *projects {
+	return &projects{dirs: dirs, shared: map[string]*settings{}, local: map[string]*settings{}}
+}
+
+func (p *projects) Projects() ([]string, error) { return p.dirs, p.listErr }
+
+func (p *projects) Shared(dir string) repository.SettingsStore {
+	return file(p.shared, dir, "settings.json")
+}
+
+func (p *projects) Local(dir string) repository.SettingsStore {
+	return file(p.local, dir, "settings.local.json")
+}
+
+func (p *projects) KeepOutOfGit(dir string) (bool, error) {
+	if p.excludeErr != nil {
+		return false, p.excludeErr
+	}
+	p.excluded = append(p.excluded, dir)
+	return true, nil
+}
+
+func file(files map[string]*settings, dir, name string) *settings {
+	s, ok := files[dir]
+	if !ok {
+		s = &settings{}
+		files[dir] = s
+	}
+	if s.path == "" {
+		s.path = dir + "/.claude/" + name
+	}
+	return s
 }
 
 // binary is the installed copy in memory.
@@ -133,7 +184,7 @@ func TestInstall(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			u := usecase.NewInstall(usecase.InstallDeps{Settings: tt.settings, Binary: tt.binary})
+			u := usecase.NewInstall(usecase.InstallDeps{Settings: tt.settings, Binary: tt.binary, Projects: newProjects()})
 			got, err := u.Execute(tt.dryRun)
 			if (err == nil) != (tt.wantErr == "") || err != nil && !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("err = %v, want %q", err, tt.wantErr)
@@ -173,7 +224,7 @@ func TestUninstall(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			u := usecase.NewUninstall(usecase.InstallDeps{Settings: tt.settings, Binary: tt.binary})
+			u := usecase.NewUninstall(usecase.InstallDeps{Settings: tt.settings, Binary: tt.binary, Projects: newProjects()})
 			got, err := u.Execute()
 			if (err == nil) != (tt.wantErr == "") || err != nil && !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("err = %v, want %q", err, tt.wantErr)
@@ -310,6 +361,7 @@ func TestDiagnose(t *testing.T) {
 			m.cells = 120
 			u := usecase.NewDiagnose(usecase.DiagnoseDeps{
 				Settings: tt.settings, Binary: tt.binary, Tools: tt.tools, Terminal: m, Launcher: tt.launcher,
+				Projects: newProjects(),
 			})
 			got := map[string]line{}
 			for _, check := range u.Execute() {

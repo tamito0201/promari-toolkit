@@ -71,6 +71,23 @@ key, and a copy of it as it was is left next to it (`settings.json.bak-<time>`).
 --dry-run` shows what would change without changing it. A settings file that is not valid
 JSON is left untouched.
 
+### Every terminal: `--global`
+
+A project's own settings take precedence over the user's: a project whose
+`.claude/settings.json` sets another status line shows that one, whatever `setup` wrote.
+
+```text
+psl setup --global --dry-run   # what would change
+psl setup --global
+```
+
+also writes the status line into the personal `.claude/settings.local.json` of every project
+Claude Code has opened (listed in `.claude.json`) that shows another one. That file takes
+precedence over the shared one and is not shared: when the repository does not ignore it already,
+it is added to the repository's own `.git/info/exclude`, which is never committed. A project's
+shared settings are never changed. `psl doctor` names the projects that still show another status
+line, and `psl uninstall` takes the status line out of the projects' personal settings as well.
+
 The copy has a path of its own because the plugin's directory changes with every version,
 and the settings would point at a binary that is gone after an update. At the start of a
 session a hook compares the copy with the plugin's binary and replaces it when they differ;

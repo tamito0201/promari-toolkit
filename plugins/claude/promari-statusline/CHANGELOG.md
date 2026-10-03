@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 — 2026-10-03
+
+- `psl setup --global` puts the status line on every terminal. A project's own settings take
+  precedence over the user's, so a project whose `.claude/settings.json` sets another status line
+  kept showing it. The global setup also writes the status line into the personal
+  `.claude/settings.local.json` of each such project (the projects Claude Code has opened, from
+  `.claude.json`), and keeps that file out of git through the repository's own
+  `.git/info/exclude` when it is not ignored already. A project's shared settings are never
+  changed. `--dry-run` shows what it would do.
+- `psl doctor` names the projects that show another status line.
+- `psl uninstall` also takes the status line out of the projects' personal settings, so that no
+  project is left running a binary that is gone.
+
 ## 1.2.1 — 2026-10-03
 
 - The release of 1.2.0, which was stopped before it was published: its tests named a
