@@ -112,6 +112,21 @@ func span(d time.Duration) string {
 	return strconv.Itoa(hours) + "h" + pad + strconv.Itoa(minutes) + "m"
 }
 
+// seconds converts seconds to a Duration, rounded to the nanosecond.
+func seconds(s float64) time.Duration { return time.Duration(math.Round(s * float64(time.Second))) }
+
+// signed formats a whole number with its sign and grouped digits: +1,234, -56, 0.
+func signed(n int) string {
+	switch {
+	case n > 0:
+		return "+" + grouped(float64(n))
+	case n < 0:
+		return "-" + grouped(float64(-n))
+	default:
+		return "0"
+	}
+}
+
 // until formats the time left until t, or 済 once it has passed.
 func until(t, now time.Time) string {
 	left := t.Sub(now).Truncate(time.Second)

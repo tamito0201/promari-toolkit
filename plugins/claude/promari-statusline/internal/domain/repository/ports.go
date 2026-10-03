@@ -44,9 +44,11 @@ type CodexReader interface {
 	Codex(ctx context.Context) (model.CodexLimits, error)
 }
 
-// ToolStatsReader counts the tool calls recorded in a transcript.
-type ToolStatsReader interface {
-	ToolStats(ctx context.Context, transcript string) (model.ToolStats, error)
+// TranscriptReader reads a session's transcript. It continues from since, what
+// an earlier read of the same transcript returned (the zero Transcript reads it
+// from the start), so that a transcript of tens of megabytes is read once.
+type TranscriptReader interface {
+	Transcript(ctx context.Context, path string, since model.Transcript) (model.Transcript, error)
 }
 
 // TodoReader reads the to-do list of a session.

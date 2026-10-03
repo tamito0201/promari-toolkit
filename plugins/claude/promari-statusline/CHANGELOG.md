@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.4.0 — 2026-10-03
+
+- Everything Claude Code reports that was not read yet: the spend limit's dollars and period,
+  the prompt cache's lifetime, warmth, writes, rebuilds, misses by cause and the time of the
+  last miss (and "Caching off" when no response reported cache tokens), the worktree, the vim
+  mode, the agent, the directory the session moved to, added directories, and the pull request
+  Claude Code found (shown when `gh` finds none, and for GitLab merge requests).
+- The session's transcript is read for the whole session: tokens with the cached and thinking
+  shares, requests, subagent requests, the models that answered, turn times (last, median,
+  90th percentile), thinking time, prompts, interrupts, refused tool calls, refusals, responses
+  cut at the output limit, queued prompts, web searches and fetches, files edited, hooks run and
+  failed, editor diagnostics, the permission mode, and the compactions with the time since the
+  last. A new `🤝 Agent` category shows how the agent and the human work together: tool calls
+  per prompt and interventions per prompt. The transcript is read incrementally and remembered
+  per transcript, so sessions running side by side no longer read each other's from the start.
+- `🌿 Git` shows staged, new and conflicted files, an operation in progress, the lines changed
+  against HEAD and the commits of today; `🔀 PR` shows a draft, conflicts, the size and the age.
+  Sizes above 400 lines are yellow and above 1,000 red, after the code review studies at Cisco
+  (SmartBear) and Google.
+- `📈 KPI` shows the net lines, deep work (streaks of 23 minutes or more, after the time it
+  takes to resume interrupted work in Mark et al., CHI 2008), the longest streak and the breaks.
+- Fix: the cause of the last cache miss was never shown. Claude Code reports it as an object
+  with a list of causes, and it was read as a string.
+- Fix: `Thruput` and `📊 Tokens In/Out` divided and showed the token counts of the last request
+  as if they were totals of the session. They are replaced by the totals from the transcript.
+
+
 ## 1.3.0 — 2026-10-03
 
 - `psl setup --global` puts the status line on every terminal. A project's own settings take

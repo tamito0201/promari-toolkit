@@ -2,6 +2,10 @@ package filecache
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"path/filepath"
 	"time"
 
 	"promari-statusline/internal/domain/model"
@@ -11,13 +15,22 @@ import (
 // How long each source's answer is remembered: as long as the answer stays
 // true enough, and no longer than a reader would notice.
 const (
-	pullTTL     = 5 * time.Minute
-	trackTTL    = 15 * time.Second
-	toolsTTL    = 30 * time.Second
-	incidentTTL = 5 * time.Minute
-	releaseTTL  = 6 * time.Hour
-	codexTTL    = time.Minute
-	accountTTL  = time.Hour
+	pullTTL  = 5 * time.Minute
+	trackTTL = 15 * time.Second
+	// transcriptTTL is short: a read only adds what was written since the last.
+	transcriptTTL = 10 * time.Second
+	incidentTTL   = 5 * time.Minute
+	releaseTTL    = 6 * time.Hour
+	codexTTL      = time.Minute
+	accountTTL    = time.Hour
+
+	// transcriptDir holds what each transcript recorded.
+	transcriptDir = "transcripts"
+	// transcriptsKept is how long the record of a transcript that is no longer
+	// read is kept.
+	transcriptsKept = 7 * 24 * time.Hour
+	// digestBytes is the part of a SHA-256 that names a file: 64 bits.
+	digestBytes = 8
 )
 
 // The decorators below add remembering to a reader without the reader knowing:
@@ -48,17 +61,47 @@ func (c Tracks) Track(ctx context.Context) (model.Track, error) {
 	return Memo(c.Store, "track.json", "", trackTTL, func() (model.Track, error) { return c.Next.Track(ctx) })
 }
 
-// ToolStats remembers the tool calls counted in a transcript.
-type ToolStats struct {
+// Transcripts remembers what each transcript recorded and where its reading
+// stopped, in a file of its own per transcript: sessions running side by side
+// would otherwise replace each other's progress and read their transcripts
+// from the start again and again.
+type Transcripts struct {
 	Store *Store
-	Next  repository.ToolStatsReader
+	Next  repository.TranscriptReader
 }
 
-// ToolStats implements repository.ToolStatsReader.
-func (c ToolStats) ToolStats(ctx context.Context, transcript string) (model.ToolStats, error) {
-	return Memo(c.Store, "tools.json", transcript, toolsTTL, func() (model.ToolStats, error) {
-		return c.Next.ToolStats(ctx, transcript)
-	})
+// Transcript implements repository.TranscriptReader. A remembered answer
+// younger than transcriptTTL is returned as it is; an older one is where the
+// next read continues. A failed read keeps the progress already remembered.
+func (c Transcripts) Transcript(ctx context.Context, path string, since model.Transcript) (model.Transcript, error) {
+	now := c.Store.sys.Now()
+	name := filepath.Join(transcriptDir, digest(path)+".json")
+	last, known := Load[entry[model.Transcript]](c.Store, name)
+	known = known && last.Key == path
+	if known && fresh(last.At, now, transcriptTTL) {
+		if !last.Found {
+			return last.Value, repository.ErrNone
+		}
+		return last.Value, nil
+	}
+	if known {
+		since = last.Value
+	} else {
+		c.Store.prune(transcriptDir, transcriptsKept)
+	}
+	read, err := c.Next.Transcript(ctx, path, since)
+	if err != nil && !errors.Is(err, repository.ErrNone) {
+		return read, err
+	}
+	// A cache that cannot be written costs reading the transcript from the start next time.
+	_ = Save(c.Store, entry[model.Transcript]{At: now, Key: path, Found: err == nil, Value: read}, name)
+	return read, err
+}
+
+// digest names a file after a path without spelling the path out.
+func digest(path string) string {
+	sum := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(sum[:digestBytes])
 }
 
 // Incidents remembers the state of the API's status page.

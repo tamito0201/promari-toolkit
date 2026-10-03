@@ -27,7 +27,7 @@ var _ repository.PullRequestReader = GitHub{}
 func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullRequest, error) {
 	out, err := g.Sys.Run(ctx, platform.Cmd{
 		Name:    "gh",
-		Args:    []string{"pr", "view", "--json", "number,reviewDecision,statusCheckRollup"},
+		Args:    []string{"pr", "view", "--json", "number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable"},
 		Dir:     dir,
 		Timeout: ghTimeout,
 	})
@@ -42,8 +42,16 @@ func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullReque
 		return model.PullRequest{}, repository.ErrNone
 	}
 	pull := model.PullRequest{
-		Number: int(number),
-		Review: model.ReviewDecision(jsonx.Or[string](view, "reviewDecision")),
+		Number:    int(number),
+		Review:    model.ReviewDecision(jsonx.Or[string](view, "reviewDecision")),
+		Additions: int(jsonx.Or[float64](view, "additions")),
+		Deletions: int(jsonx.Or[float64](view, "deletions")),
+		Files:     int(jsonx.Or[float64](view, "changedFiles")),
+		Draft:     jsonx.Or[bool](view, "isDraft"),
+		Conflicts: jsonx.Or[string](view, "mergeable") == "CONFLICTING",
+	}
+	if created, err := time.Parse(time.RFC3339, jsonx.Or[string](view, "createdAt")); err == nil {
+		pull.Created = created
 	}
 	for _, check := range jsonx.Or[[]jsonx.Object](view, "statusCheckRollup") {
 		conclusion := strings.ToUpper(jsonx.Or[string](check, "conclusion"))

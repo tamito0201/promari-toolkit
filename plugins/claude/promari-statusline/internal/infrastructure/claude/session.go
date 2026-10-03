@@ -4,7 +4,6 @@
 package claude
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -24,108 +23,6 @@ func ConfigDir(sys platform.System) string {
 		return dir
 	}
 	return filepath.Join(sys.HomeDir(), ".claude")
-}
-
-// topTools is how many tools the status line names.
-const topTools = 3
-
-// Transcript counts the tool calls recorded in a session's transcript.
-type Transcript struct {
-	Sys platform.System
-}
-
-var _ repository.ToolStatsReader = Transcript{}
-
-// ToolStats implements repository.ToolStatsReader.
-func (t Transcript) ToolStats(_ context.Context, transcript string) (model.ToolStats, error) {
-	data, err := t.Sys.ReadFile(transcript)
-	if err != nil {
-		return model.ToolStats{}, fmt.Errorf("read the transcript: %w", err)
-	}
-	stats := countTools(data)
-	if stats.Total == 0 {
-		return model.ToolStats{}, repository.ErrNone
-	}
-	return stats, nil
-}
-
-// The marks of a tool call and of a failed result in a transcript.
-const (
-	toolUseMark   = `"type":"tool_use"`
-	toolNameKey   = `"name":"`
-	toolInputKey  = `"input":`
-	toolErrorMark = `"is_error":true`
-	// toolNameWindow is how far behind the mark of a tool call its name is
-	// looked for: the name follows the type and the id of the call.
-	toolNameWindow = 200
-	// toolNameMax is the longest name taken for a tool.
-	toolNameMax = 128
-)
-
-// countTools scans a transcript without decoding it: a transcript grows to
-// tens of megabytes, and all that is needed is the name of each tool call and
-// how many lines carry a failed result.
-//
-// Only a name that belongs to a tool call is counted. A transcript holds many
-// other "name" members (a git remote is {"name":"origin"}), and counting those
-// made a tool of every one of them. Text that quotes a tool call is not a
-// call either: inside a JSON string its quotes are escaped.
-func countTools(transcript []byte) model.ToolStats {
-	counts := map[string]int{}
-	var order []string // first-seen order, which breaks ties between equal counts
-	for rest := transcript; ; {
-		_, after, found := bytes.Cut(rest, []byte(toolUseMark))
-		if !found {
-			break
-		}
-		rest = after
-		name, ok := toolName(after)
-		if !ok {
-			continue
-		}
-		if counts[name] == 0 {
-			order = append(order, name)
-		}
-		counts[name]++
-	}
-	stats := model.ToolStats{}
-	for _, name := range order {
-		stats.Total += counts[name]
-		stats.Top = append(stats.Top, model.ToolCount{Name: name, Count: counts[name]})
-	}
-	slices.SortStableFunc(stats.Top, func(a, b model.ToolCount) int { return b.Count - a.Count })
-	stats.Top = stats.Top[:min(len(stats.Top), topTools)]
-	for line := range bytes.Lines(transcript) {
-		if bytes.Contains(line, []byte(toolErrorMark)) {
-			stats.Errors++
-		}
-	}
-	return stats
-}
-
-// toolName returns the name of the tool call whose mark stands before call.
-// The name is looked for up to the input of the call, so that a member "name"
-// of the input is not taken for it.
-func toolName(call []byte) (string, bool) {
-	head := call[:min(len(call), toolNameWindow)]
-	if before, _, found := bytes.Cut(head, []byte(toolInputKey)); found {
-		head = before
-	}
-	_, value, found := bytes.Cut(head, []byte(toolNameKey))
-	if !found {
-		return "", false
-	}
-	end := bytes.IndexByte(value, '"')
-	if end <= 0 || end > toolNameMax || bytes.ContainsFunc(value[:end], func(r rune) bool { return !isNameRune(r) }) {
-		return "", false
-	}
-	return string(value[:end]), true
-}
-
-// isNameRune reports whether r can be part of a tool's name. The tools of an
-// MCP server carry its name, with digits, dots and hyphens (mcp__notion__API-post-page).
-func isNameRune(r rune) bool {
-	return r == '_' || r == '-' || r == '.' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9'
 }
 
 // Todos reads the to-do list Claude Code keeps for a session.

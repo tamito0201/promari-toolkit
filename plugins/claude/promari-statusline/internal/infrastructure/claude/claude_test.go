@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -30,7 +31,7 @@ func TestConfigDir(t *testing.T) {
 	}
 }
 
-func TestTranscript(t *testing.T) {
+func TestTranscriptTools(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
@@ -94,26 +95,27 @@ func TestTranscript(t *testing.T) {
 		},
 		{
 			"a name of the longest length is a name",
-			`{"type":"tool_use","id":"a","name":"` + strings.Repeat("x", 128) + `"}`,
+			`{"type":"tool_use","id":"a","name":"` + strings.Repeat("x", 128) + `"}` + "\n",
 			model.ToolStats{Total: 1, Top: []model.ToolCount{{Name: strings.Repeat("x", 128), Count: 1}}},
 			nil,
 		},
-		{"a transcript without tool calls", `{"type":"user"}`, model.ToolStats{}, repository.ErrNone},
+		{"a transcript without tool calls", `{"type":"user"}` + "\n", model.ToolStats{}, repository.ErrNone},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			sys := platformtest.New(t0)
 			sys.Files["/t.jsonl"] = []byte(tt.transcript)
-			got, err := claude.Transcript{Sys: sys}.ToolStats(context.Background(), "/t.jsonl")
+			read, err := claude.Transcript{Sys: sys}.Transcript(context.Background(), "/t.jsonl", model.Transcript{})
+			got := read.Tools
 			if got.Total != tt.want.Total || got.Errors != tt.want.Errors || !slices.Equal(got.Top, tt.want.Top) || !errors.Is(err, tt.err) {
-				t.Errorf("ToolStats() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
+				t.Errorf("Transcript().Tools = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}
 		})
 	}
 	t.Run("a transcript that cannot be read", func(t *testing.T) {
 		t.Parallel()
-		if _, err := (claude.Transcript{Sys: platformtest.New(t0)}).ToolStats(context.Background(), "/missing"); !errors.Is(err, fs.ErrNotExist) {
+		if _, err := (claude.Transcript{Sys: platformtest.New(t0)}).Transcript(context.Background(), "/missing", model.Transcript{}); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("err = %v", err)
 		}
 	})
@@ -557,6 +559,156 @@ func TestLauncher(t *testing.T) {
 			got, err := claude.Launcher{Sys: sys}.LastError()
 			if got != tt.want || !errors.Is(err, tt.err) {
 				t.Errorf("LastError() = %q, %v; want %q, %v", got, err, tt.want, tt.err)
+			}
+		})
+	}
+}
+
+// A transcript as Claude Code writes it, one entry per line. The JSON below
+// is laid out as JSON is, not as Go is.
+// editorconfig-checker-disable
+const recorded = `{"type":"user","timestamp":"2026-10-03T04:00:00Z","origin":{"kind":"human"},"message":{"role":"user","content":"fix the bug"}}
+{"type":"assistant","timestamp":"2026-10-03T04:00:05Z","thinkingDurationMs":1500,"message":{"id":"msg_1","model":"claude-opus-5-5","stop_reason":"tool_use","usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":5000,"output_tokens":200,"output_tokens_details":{"thinking_tokens":50},"server_tool_use":{"web_search_requests":1,"web_fetch_requests":2},"cache_creation":{"ephemeral_1h_input_tokens":1000}},"content":[{"type":"thinking","thinking":"..."}]}}
+{"type":"assistant","timestamp":"2026-10-03T04:00:06Z","message":{"id":"msg_1","model":"claude-opus-5-5","usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":5000,"output_tokens":200},"content":[{"type":"tool_use","id":"toolu_1","name":"Edit","input":{"file_path":"/w/a.go","old_string":"x"}}]}}
+{"type":"user","timestamp":"2026-10-03T04:00:07Z","origin":null,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","is_error":true}]}}
+{"type":"user","timestamp":"2026-10-03T04:00:08Z","origin":{"kind":"task-notification"},"message":{"content":"a task ended"}}
+{"type":"user","timestamp":"2026-10-03T04:00:09Z","toolDenialKind":"user-rejected","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_2"}]}}
+{"type":"assistant","timestamp":"2026-10-03T04:00:10Z","isSidechain":true,"message":{"id":"msg_2","model":"claude-haiku-4-5","stop_reason":"max_tokens","usage":{"input_tokens":3,"output_tokens":7},"content":[{"type":"tool_use","id":"toolu_3","name":"Write","input":{"file_path":"/w/b.go"}},{"type":"tool_use","id":"toolu_4","name":"NotebookEdit","input":{"notebook_path":"/w/c.ipynb"}},{"type":"tool_use","id":"toolu_5","name":"Edit","input":{"file_path":"/w/a.go"}}]}}
+{"type":"assistant","message":{"id":"msg_3","model":"<synthetic>","stop_reason":"refusal","usage":{}}}
+{"type":"user","interruptedMessageId":"msg_3","message":{"content":"[Request interrupted by user]"}}
+{"type":"system","subtype":"turn_duration","durationMs":64000}
+{"type":"system","subtype":"turn_duration","durationMs":0}
+{"type":"system","subtype":"compact_boundary","timestamp":"2026-10-03T04:30:00Z"}
+{"type":"permission-mode","permissionMode":"plan"}
+{"type":"permission-mode","permissionMode":"acceptEdits"}
+{"type":"permission-mode"}
+{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PreToolUse"}}
+{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PostToolUse"}}
+{"type":"attachment","attachment":{"type":"hook_non_blocking_error"}}
+{"type":"attachment","attachment":{"type":"hook_cancelled"}}
+{"type":"attachment","attachment":{"type":"queued_command"}}
+{"type":"attachment","attachment":{"type":"diagnostics"}}
+{"type":"attachment","attachment":{"type":"output_style"}}
+not json
+`
+
+// editorconfig-checker-enable
+
+func TestTranscriptRecords(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	sys.Files["/t.jsonl"] = []byte(recorded)
+	got, err := claude.Transcript{Sys: sys}.Transcript(context.Background(), "/t.jsonl", model.Transcript{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := model.TokenTotals{Input: 13, CacheWrite: 1000, CacheWrite1h: 1000, CacheRead: 5000, Output: 207, Thinking: 50}
+	if got.Tokens != want {
+		t.Errorf("Tokens = %+v; want %+v (a message written as two entries counts once)", got.Tokens, want)
+	}
+	for _, c := range []struct {
+		name      string
+		got, want int
+	}{
+		{"requests", got.Requests, 3},
+		{"side requests", got.SideRequests, 1},
+		{"prompts", got.Prompts, 1},
+		{"interrupts", got.Interrupts, 1},
+		{"denials", got.Denials, 1},
+		{"refusals", got.Refusals, 1},
+		{"truncated", got.Truncated, 1},
+		{"web searches", got.WebSearches, 1},
+		{"web fetches", got.WebFetches, 2},
+		{"compactions", got.Compactions, 1},
+		{"tool calls", got.Tools.Total, 4},
+		{"tool errors", got.Tools.Errors, 1},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s = %d, want %d", c.name, c.got, c.want)
+		}
+	}
+	if !maps.Equal(got.Models, map[string]int{"claude-opus-5-5": 1, "claude-haiku-4-5": 1}) {
+		t.Errorf("Models = %v; a synthetic response is no model", got.Models)
+	}
+	if want := []string{"/w/a.go", "/w/b.go", "/w/c.ipynb"}; !slices.Equal(got.Files, want) {
+		t.Errorf("Files = %v, want %v", got.Files, want)
+	}
+	if got.PermissionMode != "acceptEdits" {
+		t.Errorf("PermissionMode = %q; the last mode, an entry without one changes nothing", got.PermissionMode)
+	}
+	if !slices.Equal(got.Turns, []float64{64}) || got.ThinkingSeconds != 1.5 {
+		t.Errorf("Turns = %v, ThinkingSeconds = %v", got.Turns, got.ThinkingSeconds)
+	}
+	if !got.Started.Equal(time.Date(2026, 10, 3, 4, 0, 0, 0, time.UTC)) || !got.LastCompaction.Equal(time.Date(2026, 10, 3, 4, 30, 0, 0, time.UTC)) {
+		t.Errorf("Started = %v, LastCompaction = %v", got.Started, got.LastCompaction)
+	}
+	if got.Cursor.Offset != int64(len(recorded)) || !slices.Equal(got.Cursor.Recent, []string{"msg_1", "msg_2", "msg_3"}) {
+		t.Errorf("Cursor = %+v", got.Cursor)
+	}
+}
+
+func TestTranscriptContinues(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const first = `{"type":"assistant","message":{"id":"msg_1","usage":{"output_tokens":5},"content":[{"type":"tool_use","id":"a","name":"Bash","input":{}}]}}` + "\n"
+	const repeat = `{"type":"assistant","message":{"id":"msg_1","usage":{"output_tokens":5},"content":[{"type":"tool_use","id":"b","name":"Read","input":{}}]}}` + "\n"
+	const half = `{"type":"assistant","message":{"id":"msg_2","usage":{"output_tokens":7}`
+	sys := platformtest.New(t0)
+	reader := claude.Transcript{Sys: sys}
+
+	sys.Files["/t.jsonl"] = []byte(first + half)
+	got, err := reader.Transcript(ctx, "/t.jsonl", model.Transcript{})
+	if err != nil || got.Tokens.Output != 5 || got.Cursor.Offset != int64(len(first)) {
+		t.Fatalf("first read = %+v, %v; an unfinished line waits for the next read", got, err)
+	}
+	// The rest of the response arrives, and a block of the first message
+	// that repeats its usage.
+	sys.Files["/t.jsonl"] = []byte(first + half + `,"content":[]}}` + "\n" + repeat)
+	got, err = reader.Transcript(ctx, "/t.jsonl", got)
+	if err != nil || got.Requests != 2 || got.Tokens.Output != 12 || got.Tools.Total != 2 {
+		t.Fatalf("second read = %+v, %v", got, err)
+	}
+	if want := []model.ToolCount{{Name: "Bash", Count: 1}, {Name: "Read", Count: 1}}; !slices.Equal(got.Tools.Top, want) {
+		t.Errorf("Top = %v, want %v", got.Tools.Top, want)
+	}
+	nothingNew, err := reader.Transcript(ctx, "/t.jsonl", got)
+	if err != nil || nothingNew.Requests != 2 || nothingNew.Cursor.Offset != got.Cursor.Offset {
+		t.Errorf("a read without anything new = %+v, %v", nothingNew, err)
+	}
+
+	// A shorter file is a new transcript, read from the start.
+	sys.Files["/t.jsonl"] = []byte(first)
+	got, err = reader.Transcript(ctx, "/t.jsonl", got)
+	if err != nil || got.Requests != 1 || got.Cursor.Offset != int64(len(first)) {
+		t.Errorf("a replaced transcript = %+v, %v", got, err)
+	}
+}
+
+func TestHumanPrompts(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		entry string
+		want  int
+	}{
+		{"named human", `{"type":"user","origin":{"kind":"human"},"message":{"content":"x"}}`, 1},
+		{"named otherwise", `{"type":"user","origin":{"kind":"task-notification"},"message":{"content":"x"}}`, 0},
+		{"unnamed text", `{"type":"user","message":{"content":"x"}}`, 1},
+		{"unnamed blocks of text", `{"type":"user","message":{"content":[{"type":"text","text":"x"}]}}`, 1},
+		{"unnamed tool result", `{"type":"user","message":{"content":[{"type":"tool_result"}]}}`, 0},
+		{"unnamed empty", `{"type":"user","message":{"content":[]}}`, 0},
+		{"a meta entry", `{"type":"user","isMeta":true,"message":{"content":"x"}}`, 0},
+		{"a compaction summary", `{"type":"user","isCompactSummary":true,"message":{"content":"x"}}`, 0},
+		{"a subagent's prompt", `{"type":"user","isSidechain":true,"message":{"content":"x"}}`, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sys := platformtest.New(t0)
+			sys.Files["/t.jsonl"] = []byte(tt.entry + "\n")
+			got, _ := claude.Transcript{Sys: sys}.Transcript(context.Background(), "/t.jsonl", model.Transcript{})
+			if got.Prompts != tt.want {
+				t.Errorf("Prompts = %d, want %d", got.Prompts, tt.want)
 			}
 		})
 	}

@@ -75,6 +75,7 @@ func sections() []section {
 		{"📦 Cache", model.ToneNote, cacheChips},
 		{"📊 Tokens", model.ToneInfo, tokenChips},
 		{"🔧 Work", model.ToneNote, workChips},
+		{"🤝 Agent", model.ToneAccent, agentChips},
 		{"🌿 Git", model.ToneGood, gitChips},
 		{"🔀 PR", model.ToneInfo, pullChips},
 		{"🔖 Session", model.ToneNote, sessionChips},

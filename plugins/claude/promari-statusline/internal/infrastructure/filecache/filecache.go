@@ -75,6 +75,17 @@ func Save[T any](s *Store, v T, name ...string) error {
 	return s.sys.WriteFile(s.Path(name...), data, platform.Private)
 }
 
+// prune removes the files of a directory of the store not written for longer
+// than age. A file that cannot be removed is left for the next time.
+func (s *Store) prune(dir string, age time.Duration) {
+	now := s.sys.Now()
+	for _, path := range s.sys.Glob(s.Path(dir, "*.json")) {
+		if at, err := s.sys.ModTime(path); err == nil && now.Sub(at) > age {
+			_ = s.sys.Remove(path)
+		}
+	}
+}
+
 // entry is one remembered answer. Data is stored, never rendered text: a
 // stored chip would freeze its blink and every countdown for as long as the
 // entry lives.

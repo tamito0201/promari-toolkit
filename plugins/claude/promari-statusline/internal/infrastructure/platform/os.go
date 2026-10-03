@@ -114,6 +114,29 @@ func (o *OS) Get(ctx context.Context, url string, timeout time.Duration) (body [
 // ReadFile returns a file's content.
 func (*OS) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
 
+// ReadFrom returns a file's content from offset to its end, and its size.
+func (*OS) ReadFrom(path string, offset int64) (data []byte, size int64, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, 0, fmt.Errorf("read %s: %w", path, err)
+	}
+	defer func() { err = errors.Join(err, f.Close()) }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, 0, fmt.Errorf("read %s: %w", path, err)
+	}
+	size = info.Size()
+	if offset < 0 || offset >= size {
+		return nil, size, nil
+	}
+	data = make([]byte, size-offset)
+	n, err := f.ReadAt(data, offset)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, 0, fmt.Errorf("read %s: %w", path, err)
+	}
+	return data[:n], size, nil
+}
+
 // WriteFile writes to a temporary file beside the target and renames it over
 // the target, so another session's status line never reads a half-written file.
 func (*OS) WriteFile(path string, data []byte, mode fs.FileMode) (err error) {

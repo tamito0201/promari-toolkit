@@ -6,14 +6,14 @@ import "time"
 // report. Each fact is optional: a source that is missing, slow or broken
 // leaves its fact absent and its chips disappear; it never breaks the line.
 type Facts struct {
-	Git      Optional[Git]
-	Pull     Optional[PullRequest]
-	Spend    Optional[Spend]
-	Codex    Optional[CodexLimits]
-	Tools    Optional[ToolStats]
-	Todos    Optional[Todos]
-	Track    Optional[Track]
-	Incident Optional[Incident]
+	Git        Optional[Git]
+	Pull       Optional[PullRequest]
+	Spend      Optional[Spend]
+	Codex      Optional[CodexLimits]
+	Transcript Optional[Transcript]
+	Todos      Optional[Todos]
+	Track      Optional[Track]
+	Incident   Optional[Incident]
 	// Latest is the newest released version of Claude Code.
 	Latest  Optional[string]
 	Account Optional[string]
@@ -27,6 +27,19 @@ type Git struct {
 	Ahead   int
 	Behind  int
 	Stashes int
+	// Staged, Untracked and Conflicts break Changed down: files staged for the
+	// next commit, files git does not track, and files with merge conflicts.
+	Staged    int
+	Untracked int
+	Conflicts int
+	// Inserted and Deleted are the lines changed against HEAD, staged or not.
+	Inserted int
+	Deleted  int
+	// Operation is the operation in progress (rebase, merge, cherry-pick,
+	// revert, bisect), or "".
+	Operation string
+	// CommitsToday are the commits on HEAD made since midnight.
+	CommitsToday int
 	// LastCommit is zero when the branch has no commit.
 	LastCommit time.Time
 }
@@ -48,7 +61,18 @@ type PullRequest struct {
 	Failed  int            `json:"failed"`
 	Pending int            `json:"pending"`
 	Review  ReviewDecision `json:"review,omitzero"`
+	// Additions, Deletions and Files are the size of the change.
+	Additions int `json:"additions,omitzero"`
+	Deletions int `json:"deletions,omitzero"`
+	Files     int `json:"files,omitzero"`
+	// Created is zero when unknown.
+	Created   time.Time `json:"created,omitzero"`
+	Draft     bool      `json:"draft,omitzero"`
+	Conflicts bool      `json:"conflicts,omitzero"`
 }
+
+// Size returns the lines the pull request changes.
+func (p PullRequest) Size() int { return p.Additions + p.Deletions }
 
 // Amount is a sum of money as its source printed it, and its value.
 type Amount struct {

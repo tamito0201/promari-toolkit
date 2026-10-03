@@ -20,6 +20,12 @@ const (
 	etaMinSpan = time.Minute
 	// etaMax hides an estimate too far away to act on.
 	etaMax = 12 * time.Hour
+	// DeepStreak is the shortest streak that counts as deep work: the time it
+	// takes, on average, to get back to an interrupted task (23 min 15 s in
+	// Mark, Gudith and Klocke, "The Cost of Interrupted Work", CHI 2008). A
+	// streak shorter than that ends before the work it resumed was back in
+	// full swing.
+	DeepStreak = 23 * time.Minute
 )
 
 // Activity is what one session remembers between renders: how its context
@@ -35,6 +41,12 @@ type Activity struct {
 	WorkedSeconds float64   `json:"worked_seconds"`
 	IdledSeconds  float64   `json:"idled_seconds"`
 	StreakStart   time.Time `json:"streak_start,omitzero"`
+	// Breaks are the pauses longer than IdleGap.
+	Breaks int `json:"breaks,omitzero"`
+	// DeepSeconds is the time worked in finished streaks of DeepStreak or
+	// longer; LongestSeconds the longest finished streak.
+	DeepSeconds    float64 `json:"deep_seconds,omitzero"`
+	LongestSeconds float64 `json:"longest_seconds,omitzero"`
 }
 
 // Sample is the context size at one moment.
@@ -56,6 +68,8 @@ func (a *Activity) Observe(used float64, promptID string, now time.Time) {
 		a.StreakStart = now
 	case gap > IdleGap:
 		a.IdledSeconds += gap.Seconds()
+		a.endStreak(a.LastSeen.Sub(a.StreakStart))
+		a.Breaks++
 		a.StreakStart = now
 	default:
 		a.WorkedSeconds += max(0, gap.Seconds())
@@ -95,6 +109,29 @@ func (a *Activity) ETA(remain float64) (eta time.Duration, ok bool) {
 		return 0, false
 	}
 	return seconds(left), true
+}
+
+// endStreak records a finished streak of the given length.
+func (a *Activity) endStreak(length time.Duration) {
+	a.LongestSeconds = max(a.LongestSeconds, length.Seconds())
+	if length >= DeepStreak {
+		a.DeepSeconds += length.Seconds()
+	}
+}
+
+// Deep returns the time worked in streaks of DeepStreak or longer, the
+// current streak included once it is that long.
+func (a *Activity) Deep(now time.Time) time.Duration {
+	deep := seconds(a.DeepSeconds)
+	if streak := a.Streak(now); streak >= DeepStreak {
+		deep += streak
+	}
+	return deep
+}
+
+// Longest returns the longest streak, the current one included.
+func (a *Activity) Longest(now time.Time) time.Duration {
+	return max(seconds(a.LongestSeconds), a.Streak(now))
 }
 
 // Worked returns the time the session spent working.

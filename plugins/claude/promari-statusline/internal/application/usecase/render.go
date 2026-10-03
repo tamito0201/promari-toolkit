@@ -19,17 +19,17 @@ const limitsKept = 7 * 24 * time.Hour
 
 // Sources are the readers a render asks for facts.
 type Sources struct {
-	Git      repository.GitReader
-	Pulls    repository.PullRequestReader
-	Spend    repository.SpendReader
-	Codex    repository.CodexReader
-	Tools    repository.ToolStatsReader
-	Todos    repository.TodoReader
-	Track    repository.TrackReader
-	Incident repository.IncidentReader
-	Release  repository.ReleaseReader
-	Account  repository.AccountReader
-	Machine  repository.MachineReader
+	Git        repository.GitReader
+	Pulls      repository.PullRequestReader
+	Spend      repository.SpendReader
+	Codex      repository.CodexReader
+	Transcript repository.TranscriptReader
+	Todos      repository.TodoReader
+	Track      repository.TrackReader
+	Incident   repository.IncidentReader
+	Release    repository.ReleaseReader
+	Account    repository.AccountReader
+	Machine    repository.MachineReader
 }
 
 // RenderDeps is what RenderStatusLine depends on.
@@ -180,7 +180,9 @@ func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) model.
 	wg.Go(func() { facts.Machine = src.Machine.Machine(ctx, s.WorkDir()) })
 	if s.TranscriptPath != "" {
 		wg.Go(func() {
-			facts.Tools = read(func() (model.ToolStats, error) { return src.Tools.ToolStats(ctx, s.TranscriptPath) })
+			facts.Transcript = read(func() (model.Transcript, error) {
+				return src.Transcript.Transcript(ctx, s.TranscriptPath, model.Transcript{})
+			})
 		})
 	}
 	if key, ok := s.Key(); ok {

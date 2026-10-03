@@ -72,17 +72,17 @@ func New(sys platform.System, streams Streams) *cli.App {
 // remembers its answer; the use case sees the port either way.
 func sources(sys platform.System, store *filecache.Store) usecase.Sources {
 	return usecase.Sources{
-		Git:      vcs.Git{Sys: sys},
-		Pulls:    filecache.PullRequests{Store: store, Next: vcs.GitHub{Sys: sys}},
-		Spend:    usage.CCUsage{Sys: sys},
-		Codex:    filecache.Codex{Store: store, Next: usage.Codex{Sys: sys}},
-		Tools:    filecache.ToolStats{Store: store, Next: claude.Transcript{Sys: sys}},
-		Todos:    claude.Todos{Sys: sys},
-		Track:    filecache.Tracks{Store: store, Next: host.NowPlaying{Sys: sys}},
-		Incident: filecache.Incidents{Store: store, Next: claude.StatusPage{Sys: sys}},
-		Release:  filecache.Releases{Store: store, Next: claude.Registry{Sys: sys}},
-		Account:  filecache.Accounts{Store: store, Next: claude.Account{Sys: sys}},
-		Machine:  host.Machine{Sys: sys},
+		Git:        vcs.Git{Sys: sys},
+		Pulls:      filecache.PullRequests{Store: store, Next: vcs.GitHub{Sys: sys}},
+		Spend:      usage.CCUsage{Sys: sys},
+		Codex:      filecache.Codex{Store: store, Next: usage.Codex{Sys: sys}},
+		Transcript: filecache.Transcripts{Store: store, Next: claude.Transcript{Sys: sys}},
+		Todos:      claude.Todos{Sys: sys},
+		Track:      filecache.Tracks{Store: store, Next: host.NowPlaying{Sys: sys}},
+		Incident:   filecache.Incidents{Store: store, Next: claude.StatusPage{Sys: sys}},
+		Release:    filecache.Releases{Store: store, Next: claude.Registry{Sys: sys}},
+		Account:    filecache.Accounts{Store: store, Next: claude.Account{Sys: sys}},
+		Machine:    host.Machine{Sys: sys},
 	}
 }
 

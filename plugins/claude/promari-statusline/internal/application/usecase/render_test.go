@@ -30,17 +30,17 @@ type world struct {
 	asked []string
 	err   error
 
-	git      model.Git
-	pull     model.PullRequest
-	spend    model.Spend
-	codex    model.CodexLimits
-	tools    model.ToolStats
-	todos    model.Todos
-	track    model.Track
-	incident model.Incident
-	latest   string
-	account  string
-	machine  model.Machine
+	git        model.Git
+	pull       model.PullRequest
+	spend      model.Spend
+	codex      model.CodexLimits
+	transcript model.Transcript
+	todos      model.Todos
+	track      model.Track
+	incident   model.Incident
+	latest     string
+	account    string
+	machine    model.Machine
 }
 
 func (w *world) ask(question string) error {
@@ -64,8 +64,8 @@ func (w *world) Spend(_ context.Context, input []byte) (model.Spend, error) {
 
 func (w *world) Codex(context.Context) (model.CodexLimits, error) { return w.codex, w.ask("codex") }
 
-func (w *world) ToolStats(_ context.Context, transcript string) (model.ToolStats, error) {
-	return w.tools, w.ask("tools " + transcript)
+func (w *world) Transcript(_ context.Context, path string, _ model.Transcript) (model.Transcript, error) {
+	return w.transcript, w.ask("transcript " + path)
 }
 
 func (w *world) Todos(_ context.Context, key string) (model.Todos, error) {
@@ -88,7 +88,7 @@ func (w *world) Machine(_ context.Context, dir string) model.Machine {
 
 func (w *world) sources() usecase.Sources {
 	return usecase.Sources{
-		Git: w, Pulls: w, Spend: w, Codex: w, Tools: w, Todos: w, Track: w, Incident: w, Release: w, Account: w, Machine: w,
+		Git: w, Pulls: w, Spend: w, Codex: w, Transcript: w, Todos: w, Track: w, Incident: w, Release: w, Account: w, Machine: w,
 	}
 }
 
@@ -245,23 +245,23 @@ func session() model.Session {
 func TestRenderGathersEveryFact(t *testing.T) {
 	t.Parallel()
 	w := &world{
-		git:      model.Git{Branch: "develop", Changed: 2},
-		pull:     model.PullRequest{Number: 7, Passed: 3},
-		spend:    model.Spend{Today: model.Some(model.Amount{Text: "45.67", Value: 45.67})},
-		codex:    model.CodexLimits{Primary: model.Some(model.CodexWindow{UsedPct: 5, WindowMinutes: 300}), SeenAt: t0},
-		tools:    model.ToolStats{Total: 3, Top: []model.ToolCount{{Name: "Read", Count: 3}}},
-		todos:    model.Todos{Done: 1, Total: 2},
-		track:    model.Track{Title: "Take Five"},
-		incident: model.Incident{Indicator: "minor", Description: "Slow"},
-		latest:   "2.1.287",
-		account:  "someone@example.com",
-		machine:  model.Machine{Sessions: 2},
+		git:        model.Git{Branch: "develop", Changed: 2},
+		pull:       model.PullRequest{Number: 7, Passed: 3},
+		spend:      model.Spend{Today: model.Some(model.Amount{Text: "45.67", Value: 45.67})},
+		codex:      model.CodexLimits{Primary: model.Some(model.CodexWindow{UsedPct: 5, WindowMinutes: 300}), SeenAt: t0},
+		transcript: model.Transcript{Tools: model.ToolStats{Total: 3, Top: []model.ToolCount{{Name: "Read", Count: 3}}}, Prompts: 1},
+		todos:      model.Todos{Done: 1, Total: 2},
+		track:      model.Track{Title: "Take Five"},
+		incident:   model.Incident{Indicator: "minor", Description: "Slow"},
+		latest:     "2.1.287",
+		account:    "someone@example.com",
+		machine:    model.Machine{Sessions: 2},
 	}
 	m := newMemory()
 	got := render(w, m, t0, session())
 	lines := text(got)
 	for _, want := range []string{
-		"🌐 API minor: Slow", "42%", "🤖 Codex 5h", "Today $45.67", "Turns ×1", "✅ Todo 1/2", "Tools ×3 Read3",
+		"🌐 API minor: Slow", "42%", "🤖 Codex 5h", "Today $45.67", "Turns ×1", "✅ Todo 1/2", "Tools ×3 Read3", "🤝 Agent | Prompts ×1 | Auto ×3.0/prompt",
 		"develop", "📝 2 Files", "🔀 PR | #7 CI ✅ 3", "Opus", "⛵ Proc ×2", "👤 someone", "🆙 Update v2.1.287", "Take Five",
 	} {
 		if !contains(lines, want) {
@@ -274,7 +274,7 @@ func TestRenderGathersEveryFact(t *testing.T) {
 	slices.Sort(w.asked)
 	wantAsked := []string{
 		"account", "codex", "git /work", "incident", "latest", "machine /work", "pull /work develop",
-		`spend {"raw":true}`, "todos s1", "tools /t.jsonl", "track",
+		`spend {"raw":true}`, "todos s1", "track", "transcript /t.jsonl",
 	}
 	if !slices.Equal(w.asked, wantAsked) {
 		t.Errorf("asked %q, want %q", w.asked, wantAsked)

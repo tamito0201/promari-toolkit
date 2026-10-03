@@ -185,6 +185,19 @@ func (f *Fake) ReadFile(name string) ([]byte, error) {
 	return slices.Clone(data), nil
 }
 
+// ReadFrom returns Files[path] from offset, and its length.
+func (f *Fake) ReadFrom(name string, offset int64) ([]byte, int64, error) {
+	data, err := f.ReadFile(name)
+	if err != nil {
+		return nil, 0, err
+	}
+	size := int64(len(data))
+	if offset < 0 || offset >= size {
+		return nil, size, nil
+	}
+	return data[offset:], size, nil
+}
+
 // WriteFile stores the content and stamps it with T.
 func (f *Fake) WriteFile(name string, data []byte, mode fs.FileMode) error {
 	f.mu.Lock()

@@ -34,7 +34,32 @@ func TestGit(t *testing.T) {
 				"git --no-optional-locks -C /work rev-list --left-right --count @{upstream}...HEAD": {Out: "16\t3\n"},
 				"git --no-optional-locks -C /work log -1 --format=%ct":                              {Out: "1759464540\n"},
 			},
-			model.Git{Branch: "develop", Changed: 2, Stashes: 2, Behind: 16, Ahead: 3, LastCommit: time.Unix(1759464540, 0)},
+			model.Git{Branch: "develop", Changed: 2, Untracked: 1, Stashes: 2, Behind: 16, Ahead: 3, LastCommit: time.Unix(1759464540, 0)},
+			nil,
+		},
+		{
+			"the files broken down, the lines changed, a rebase and the commits of today",
+			map[string]platformtest.Result{
+				"git --no-optional-locks -C /work branch --show-current":                  {Out: "develop\n"},
+				"git --no-optional-locks -C /work status --porcelain":                     {Out: "M  staged.go\nMM both.go\n M work.go\nUU conflict.go\nAA added.go\n?? new.go\nR  old.go -> new2.go\nX\n"},
+				"git --no-optional-locks -C /work diff --shortstat HEAD":                  {Out: " 7 files changed, 12 insertions(+), 30 deletions(-), x\n"},
+				"git --no-optional-locks -C /work rev-parse --absolute-git-dir":           {Out: "/work/.git\n"},
+				"git --no-optional-locks -C /work rev-list --count --since=midnight HEAD": {Out: "4\n"},
+			},
+			model.Git{
+				Branch: "develop", Changed: 8, Staged: 3, Untracked: 1, Conflicts: 2, Inserted: 12, Deleted: 30,
+				Operation: "rebase", CommitsToday: 4,
+			},
+			nil,
+		},
+		{
+			"a merge in progress, only insertions",
+			map[string]platformtest.Result{
+				"git --no-optional-locks -C /merging branch --show-current":        {Out: "develop\n"},
+				"git --no-optional-locks -C /merging diff --shortstat HEAD":        {Out: " 1 file changed, 1 insertion(+)\n"},
+				"git --no-optional-locks -C /merging rev-parse --absolute-git-dir": {Out: "/merging/.git\n"},
+			},
+			model.Git{Branch: "develop", Inserted: 1, Operation: "merge"},
 			nil,
 		},
 		{
@@ -65,7 +90,14 @@ func TestGit(t *testing.T) {
 			t.Parallel()
 			sys := platformtest.New(t0)
 			sys.Cmds = tt.cmds
-			got, err := vcs.Git{Sys: sys}.Git(context.Background(), "/work")
+			// Each git directory carries the mark of an operation in progress.
+			sys.Files["/work/.git/rebase-merge"] = nil
+			sys.Files["/merging/.git/MERGE_HEAD"] = nil
+			dir := "/work"
+			for cmd := range tt.cmds {
+				dir, _, _ = strings.Cut(strings.TrimPrefix(cmd, "git --no-optional-locks -C "), " ")
+			}
+			got, err := vcs.Git{Sys: sys}.Git(context.Background(), dir)
 			if got != tt.want || !errors.Is(err, tt.err) {
 				t.Errorf("Git() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}
@@ -75,7 +107,7 @@ func TestGit(t *testing.T) {
 
 func TestGitHub(t *testing.T) {
 	t.Parallel()
-	const command = "gh pr view --json number,reviewDecision,statusCheckRollup"
+	const command = "gh pr view --json number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable"
 	tests := []struct {
 		name string
 		out  platformtest.Result
@@ -93,6 +125,12 @@ func TestGitHub(t *testing.T) {
 		},
 		{"no checks and no review", platformtest.Result{Out: `{"number":7,"reviewDecision":"","statusCheckRollup":[]}`}, model.PullRequest{Number: 7}, nil},
 		{
+			"the size, the age, a draft with conflicts",
+			platformtest.Result{Out: `{"number":7,"additions":350,"deletions":120,"changedFiles":9,"createdAt":"2026-10-01T04:09:05Z","isDraft":true,"mergeable":"CONFLICTING"}`},
+			model.PullRequest{Number: 7, Additions: 350, Deletions: 120, Files: 9, Created: time.Date(2026, 10, 1, 4, 9, 5, 0, time.UTC), Draft: true, Conflicts: true},
+			nil,
+		},
+		{
 			"members of an unexpected type are skipped, the rest is kept",
 			platformtest.Result{Out: `{"number":7,"reviewDecision":null,"statusCheckRollup":"none"}`},
 			model.PullRequest{Number: 7},
@@ -109,6 +147,10 @@ func TestGitHub(t *testing.T) {
 			sys := platformtest.New(t0)
 			sys.Cmds[command] = tt.out
 			got, err := vcs.GitHub{Sys: sys}.PullRequest(context.Background(), "/work", "develop")
+			if !got.Created.Equal(tt.want.Created) {
+				t.Errorf("Created = %v, want %v", got.Created, tt.want.Created)
+			}
+			got.Created, tt.want.Created = time.Time{}, time.Time{}
 			if got != tt.want || !errors.Is(err, tt.err) {
 				t.Errorf("PullRequest() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}

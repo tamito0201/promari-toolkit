@@ -317,3 +317,27 @@ func TestOSProcesses(t *testing.T) {
 		t.Error("a process that does not exist has a parent")
 	}
 }
+
+func TestOSReadFrom(t *testing.T) {
+	t.Parallel()
+	sys := New()
+	path := filepath.Join(t.TempDir(), "t.jsonl")
+	if err := os.WriteFile(path, []byte("0123456789"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		offset int64
+		want   string
+	}{{0, "0123456789"}, {4, "456789"}, {10, ""}, {25, ""}, {-1, ""}} {
+		data, size, err := sys.ReadFrom(path, c.offset)
+		if err != nil || string(data) != c.want || size != 10 {
+			t.Errorf("ReadFrom(%d) = %q, %d, %v; want %q, 10", c.offset, data, size, err, c.want)
+		}
+	}
+	if _, _, err := sys.ReadFrom(filepath.Join(t.TempDir(), "missing"), 0); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("a missing file: %v", err)
+	}
+	if _, _, err := sys.ReadFrom(t.TempDir(), 0); err == nil {
+		t.Error("a directory was read")
+	}
+}

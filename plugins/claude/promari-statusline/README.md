@@ -26,15 +26,16 @@ Code); it sends none of your data.
 | 🚨 Alert | An incident on the API's status page (shown only while there is one) |
 | 📉 Forecast | When a rate limit would run out, if that is before its reset |
 | 🧠 Context | Usage bar, tokens used and left, time until the context is full at the session's pace |
-| ⚡ Claude | The 5-hour and 7-day windows with the time to their reset, the pace against the window, a forecast when the usage would run out before the reset, the spend limit |
+| ⚡ Claude | The 5-hour and 7-day windows with the time to their reset, the pace against the window, a forecast when the usage would run out before the reset, the spend limit with its dollars and period |
 | 🤖 Codex | Codex's usage windows and balance, read from its newest session log |
 | 💰 Cost | Session cost; with `ccusage`: today, the billing block, the burn rate and an estimate for the block |
-| 🔥 Burn, 📈 KPI, 🚀 Perf | Wall and API time, active time and streak, cost per turn and per line, lines changed and per hour, focus, parallelism, throughput, tool error rate |
-| 📦 Cache, 📊 Tokens | Prompt cache hit ratio, what it saves and the time until it expires, tokens in and out, compactions, the surcharge above 200k |
-| 🔧 Work | The session's to-do list, tool calls by tool |
-| 🌿 Git | Branch, changed files, ahead and behind, stashes, time since the last commit |
-| 🔀 PR | With `gh`: the pull request of the branch, its checks and its review |
-| 🔖 Session, 🧭 Env | Session name, model, effort, thinking and fast mode, project, output style |
+| 🔥 Burn, 📈 KPI, 🚀 Perf | Wall and API time, active time and streak, cost per turn and per line, lines changed (and net) and per hour, focus, deep work (streaks of 23 minutes or more), the longest streak and the breaks, parallelism, turn times (last, median, 90th percentile), thinking time, tool error rate |
+| 📦 Cache, 📊 Tokens | Prompt cache hit ratio, lifetime (5m/1h), whether it went cold, the last miss with its cause and age, misses by cause, tokens written (and by misses), expected rebuilds, what it saves; tokens over the whole session (subagents included) with the cached share and the thinking share, requests, the last request's input split, compactions and the time since the last, the surcharge above 200k; "Caching off" when no response reported cache tokens |
+| 🔧 Work | The session's to-do list, tool calls by tool, files edited, hooks run (and failed), editor diagnostics handed to the model |
+| 🤝 Agent | Prompts typed, tool calls per prompt (autonomy), interventions (interrupts and refused tool calls per prompt), refusals, responses cut at the output limit, prompts queued while the agent worked, web searches and fetches, subagent requests, the models that answered |
+| 🌿 Git | Branch, worktree, an operation in progress (rebase, merge, cherry-pick, revert, bisect), conflicts, changed, staged and new files, the lines changed against HEAD (yellow above 400, red above 1,000), ahead and behind, stashes, time since the last commit and the commits of today |
+| 🔀 PR | With `gh`: the pull request of the branch, its checks, its review, draft, conflicts, size (coloured like the diff) and age. Without `gh` (or for a GitLab merge request): the number and review state Claude Code found |
+| 🔖 Session, 🧭 Env | Session name, model, effort, thinking and fast mode, project, output style, permission mode, agent, vim mode, the directory the session moved to, added directories |
 | 👥 Sessions | The other sessions of the same account running on this machine: their name or project, branch, context and cost, as their own status lines last showed them |
 | 💻 System, 🧾 Meta | Clock, terminal uptime, load, memory, disk, battery, Claude Code processes, account, version and whether a newer one is released |
 | 🎵 Music | The song that is playing (macOS, with `nowplaying-cli`) |
@@ -46,6 +47,13 @@ A warning (the context or a rate limit at 90 % or more, a forecast that runs out
 reset, a battery below 20 %, a major incident) blinks: its chip alternates every second
 between its colour and a red band. The blink is made by drawing the line differently on odd seconds, not by the terminal's blink
 attribute, which many terminals ignore.
+
+Most of 🤝 Agent, 📊 Tokens over the session, the turn times and the files edited come from the
+session's transcript. It is read once and then only from where the last read stopped, so a
+transcript of tens of megabytes costs a fraction of a millisecond per render (169 ms for the
+first read of a 29 MB transcript, 0.13 ms for the next). Where a chip's threshold comes from
+research, the source is named in the code beside it; the list is in
+[docs/statusline/README.md](../docs/statusline/README.md).
 
 ## Install
 

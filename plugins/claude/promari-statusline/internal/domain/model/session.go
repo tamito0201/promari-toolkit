@@ -24,6 +24,8 @@ type Session struct {
 	Repo           string
 	Version        string
 
+	// ModelID is the model's identifier; Model is its display name.
+	ModelID  string
 	Model    string
 	Effort   string
 	Thinking bool
@@ -35,6 +37,46 @@ type Session struct {
 	Limits   RateLimits
 	Cache    PromptCache
 	Over200k bool
+	// SpendUSD is the spend limit in dollars, behind a gateway that sets one.
+	SpendUSD Optional[SpendMoney]
+
+	// ProjectDir is where Claude Code was started; Dir is where it works now.
+	ProjectDir string
+	// AddedDirs is the number of directories added with /add-dir.
+	AddedDirs int
+	// GitWorktree is the linked git worktree Dir is in, or "".
+	GitWorktree string
+	// Worktree is the worktree session, when the session runs in one.
+	Worktree Optional[Worktree]
+	// Vim is the vim mode, or "" when vim mode is off.
+	Vim string
+	// Agent is the agent the session runs as, or "".
+	Agent string
+	// PR is the open pull request of the branch, as Claude Code found it.
+	PR Optional[SessionPR]
+}
+
+// SpendMoney is the spend limit in dollars and the period it covers.
+type SpendMoney struct {
+	Used   Optional[float64]
+	Limit  Optional[float64]
+	Period string
+}
+
+// Worktree is the worktree session the session runs in.
+type Worktree struct {
+	Name           string
+	Branch         string
+	OriginalBranch string
+}
+
+// SessionPR is the pull request Claude Code found for the branch.
+type SessionPR struct {
+	Number int
+	// ReviewState is approved, pending, changes_requested or draft, or "".
+	ReviewState string
+	// MergeRequest is true for a GitLab merge request.
+	MergeRequest bool
 }
 
 // fileSafe matches an id that can be part of a file name: no path separator,
@@ -72,6 +114,9 @@ type ContextWindow struct {
 	Current     float64
 	TotalInput  float64
 	TotalOutput float64
+	// Fresh, Written and Read split Current: input not cached, written to the
+	// cache, and read from it.
+	Fresh, Written, Read float64
 }
 
 // ContextUsage is how full the context window is.
@@ -168,12 +213,34 @@ func (w RateWindow) Pace(now time.Time, length time.Duration) (pace float64, ok 
 	return w.UsedPct / elapsedPct, true
 }
 
-// PromptCache is the state of the prompt cache.
+// PromptCache is the state of the prompt cache of the main conversation.
 type PromptCache struct {
-	HitRatio      Optional[float64]
-	Misses        int
+	HitRatio Optional[float64]
+	Misses   int
+	// LastMissCause names the likely causes of the last miss, joined by "+".
 	LastMissCause string
+	// MissCauses counts the diagnosed misses by cause.
+	MissCauses map[string]int
 	// ExpiresAt is zero when unknown.
 	ExpiresAt     time.Time
 	RecacheTokens float64
+	// Warm is whether the cached prefix is within its lifetime; absent before
+	// the first response.
+	Warm Optional[bool]
+	// Observed is false when no response reported cache tokens: caching is
+	// off, or the provider does not report it.
+	Observed Optional[bool]
+	// LastMissAt is zero before the first miss.
+	LastMissAt time.Time
+	// TTL is the lifetime of the cached prefix: "5m" or "1h".
+	TTL string
+	// Requests are the requests of the main conversation.
+	Requests int
+	// Rebuilds are the rebuilds that followed a compaction or a clearing of
+	// old tool results: expected, unlike misses.
+	Rebuilds int
+	// WriteTokens are all tokens written to the cache; MissTokens those
+	// written by the misses.
+	WriteTokens float64
+	MissTokens  float64
 }

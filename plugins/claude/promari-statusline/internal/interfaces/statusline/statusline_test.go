@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -22,7 +23,10 @@ const full = `{
   "version": "2.1.34", "fast_mode": true, "exceeds_200k_tokens": true, "cwd": "/fallback",
   "model": {"id": "claude-opus-5-5", "display_name": "Opus 5.5"},
   "effort": {"level": "high"}, "thinking": {"enabled": true}, "output_style": {"name": "Explanatory"},
-  "workspace": {"current_dir": "/work", "repo": {"name": "promari"}},
+  "workspace": {"current_dir": "/work/app", "project_dir": "/work", "added_dirs": ["/a", "/b"], "git_worktree": "feature-x", "repo": {"name": "promari"}},
+  "vim": {"mode": "NORMAL"}, "agent": {"name": "reviewer"},
+  "pr": {"number": 12, "url": "https://example.invalid/pr/12", "review_state": "pending", "kind": "mr"},
+  "worktree": {"name": "feature-x", "path": "/work/.claude/worktrees/feature-x", "branch": "worktree-feature-x", "original_cwd": "/work", "original_branch": "main"},
   "cost": {"total_cost_usd": 0, "total_duration_ms": 600000, "total_api_duration_ms": 300000.5, "total_lines_added": 10, "total_lines_removed": 2},
   "context_window": {
     "context_window_size": 200000, "used_percentage": 42, "total_input_tokens": 5400000, "total_output_tokens": 120000,
@@ -31,9 +35,14 @@ const full = `{
   "rate_limits": {
     "five_hour": {"used_percentage": 0, "resets_at": 1759464540},
     "seven_day": {"used_percentage": 73},
-    "spend_limit": {"resets_at": 1759464540}
+    "spend_limit": {"resets_at": 1759464540, "used_usd": 314.12, "limit_usd": 500, "period": "monthly"}
   },
-  "prompt_cache": {"hit_ratio": 0.93, "misses": 2, "last_miss_cause": "ttl", "expires_at": 1759464540.5, "recache_tokens_if_cold": 84000}
+  "prompt_cache": {
+    "warm": false, "caching_observed": true, "ttl": "1h", "requests": 14, "expected_rebuilds": 1,
+    "cache_write_tokens": 352000, "miss_recache_tokens": 310200, "last_miss_at": 1759464000,
+    "hit_ratio": 0.93, "misses": 2, "last_miss_cause": {"causes": ["tools_changed", "ttl_expired_5m"], "tools_added": 2},
+    "miss_causes": {"tools_changed": 2}, "expires_at": 1759464540.5, "recache_tokens_if_cold": 84000
+  }
 }`
 
 // editorconfig-checker-enable
@@ -44,19 +53,29 @@ func TestDecode(t *testing.T) {
 		t.Parallel()
 		got := statusline.Decode([]byte(full))
 		want := model.Session{
-			Reported: true, ID: "3f2a", PromptID: "p9", Name: "refactor", TranscriptPath: "/t.jsonl", Dir: "/work", Repo: "promari",
-			Version: "2.1.34", Model: "Opus 5.5", Effort: "high", Thinking: true, Fast: true, Style: "Explanatory", Over200k: true,
+			Reported: true, ID: "3f2a", PromptID: "p9", Name: "refactor", TranscriptPath: "/t.jsonl", Dir: "/work/app", Repo: "promari",
+			ProjectDir: "/work", AddedDirs: 2, GitWorktree: "feature-x", Vim: "NORMAL", Agent: "reviewer",
+			PR:       model.Some(model.SessionPR{Number: 12, ReviewState: "pending", MergeRequest: true}),
+			Worktree: model.Some(model.Worktree{Name: "feature-x", Branch: "worktree-feature-x", OriginalBranch: "main"}),
+			SpendUSD: model.Some(model.SpendMoney{Used: model.Some(314.12), Limit: model.Some(500.0), Period: "monthly"}),
+			Version:  "2.1.34", ModelID: "claude-opus-5-5", Model: "Opus 5.5", Effort: "high", Thinking: true, Fast: true, Style: "Explanatory", Over200k: true,
 			Cost: model.Cost{
 				TotalUSD: model.Some(0.0), Wall: 10 * time.Minute, API: 5*time.Minute + 500*time.Microsecond, LinesAdded: 10, LinesRemoved: 2,
 			},
-			Context: model.ContextWindow{Size: 200_000, UsedPct: model.Some(42.0), Current: 84_000, TotalInput: 5_400_000, TotalOutput: 120_000},
+			Context: model.ContextWindow{
+				Size: 200_000, UsedPct: model.Some(42.0), Current: 84_000, TotalInput: 5_400_000, TotalOutput: 120_000,
+				Fresh: 4000, Written: 10_000, Read: 70_000,
+			},
 			Limits: model.RateLimits{
 				// Zero percent used is a known window; a window without a percentage is none.
 				FiveHour: model.Some(model.RateWindow{UsedPct: 0, ResetsAt: time.Unix(1759464540, 0)}),
 				SevenDay: model.Some(model.RateWindow{UsedPct: 73}),
 			},
 			Cache: model.PromptCache{
-				HitRatio: model.Some(0.93), Misses: 2, LastMissCause: "ttl", ExpiresAt: time.Unix(1759464540, 500_000_000), RecacheTokens: 84_000,
+				HitRatio: model.Some(0.93), Misses: 2, LastMissCause: "tools_changed+ttl_expired_5m", ExpiresAt: time.Unix(1759464540, 500_000_000), RecacheTokens: 84_000,
+				MissCauses: map[string]int{"tools_changed": 2}, Warm: model.Some(false), TTL: "1h", Requests: 14, Rebuilds: 1,
+				Observed: model.Some(true), LastMissAt: time.Unix(1759464000, 0),
+				WriteTokens: 352_000, MissTokens: 310_200,
 			},
 		}
 		// The times are compared by instant; everything else must be identical.
@@ -65,8 +84,31 @@ func TestDecode(t *testing.T) {
 		}
 		got.Limits, want.Limits = stripTimes(got.Limits), stripTimes(want.Limits)
 		got.Cache.ExpiresAt, want.Cache.ExpiresAt = time.Time{}, time.Time{}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Errorf("Decode() =\n  %+v\nwant\n  %+v", got, want)
+		}
+	})
+	t.Run("a cause of the last miss written as a string by an older version", func(t *testing.T) {
+		t.Parallel()
+		if got := statusline.Decode([]byte(`{"prompt_cache":{"last_miss_cause":"ttl"}}`)).Cache.LastMissCause; got != "ttl" {
+			t.Errorf("LastMissCause = %q", got)
+		}
+	})
+	t.Run("the dollars of a spend limit are optional", func(t *testing.T) {
+		t.Parallel()
+		if got := statusline.Decode([]byte(`{"rate_limits":{"spend_limit":{"used_percentage":5,"period":"daily"}}}`)).SpendUSD; got.Present() {
+			t.Errorf("SpendUSD = %+v, want absent without an amount", got)
+		}
+		got := statusline.Decode([]byte(`{"rate_limits":{"spend_limit":{"used_percentage":5,"limit_usd":20}}}`)).SpendUSD
+		if money, ok := got.Get(); !ok || money.Used.Present() || money.Limit.Or(0) != 20 {
+			t.Errorf("SpendUSD = %+v", got)
+		}
+	})
+	t.Run("a worktree or pull request without its key is none", func(t *testing.T) {
+		t.Parallel()
+		s := statusline.Decode([]byte(`{"worktree":{"path":"/w"},"pr":{"url":"u"}}`))
+		if s.Worktree.Present() || s.PR.Present() {
+			t.Errorf("Worktree = %+v, PR = %+v", s.Worktree, s.PR)
 		}
 	})
 

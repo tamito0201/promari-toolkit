@@ -3,6 +3,7 @@ package service
 import (
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"promari-statusline/internal/domain/model"
@@ -84,10 +85,43 @@ func claudeChips(v *View) []model.Chip {
 	if len(c) == 1 {
 		return nil
 	}
+	if money, ok := v.Session.SpendUSD.Get(); ok && v.Limits.Spend.Present() {
+		c = append(c, space(), text(model.ToneMoney, spendDollars(money)))
+	}
 	if !v.LimitsSeen.IsZero() && v.Now.Sub(v.LimitsSeen) > staleAfter {
 		c = append(c, text(model.ToneMuted, " "+monthDay(v.LimitsSeen)))
 	}
 	return []model.Chip{c}
+}
+
+// spendDollars shows the spend limit in dollars: $314/$500 mo. A part the
+// gateway did not send is left out.
+func spendDollars(m model.SpendMoney) string {
+	var s string
+	if used, ok := m.Used.Get(); ok {
+		s = "$" + grouped(used)
+	}
+	if limit, ok := m.Limit.Get(); ok {
+		s += "/$" + grouped(limit)
+	}
+	if period := periodShort(m.Period); period != "" {
+		s += " " + period
+	}
+	return strings.TrimPrefix(s, "/")
+}
+
+// periodShort abbreviates the period of a spend limit.
+func periodShort(period string) string {
+	switch period {
+	case "daily":
+		return "day"
+	case "weekly":
+		return "wk"
+	case "monthly":
+		return "mo"
+	default:
+		return period
+	}
 }
 
 // claudeWindow shows one window: its label, a bar, the percentage, the time

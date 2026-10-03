@@ -63,6 +63,10 @@ type System interface {
 	Get(ctx context.Context, url string, timeout time.Duration) ([]byte, error)
 	// ReadFile returns a file's content.
 	ReadFile(path string) ([]byte, error)
+	// ReadFrom returns a file's content from offset to its end, and the file's
+	// size. An offset past the end (a file that was replaced by a shorter one)
+	// returns no content and the size, so the caller can start over.
+	ReadFrom(path string, offset int64) ([]byte, int64, error)
 	// WriteFile replaces a file atomically, creating its directory.
 	WriteFile(path string, data []byte, mode fs.FileMode) error
 	// Remove deletes a file; a file that does not exist is not an error.

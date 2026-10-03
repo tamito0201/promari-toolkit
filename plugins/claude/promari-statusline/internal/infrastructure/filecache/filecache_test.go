@@ -3,6 +3,7 @@ package filecache_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -158,9 +159,13 @@ func (n *next) Track(context.Context) (model.Track, error) {
 	return model.Track{Title: "t"}, nil
 }
 
-func (n *next) ToolStats(context.Context, string) (model.ToolStats, error) {
+// Transcript continues from since, as claude.Transcript does: each read adds a
+// request to what the earlier reads counted.
+func (n *next) Transcript(_ context.Context, _ string, since model.Transcript) (model.Transcript, error) {
 	n.asked++
-	return model.ToolStats{Total: n.asked}, nil
+	since.Requests++
+	since.Cursor.Offset += 10
+	return since, nil
 }
 
 func (n *next) Incident(context.Context) (model.Incident, error) {
@@ -195,8 +200,8 @@ func TestDecoratorsRememberTheirAnswers(t *testing.T) {
 			_, err := filecache.Tracks{Store: s, Next: n}.Track(ctx)
 			return err
 		}},
-		{"tool stats", 30 * time.Second, func(s *filecache.Store, n *next) error {
-			_, err := filecache.ToolStats{Store: s, Next: n}.ToolStats(ctx, "/t.jsonl")
+		{"transcript", 10 * time.Second, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Transcripts{Store: s, Next: n}.Transcript(ctx, "/t.jsonl", model.Transcript{})
 			return err
 		}},
 		{"incident", 5 * time.Minute, func(s *filecache.Store, n *next) error {
@@ -305,4 +310,106 @@ func TestAccountsFollowTheLoginFile(t *testing.T) {
 	if got := ask(work); got != "w@example.com" {
 		t.Errorf("another directory = %q", got)
 	}
+}
+
+// reader answers what it is told, and records where each read continued from.
+type reader struct {
+	answer model.Transcript
+	err    error
+	since  []int64
+}
+
+func (r *reader) Transcript(_ context.Context, _ string, since model.Transcript) (model.Transcript, error) {
+	r.since = append(r.since, since.Cursor.Offset)
+	return r.answer, r.err
+}
+
+func TestTranscriptsContinueWhereTheyStopped(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	at := func(offset int64, requests int) model.Transcript {
+		return model.Transcript{Requests: requests, Cursor: model.TranscriptCursor{Offset: offset}}
+	}
+	t.Run("each read continues from the last, per transcript", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store, n := filecache.NewStore(sys), &next{}
+		transcripts := filecache.Transcripts{Store: store, Next: n}
+		read := func(path string) model.Transcript {
+			sys.T = sys.T.Add(time.Minute)
+			got, err := transcripts.Transcript(ctx, path, model.Transcript{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return got
+		}
+		read("/a.jsonl")
+		read("/b.jsonl")
+		if got := read("/a.jsonl"); got.Requests != 2 || got.Cursor.Offset != 20 {
+			t.Errorf("third read of /a = %+v; a session beside it must not reset its progress", got)
+		}
+		if got := len(sys.Glob(store.Path("transcripts", "*.json"))); got != 2 {
+			t.Errorf("%d files for two transcripts", got)
+		}
+	})
+	t.Run("a failed read keeps the progress", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store := filecache.NewStore(sys)
+		ok := &reader{answer: at(100, 3)}
+		if _, err := (filecache.Transcripts{Store: store, Next: ok}).Transcript(ctx, "/t.jsonl", model.Transcript{}); err != nil {
+			t.Fatal(err)
+		}
+		sys.T = t0.Add(time.Minute)
+		failing := &reader{err: errors.New("denied")}
+		if _, err := (filecache.Transcripts{Store: store, Next: failing}).Transcript(ctx, "/t.jsonl", model.Transcript{}); err == nil {
+			t.Fatal("the failure was swallowed")
+		}
+		sys.T = t0.Add(2 * time.Minute)
+		again := &reader{answer: at(150, 4)}
+		if _, err := (filecache.Transcripts{Store: store, Next: again}).Transcript(ctx, "/t.jsonl", model.Transcript{}); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(again.since, []int64{100}) {
+			t.Errorf("continued from %v, want the offset before the failure", again.since)
+		}
+	})
+	t.Run("nothing to report is remembered with the progress", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store := filecache.NewStore(sys)
+		empty := &reader{answer: at(40, 0), err: repository.ErrNone}
+		transcripts := filecache.Transcripts{Store: store, Next: empty}
+		for range 2 {
+			if got, err := transcripts.Transcript(ctx, "/t.jsonl", model.Transcript{}); !errors.Is(err, repository.ErrNone) || got.Cursor.Offset != 40 {
+				t.Fatalf("Transcript() = %+v, %v", got, err)
+			}
+		}
+		if len(empty.since) != 1 {
+			t.Errorf("read %d times within the lifetime", len(empty.since))
+		}
+		sys.T = t0.Add(time.Minute)
+		if _, err := transcripts.Transcript(ctx, "/t.jsonl", model.Transcript{}); !errors.Is(err, repository.ErrNone) {
+			t.Fatal(err)
+		}
+		if !slices.Equal(empty.since, []int64{0, 40}) {
+			t.Errorf("continued from %v", empty.since)
+		}
+	})
+	t.Run("the records of transcripts no longer read are removed", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store := filecache.NewStore(sys)
+		old := store.Path("transcripts", "0000000000000000.json")
+		if err := sys.WriteFile(old, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sys.T = t0.Add(8 * 24 * time.Hour)
+		if _, err := (filecache.Transcripts{Store: store, Next: &reader{answer: at(1, 1)}}).Transcript(ctx, "/new.jsonl", model.Transcript{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := sys.File(old); ok {
+			t.Error("the record of a transcript unread for eight days was kept")
+		}
+	})
 }
