@@ -82,6 +82,7 @@ func sections() []section {
 		{"📏 Rules", model.ToneCaution, rulesChips},
 		{"🌿 Git", model.ToneGood, gitChips},
 		{"🔀 PR", model.ToneInfo, pullChips},
+		{"⏰ Due", model.ToneCaution, dueChips},
 		{"🔖 Session", model.ToneNote, sessionChips},
 		{"👥 Sessions", model.ToneInfo, peerChips},
 		{"🧭 Env", model.ToneAccent, envChips},

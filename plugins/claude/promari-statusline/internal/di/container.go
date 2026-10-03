@@ -75,6 +75,7 @@ func sources(sys platform.System, store *filecache.Store) usecase.Sources {
 		Git:        vcs.Git{Sys: sys, History: filecache.Histories{Store: store, Next: vcs.History{Sys: sys}}},
 		Pulls:      filecache.PullRequests{Store: store, Next: vcs.GitHub{Sys: sys}},
 		Reviews:    filecache.ReviewQueues{Store: store, Next: vcs.GitHub{Sys: sys}},
+		Workload:   filecache.Workloads{Store: store, Next: vcs.GitHub{Sys: sys}},
 		Spend:      usage.CCUsage{Sys: sys},
 		Codex:      filecache.Codex{Store: store, Next: usage.Codex{Sys: sys}},
 		Transcript: filecache.Transcripts{Store: store, Next: claude.Transcript{Sys: sys}},

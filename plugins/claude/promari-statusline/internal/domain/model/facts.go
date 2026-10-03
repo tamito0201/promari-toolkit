@@ -9,6 +9,7 @@ type Facts struct {
 	Git        Optional[Git]
 	Pull       Optional[PullRequest]
 	Reviews    Optional[ReviewQueue]
+	Workload   Optional[Workload]
 	Spend      Optional[Spend]
 	Codex      Optional[CodexLimits]
 	Transcript Optional[Transcript]

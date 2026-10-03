@@ -22,6 +22,7 @@ type Sources struct {
 	Git        repository.GitReader
 	Pulls      repository.PullRequestReader
 	Reviews    repository.ReviewQueueReader
+	Workload   repository.WorkloadReader
 	Spend      repository.SpendReader
 	Codex      repository.CodexReader
 	Transcript repository.TranscriptReader
@@ -174,6 +175,9 @@ func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) model.
 	wg.Go(func() { facts.Git, facts.Pull = u.gitAndPull(ctx, s.WorkDir()) })
 	wg.Go(func() {
 		facts.Reviews = read(func() (model.ReviewQueue, error) { return src.Reviews.ReviewQueue(ctx, s.WorkDir()) })
+	})
+	wg.Go(func() {
+		facts.Workload = read(func() (model.Workload, error) { return src.Workload.Workload(ctx, s.WorkDir()) })
 	})
 	wg.Go(func() { facts.Spend = read(func() (model.Spend, error) { return src.Spend.Spend(ctx, req.Raw) }) })
 	wg.Go(func() { facts.Codex = read(func() (model.CodexLimits, error) { return src.Codex.Codex(ctx) }) })

@@ -44,6 +44,13 @@ type ReviewQueueReader interface {
 	ReviewQueue(ctx context.Context, dir string) (model.ReviewQueue, error)
 }
 
+// WorkloadReader reads the work the user owes in a repository: assigned
+// issues, open and finished pull requests, the runs of the default branch. It
+// returns ErrNone when none of it can be read.
+type WorkloadReader interface {
+	Workload(ctx context.Context, dir string) (model.Workload, error)
+}
+
 // SpendReader reads the estimated spending. input is the session report as
 // Claude Code sent it, which the estimator reads on its standard input.
 type SpendReader interface {

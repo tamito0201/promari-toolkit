@@ -81,6 +81,21 @@ func (c ReviewQueues) ReviewQueue(ctx context.Context, dir string) (model.Review
 	})
 }
 
+// Workloads remembers the work the user owes. Issues and pull requests
+// change over minutes, and five questions to GitHub are too many for every
+// render.
+type Workloads struct {
+	Store *Store
+	Next  repository.WorkloadReader
+}
+
+// Workload implements repository.WorkloadReader.
+func (c Workloads) Workload(ctx context.Context, dir string) (model.Workload, error) {
+	return Memo(c.Store, "workload.json", dir, pullTTL, func() (model.Workload, error) {
+		return c.Next.Workload(ctx, dir)
+	})
+}
+
 // Tracks remembers the song that is playing.
 type Tracks struct {
 	Store *Store

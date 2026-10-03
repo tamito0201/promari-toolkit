@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.9.0 — 2026-10-03
+
+A new `⏰ Due` category shows the work the user owes in the repository, after three books on
+KPIs and one on customer support (David Parmenter's "Key Performance Indicators", 2nd and 4th
+editions; Bernie Smith's "KPI Checklists"; Nishtha Duggal's "Mastering Customer Support"). As
+the books ask, it shows the exceptions only, keeps red for what needs action now, puts the
+current and the future before the past, and writes a count beside every rate:
+
+- Red: `Overdue ×N (#issue Nd)`, the assigned open issues whose milestone's due day has passed,
+  with the latest one (Parmenter's most common weekly KPI is the list of late projects);
+  `Urgent >48h ×N`, the issues labelled P0, P1, critical, urgent, blocker or incident open for
+  more than 48 hours ("requests outstanding for more than 48 hours"); `Base ✗ <workflow> 40m`,
+  a workflow whose last run on the default branch failed, since the first failure in a row
+  (blinking after 25 minutes, with the number of other failing workflows).
+- Yellow: `Due today ×N`, `My turn ×N` (own pull requests whose review asks for changes) and
+  `Stale 14d+ ×N` (assigned issues and own pull requests without an update for two weeks:
+  "still unresolved after two weeks").
+- Grey: `Due 7d ×N` (the future measure), `Undated N/M` (assigned issues with no due day),
+  `WIP N PR (N draft)`, and the last two weeks' flow: `Lead p50 6h ×N/14d` (the median time
+  from opening to merging; the median, as "beware of averages"), `1st-pass N/M` (pull requests
+  approved by their first review, yellow below half only from 10 reviewed: Smith asks for 10 to
+  30 points before judging) and `Abandoned ×N/14d` (closed without merging).
+- A list cut at the most gh is asked for (200 issues, 100 pull requests) shows its count with
+  `+`, as a lower bound. The five questions to gh run at once and are remembered for five
+  minutes.
+
 ## 1.8.1 — 2026-10-03
 
 - The release of 1.8.0, which was stopped before it was published: a test wrote a token in a git
