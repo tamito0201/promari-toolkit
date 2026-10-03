@@ -713,3 +713,65 @@ func TestHumanPrompts(t *testing.T) {
 		})
 	}
 }
+
+// quality is a transcript of checks and edits: a test run whose pipe hid its
+// failure, a refused run, an interrupted run, a passing run, a build, an edit
+// that failed and one that succeeded, and a call repeated as it was.
+const quality = `{"type":"assistant","timestamp":"2026-10-03T04:00:00Z","message":{"id":"m1","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./... | tail"}}]}}
+{"type":"user","timestamp":"2026-10-03T04:01:00Z","toolUseResult":{"stdout":"--- FAIL: TestX\nFAIL\n","stderr":"","interrupted":false},"message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":false,"content":"--- FAIL"}]}}
+{"type":"assistant","message":{"id":"m2","content":[{"type":"tool_use","id":"e1","name":"Edit","input":{"file_path":"/w/a.go"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"e1","is_error":true,"content":"<tool_use_error>String to replace not found"}]}}
+{"type":"assistant","message":{"id":"m3","content":[{"type":"tool_use","id":"e2","name":"Edit","input":{"file_path":"/w/a.go"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"e2","content":"ok"}]}}
+{"type":"assistant","message":{"id":"m4","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"go test ./..."}}]}}
+{"type":"user","toolDenialKind":"rule","message":{"content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":"Permission denied"}]}}
+{"type":"assistant","message":{"id":"m5","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"go test ./..."}}]}}
+{"type":"user","toolUseResult":{"stdout":"","interrupted":true},"message":{"content":[{"type":"tool_result","tool_use_id":"t3","is_error":true,"content":"Interrupted"}]}}
+{"type":"assistant","message":{"id":"m6","content":[{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"go vet ./..."}}]}}
+{"type":"user","toolUseResult":"Error: Exit code 1","message":{"content":[{"type":"tool_result","tool_use_id":"b1","is_error":true,"content":[{"type":"text","text":"Exit code 1\na.go:1:1: bad"}]}]}}
+{"type":"assistant","message":{"id":"m7","content":[{"type":"tool_use","id":"x1","name":"Read","input":{"file_path":"/w/b.go"}}]}}
+{"type":"assistant","message":{"id":"m8","content":[{"type":"tool_use","id":"x2","name":"Read","input":{"file_path":"/w/b.go"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"unknown","content":"x"}]}}
+`
+
+func TestTranscriptQuality(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	sys.Files["/q.jsonl"] = []byte(quality)
+	got, err := claude.Transcript{Sys: sys}.Transcript(context.Background(), "/q.jsonl", model.Transcript{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := got.Quality
+	if want := (model.CheckRuns{Runs: 1, Failed: 1, Masked: 1, Last: model.OutcomeFail}); q.Tests != want {
+		t.Errorf("Tests = %+v, want %+v (a refused or interrupted run did not run)", q.Tests, want)
+	}
+	if !q.RedSince.Equal(time.Date(2026, 10, 3, 4, 1, 0, 0, time.UTC)) {
+		t.Errorf("RedSince = %v; the time of the result", q.RedSince)
+	}
+	if want := (model.CheckRuns{Runs: 1, Failed: 1, Last: model.OutcomeFail}); q.Builds != want {
+		t.Errorf("Builds = %+v, want %+v (the text of the result is read when there is no structured one)", q.Builds, want)
+	}
+	if q.Edits != 2 || q.EditFailures != 1 || q.ReEdits != 1 || q.EditFailStreak != 0 {
+		t.Errorf("edits = %d, failures %d, re-edits %d, streak %d", q.Edits, q.EditFailures, q.ReEdits, q.EditFailStreak)
+	}
+	// Repeated as they were: the edit after it failed, the run after it was refused, the read.
+	if !slices.Equal(q.Unverified, []string{"/w/a.go"}) || q.Repeats != 3 || len(q.Pending) != 0 {
+		t.Errorf("Unverified = %v, Repeats = %d, Pending = %v", q.Unverified, q.Repeats, q.Pending)
+	}
+}
+
+func TestTranscriptFormat(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	sys.Files["/q.jsonl"] = []byte(quality)
+	// A reading made by an earlier version reached the end, but never counted the quality.
+	old := model.Transcript{Prompts: 99, Cursor: model.TranscriptCursor{Offset: int64(len(quality))}}
+	got, err := claude.Transcript{Sys: sys}.Transcript(context.Background(), "/q.jsonl", old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Prompts == 99 || got.Quality.Tests.Runs != 1 || got.Cursor.Format != model.TranscriptFormat {
+		t.Errorf("got Prompts %d, Tests %+v, Format %d; a reading of another format is read again from the start", got.Prompts, got.Quality.Tests, got.Cursor.Format)
+	}
+}

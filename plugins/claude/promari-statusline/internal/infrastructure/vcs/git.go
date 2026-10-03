@@ -42,10 +42,13 @@ func (g Git) Git(ctx context.Context, dir string) (model.Git, error) {
 	}
 	git := model.Git{Branch: branch, Stashes: strings.Count(run("stash", "list"), "\n")}
 	countStatus(&git, run("status", "--porcelain"))
-	git.Inserted, git.Deleted = shortStat(run("diff", "--shortstat", "HEAD"))
+	readDiff(&git, run("diff", "HEAD", "--numstat", "--patch", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames"))
 	git.Operation = g.operation(strings.TrimSpace(run("rev-parse", "--absolute-git-dir")))
-	if n, err := strconv.Atoi(strings.TrimSpace(run("rev-list", "--count", "--since=midnight", "HEAD"))); err == nil {
-		git.CommitsToday = n
+	for subject := range strings.Lines(run("log", "--since=midnight", "--format=%s", "HEAD")) {
+		git.CommitsToday++
+		if model.IsFixCommit(subject) {
+			git.FixesToday++
+		}
 	}
 	// "behind<TAB>ahead" for upstream...HEAD.
 	if counts := strings.Fields(run("rev-list", "--left-right", "--count", "@{upstream}...HEAD")); len(counts) == 2 {
@@ -89,27 +92,56 @@ func countStatus(git *model.Git, porcelain string) {
 	}
 }
 
-// shortStat reads the lines inserted and deleted from `git diff --shortstat`:
-// " 3 files changed, 120 insertions(+), 30 deletions(-)". Either part is left
-// out when it is zero.
-func shortStat(out string) (inserted, deleted int) {
-	for part := range strings.SplitSeq(strings.TrimSpace(out), ",") {
-		fields := strings.Fields(part)
-		if len(fields) < 2 {
-			continue
-		}
-		n, err := strconv.Atoi(fields[0])
-		if err != nil {
-			continue
-		}
+// readDiff reads `git diff --numstat --patch --unified=0`: first a line per
+// file ("added<TAB>deleted<TAB>path", "-" for a binary file), then the patch,
+// whose added and deleted lines are searched for the markers of a debt. One run of git
+// gives both.
+func readDiff(git *model.Git, out string) {
+	file := ""
+	inPatch := false
+	for line := range strings.Lines(out) {
+		line = strings.TrimRight(line, "\r\n")
 		switch {
-		case strings.HasPrefix(fields[1], "insertion"):
-			inserted = n
-		case strings.HasPrefix(fields[1], "deletion"):
-			deleted = n
+		case strings.HasPrefix(line, "diff --git "):
+			inPatch = true
+		case !inPatch:
+			if change, ok := numStat(line); ok {
+				git.Changes = append(git.Changes, change)
+				git.Inserted += change.Added
+				git.Deleted += change.Deleted
+			}
+		case strings.HasPrefix(line, "+++ "):
+			file = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
+		case strings.HasPrefix(line, "--- "):
+			// The old name of the file; the new one follows.
+		case !model.IsSourcePath(file) || !model.MarksDebt(line):
+		case strings.HasPrefix(line, "+"):
+			git.DebtAdded++
+		case strings.HasPrefix(line, "-"):
+			git.DebtRemoved++
 		}
 	}
-	return inserted, deleted
+}
+
+// numStatFields are the fields of a line of `git diff --numstat`.
+const numStatFields = 3
+
+// numStat reads one line of `git diff --numstat`. A binary file changes no
+// lines that can be counted.
+func numStat(line string) (model.FileChange, bool) {
+	fields := strings.SplitN(line, "\t", numStatFields)
+	if len(fields) != numStatFields {
+		return model.FileChange{}, false
+	}
+	added, errAdded := strconv.Atoi(fields[0])
+	deleted, errDeleted := strconv.Atoi(fields[1])
+	if fields[0] == "-" && fields[1] == "-" {
+		return model.FileChange{Path: fields[2]}, true
+	}
+	if errAdded != nil || errDeleted != nil {
+		return model.FileChange{}, false
+	}
+	return model.FileChange{Path: fields[2], Added: added, Deleted: deleted}, true
 }
 
 // operations are the operations git leaves a mark for in its directory while

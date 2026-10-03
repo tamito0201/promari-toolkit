@@ -38,8 +38,16 @@ type Git struct {
 	// Operation is the operation in progress (rebase, merge, cherry-pick,
 	// revert, bisect), or "".
 	Operation string
-	// CommitsToday are the commits on HEAD made since midnight.
+	// CommitsToday are the commits on HEAD made since midnight; FixesToday
+	// those that fix or revert.
 	CommitsToday int
+	FixesToday   int
+	// Changes are the files changed against HEAD with their lines, and
+	// DebtAdded the lines added to source files that mark a debt (TODO, FIXME,
+	// HACK, XXX), DebtRemoved those deleted.
+	Changes     []FileChange
+	DebtAdded   int
+	DebtRemoved int
 	// LastCommit is zero when the branch has no commit.
 	LastCommit time.Time
 }

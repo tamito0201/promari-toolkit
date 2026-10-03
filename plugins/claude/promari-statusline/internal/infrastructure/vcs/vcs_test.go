@@ -3,6 +3,7 @@ package vcs_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -40,26 +41,27 @@ func TestGit(t *testing.T) {
 		{
 			"the files broken down, the lines changed, a rebase and the commits of today",
 			map[string]platformtest.Result{
-				"git --no-optional-locks -C /work branch --show-current":                  {Out: "develop\n"},
-				"git --no-optional-locks -C /work status --porcelain":                     {Out: "M  staged.go\nMM both.go\n M work.go\nUU conflict.go\nAA added.go\n?? new.go\nR  old.go -> new2.go\nX\n"},
-				"git --no-optional-locks -C /work diff --shortstat HEAD":                  {Out: " 7 files changed, 12 insertions(+), 30 deletions(-), x\n"},
-				"git --no-optional-locks -C /work rev-parse --absolute-git-dir":           {Out: "/work/.git\n"},
-				"git --no-optional-locks -C /work rev-list --count --since=midnight HEAD": {Out: "4\n"},
+				"git --no-optional-locks -C /work branch --show-current":                                                         {Out: "develop\n"},
+				"git --no-optional-locks -C /work status --porcelain":                                                            {Out: "M  staged.go\nMM both.go\n M work.go\nUU conflict.go\nAA added.go\n?? new.go\nR  old.go -> new2.go\nX\n"},
+				"git --no-optional-locks -C /work diff HEAD --numstat --patch --unified=0 --no-color --no-ext-diff --no-renames": {Out: "10\t30\ta.go\n2\t0\tb_test.go\n-\t-\timg.png\nx\n"},
+				"git --no-optional-locks -C /work rev-parse --absolute-git-dir":                                                  {Out: "/work/.git\n"},
+				"git --no-optional-locks -C /work log --since=midnight --format=%s HEAD":                                         {Out: "feat: a\nfix(x): b\nRevert \"feat: a\"\ndocs: c\n"},
 			},
 			model.Git{
 				Branch: "develop", Changed: 8, Staged: 3, Untracked: 1, Conflicts: 2, Inserted: 12, Deleted: 30,
-				Operation: "rebase", CommitsToday: 4,
+				Operation: "rebase", CommitsToday: 4, FixesToday: 2,
+				Changes: []model.FileChange{{Path: "a.go", Added: 10, Deleted: 30}, {Path: "b_test.go", Added: 2}, {Path: "img.png"}},
 			},
 			nil,
 		},
 		{
 			"a merge in progress, only insertions",
 			map[string]platformtest.Result{
-				"git --no-optional-locks -C /merging branch --show-current":        {Out: "develop\n"},
-				"git --no-optional-locks -C /merging diff --shortstat HEAD":        {Out: " 1 file changed, 1 insertion(+)\n"},
-				"git --no-optional-locks -C /merging rev-parse --absolute-git-dir": {Out: "/merging/.git\n"},
+				"git --no-optional-locks -C /merging branch --show-current":                                                         {Out: "develop\n"},
+				"git --no-optional-locks -C /merging diff HEAD --numstat --patch --unified=0 --no-color --no-ext-diff --no-renames": {Out: "1\t0\tm.go\n\ndiff --git a/m.go b/m.go\n--- a/m.go\n+++ b/m.go\n@@ -0,0 +1 @@\n+// TODO: later\n"},
+				"git --no-optional-locks -C /merging rev-parse --absolute-git-dir":                                                  {Out: "/merging/.git\n"},
 			},
-			model.Git{Branch: "develop", Inserted: 1, Operation: "merge"},
+			model.Git{Branch: "develop", Inserted: 1, Operation: "merge", Changes: []model.FileChange{{Path: "m.go", Added: 1}}, DebtAdded: 1},
 			nil,
 		},
 		{
@@ -98,7 +100,7 @@ func TestGit(t *testing.T) {
 				dir, _, _ = strings.Cut(strings.TrimPrefix(cmd, "git --no-optional-locks -C "), " ")
 			}
 			got, err := vcs.Git{Sys: sys}.Git(context.Background(), dir)
-			if got != tt.want || !errors.Is(err, tt.err) {
+			if !reflect.DeepEqual(got, tt.want) || !errors.Is(err, tt.err) {
 				t.Errorf("Git() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}
 		})
@@ -151,7 +153,7 @@ func TestGitHub(t *testing.T) {
 				t.Errorf("Created = %v, want %v", got.Created, tt.want.Created)
 			}
 			got.Created, tt.want.Created = time.Time{}, time.Time{}
-			if got != tt.want || !errors.Is(err, tt.err) {
+			if !reflect.DeepEqual(got, tt.want) || !errors.Is(err, tt.err) {
 				t.Errorf("PullRequest() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}
 		})

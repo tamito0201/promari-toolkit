@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.5.0 — 2026-10-03
+
+- A new `🧪 Quality` category shows what the session's checks and the uncommitted change say
+  about the quality of the work. From the transcript: the tests and the builds, type checks and
+  lints the session ran (`Tests ×12 ✅ (fail 29% · piped 2)`), how long the tests have been red
+  (blinking after 25 minutes, by which three quarters of the developers' test repairs were done
+  in Beller et al., ESEC/FSE 2015), the source files edited since the tests last passed
+  (`Untested`), failed edits with the failures in a row (after one failed edit, an agent's edit
+  succeeded 57.2% of the time against 90.5%: SWE-agent, NeurIPS 2024), and tool calls repeated
+  as they were. From git: the spread of the change (files, directories, top-level directories and
+  the normalised entropy of its lines, the diffusion measures of just-in-time defect prediction:
+  Kamei et al., TSE 2013; Hassan, ICSE 2009), the share of its lines in tests, the TODO, FIXME,
+  HACK and XXX it adds and removes (self-admitted technical debt: Potdar and Shihab, ICSME 2014),
+  and the commits of today that fix or revert.
+- A check is judged from its output as well as its exit status. An agent pipes a test run
+  through `tail` or `grep`, and the pipe exits with the status of its last command: in 359 test
+  runs of real sessions, 87 printed failures and exited with 0. A run whose output was cut and
+  whose exit status a pipe hid is shown as unknown (`?`), not as passed.
+- The reading of a transcript carries a format version. A reading made by an earlier version is
+  read again from the start once, so that what the new version counts is counted for the whole
+  session and not only for what was written after the update.
+- `git diff --shortstat` is replaced by one run of `git diff --numstat --patch`, which gives the
+  lines per file and the debt markers together; `rev-list --count` by `log --format=%s`, which
+  gives the subjects of today's commits. The status line starts no more git processes than before.
+
 ## 1.4.1 — 2026-10-03
 
 - A section too wide for a line no longer repeats its title with a number on the next line

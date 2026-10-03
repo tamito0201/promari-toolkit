@@ -73,6 +73,8 @@ type Transcript struct {
 	// Diagnostics are the batches of editor diagnostics (errors, warnings)
 	// handed to the model.
 	Diagnostics int `json:"diagnostics,omitzero"`
+	// Quality is what the tool calls say about the quality of the work.
+	Quality Quality `json:"quality,omitzero"`
 	// Started is when the transcript's first entry was written.
 	Started time.Time `json:"started,omitzero"`
 	// Cursor is where the next read continues.
@@ -83,11 +85,19 @@ type Transcript struct {
 // grows, so the next read starts at Offset; a shorter file is a new one.
 type TranscriptCursor struct {
 	Offset int64 `json:"offset"`
+	// Format is the TranscriptFormat the reading was made with. A reading made
+	// with another is read again from the start: continuing it would leave what
+	// the new format counts uncounted for every line already read.
+	Format int `json:"format,omitzero"`
 	// Recent are the ids of the last responses counted, newest last. Claude
 	// Code writes a response as several entries, one per block, each repeating
 	// its usage, and the entries of two responses can interleave.
 	Recent []string `json:"recent,omitzero"`
 }
+
+// TranscriptFormat is the version of what a reading of a transcript counts. It
+// goes up whenever a reading counts something new (2: the quality of the work).
+const TranscriptFormat = 2
 
 // recentKept is how many response ids the cursor remembers.
 const recentKept = 16

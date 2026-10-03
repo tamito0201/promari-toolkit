@@ -33,6 +33,7 @@ Code); it sends none of your data.
 | 📦 Cache, 📊 Tokens | Prompt cache hit ratio, lifetime (5m/1h), whether it went cold, the last miss with its cause and age, misses by cause, tokens written (and by misses), expected rebuilds, what it saves; tokens over the whole session (subagents included) with the cached share and the thinking share, requests, the last request's input split, the surcharge above 200k; "Caching off" when no response reported cache tokens |
 | 🔧 Work | The session's to-do list, tool calls by tool, files edited, hooks run (and failed), editor diagnostics handed to the model |
 | 🤝 Agent | Prompts typed, tool calls per prompt (autonomy), interventions (interrupts and refused tool calls per prompt), refusals, responses cut at the output limit, prompts queued while the agent worked, web searches and fetches, subagent requests, the models that answered |
+| 🧪 Quality | The tests and the builds, type checks and lints the session ran, how the last ended and the share that failed, judged from their output as well as their exit status (a failure piped through `tail` exits with 0); how long the tests have been red; the source files edited since the tests last passed; failed edits and the failures in a row; tool calls repeated as they were. For the uncommitted change: how widely it is spread (files, directories, top-level directories and the entropy of its lines), the share of its lines in tests, the TODO, FIXME, HACK and XXX it adds and removes, and the commits of today that fix or revert |
 | 🌿 Git | Branch, worktree, an operation in progress (rebase, merge, cherry-pick, revert, bisect), conflicts, changed, staged and new files, the lines changed against HEAD (yellow above 400, red above 1,000), ahead and behind, stashes, time since the last commit and the commits of today |
 | 🔀 PR | With `gh`: the pull request of the branch, its checks, its review, draft, conflicts, size (coloured like the diff) and age. Without `gh` (or for a GitLab merge request): the number and review state Claude Code found |
 | 🔖 Session, 🧭 Env | Session name, model, effort, thinking and fast mode, project, output style, permission mode, agent, vim mode, the directory the session moved to, added directories |
@@ -48,7 +49,7 @@ reset, a battery below 20 %, a major incident) blinks: its chip alternates every
 between its colour and a red band. The blink is made by drawing the line differently on odd seconds, not by the terminal's blink
 attribute, which many terminals ignore.
 
-Most of 🤝 Agent, 📊 Tokens over the session, the turn times and the files edited come from the
+Most of 🤝 Agent, 🧪 Quality, 📊 Tokens over the session, the turn times and the files edited come from the
 session's transcript. It is read once and then only from where the last read stopped, so a
 transcript of tens of megabytes costs a fraction of a millisecond per render (169 ms for the
 first read of a 29 MB transcript, 0.13 ms for the next). Where a chip's threshold comes from

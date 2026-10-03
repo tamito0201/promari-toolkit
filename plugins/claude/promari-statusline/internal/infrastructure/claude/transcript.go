@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"hash/fnv"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"promari-statusline/internal/domain/model"
@@ -24,6 +28,9 @@ var _ repository.TranscriptReader = Transcript{}
 // ever grows. A file shorter than the cursor is a new transcript and is read
 // from the start. A line not yet finished is left for the next read.
 func (t Transcript) Transcript(_ context.Context, path string, since model.Transcript) (model.Transcript, error) {
+	if since.Cursor.Format != model.TranscriptFormat {
+		since = model.Transcript{}
+	}
 	data, size, err := t.Sys.ReadFrom(path, since.Cursor.Offset)
 	if err != nil {
 		return model.Transcript{}, fmt.Errorf("read the transcript: %w", err)
@@ -42,6 +49,7 @@ func (t Transcript) Transcript(_ context.Context, path string, since model.Trans
 		readEntry(&read, line)
 	}
 	read.Cursor.Offset += int64(end)
+	read.Cursor.Format = model.TranscriptFormat
 	if read.Requests == 0 && read.Tools.Total == 0 && read.Prompts == 0 {
 		return read, repository.ErrNone
 	}
@@ -129,8 +137,8 @@ func readAttachment(t *model.Transcript, kind string) {
 func readResponse(t *model.Transcript, entry jsonx.Object) {
 	message := jsonx.Child(entry, "message")
 	for _, block := range jsonx.Or[[]jsonx.Object](message, "content") {
-		if member, ok := editTools[jsonx.Or[string](block, "name")]; ok && jsonx.Or[string](block, "type") == "tool_use" {
-			t.AddFile(jsonx.Or[string](jsonx.Child(block, "input"), member))
+		if jsonx.Or[string](block, "type") == "tool_use" {
+			readCall(t, block, jsonx.Or[bool](entry, "isSidechain"))
 		}
 	}
 	if t.Cursor.Counted(jsonx.Or[string](message, "id")) {
@@ -166,10 +174,103 @@ func readResponse(t *model.Transcript, entry jsonx.Object) {
 	t.WebFetches += int(jsonx.Or[float64](server, "web_fetch_requests"))
 }
 
+// readCall adds a tool call: the file an edit changes, the check a shell
+// command runs, and whether the call repeats the one before. A subagent's calls
+// are not compared with the main conversation's: the two interleave.
+func readCall(t *model.Transcript, block jsonx.Object, side bool) {
+	name := jsonx.Or[string](block, "name")
+	input := jsonx.Child(block, "input")
+	id := jsonx.Or[string](block, "id")
+	q := &t.Quality
+	if !side {
+		q.Call(signature(name, block["input"]))
+	}
+	if member, ok := editTools[name]; ok {
+		file := jsonx.Or[string](input, member)
+		q.Edits++
+		if slices.Contains(t.Files, file) {
+			q.ReEdits++
+		}
+		t.AddFile(file)
+		q.Await(model.PendingCall{ID: id, File: file})
+		return
+	}
+	if name == bashTool {
+		command := jsonx.Or[string](input, "command")
+		if kind := model.ClassifyCommand(command); kind != model.CheckNone {
+			q.Await(model.PendingCall{ID: id, Check: kind, Command: command})
+		}
+	}
+}
+
+// bashTool is the tool that runs shell commands.
+const bashTool = "Bash"
+
+// signature names a tool call by its tool and input as written, short enough
+// to keep.
+func signature(name string, input []byte) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(name))
+	_, _ = h.Write(input)
+	return strconv.FormatUint(h.Sum64(), 36)
+}
+
+// readResults adds the results of the calls that were waited for: how a check
+// ended, and whether an edit was made. A refused or interrupted call did not
+// run and decides nothing.
+func readResults(t *model.Transcript, entry jsonx.Object) {
+	q := &t.Quality
+	if len(q.Pending) == 0 {
+		return
+	}
+	refused := jsonx.Or[string](entry, "toolDenialKind") != ""
+	result := jsonx.Child(entry, "toolUseResult")
+	interrupted := jsonx.Or[bool](result, "interrupted")
+	for _, block := range jsonx.Or[[]jsonx.Object](jsonx.Child(entry, "message"), "content") {
+		if jsonx.Or[string](block, "type") != "tool_result" {
+			continue
+		}
+		call, ok := q.Resolve(jsonx.Or[string](block, "tool_use_id"))
+		if !ok || refused || interrupted {
+			continue
+		}
+		failed := jsonx.Or[bool](block, "is_error")
+		if call.Check == model.CheckNone {
+			if failed {
+				q.EditFailed()
+			} else {
+				q.Edited(call.File)
+			}
+			continue
+		}
+		output := jsonx.Or[string](result, "stdout") + "\n" + jsonx.Or[string](result, "stderr")
+		if _, structured := jsonx.Get[jsonx.Object](entry, "toolUseResult"); !structured {
+			output = resultText(block)
+		}
+		outcome := model.JudgeCheck(call.Check, call.Command, failed, output)
+		at, _ := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp"))
+		q.Checked(call.Check, outcome, outcome == model.OutcomeFail && !failed, at)
+	}
+}
+
+// resultText returns the text of a tool result: a string, or a list of text blocks.
+func resultText(block jsonx.Object) string {
+	if s, ok := jsonx.Get[string](block, "content"); ok {
+		return s
+	}
+	var b strings.Builder
+	for _, part := range jsonx.Or[[]jsonx.Object](block, "content") {
+		b.WriteString(jsonx.Or[string](part, "text"))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 // readPrompt adds a user entry: a prompt a human typed, an interrupted
 // response or a refused tool call. Tool results, reminders and notifications
 // also arrive as user entries and are not prompts.
 func readPrompt(t *model.Transcript, entry jsonx.Object) {
+	readResults(t, entry)
 	if jsonx.Or[string](entry, "interruptedMessageId") != "" {
 		// The note of the interruption is written as a user entry; it is not a prompt.
 		t.Interrupts++
