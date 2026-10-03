@@ -1,5 +1,6 @@
-// Package cli is the Cobra command tree of `pmr`. Commands resolve their use
-// cases from the DI container and only format output; no business logic here.
+// Package cli is the Cobra command tree of `pmr`. Each command is handed the
+// one use case it runs (see Scope) and only formats output; no business logic
+// here.
 // Each subcommand lives in its own file; this one holds the tree and the
 // helpers they share.
 package cli
@@ -11,22 +12,22 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
-	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/application/usecase"
 )
 
 // Version is set at build time with -ldflags "-X .../cli.Version=...".
 var Version = "dev"
 
-// New builds the root command around a container factory (injected so that
-// tests can replace infrastructure).
-func New(container func() *do.RootScope) *cobra.Command {
+// New builds the root command around the factory of its scopes (injected so
+// that tests can replace infrastructure). Every command opens a scope of its
+// own and closes it when it ends.
+func New(open Opener) *cobra.Command {
 	// Flag defaults come from the TOML settings (no literals in this package).
-	boot := container()
-	st := do.MustInvoke[model.Settings](boot)
-	_ = boot.Shutdown()
+	boot := open()
+	st := boot.Settings()
+	_ = boot.Close()
 	var asJSON bool
 	root := &cobra.Command{
 		Use:           "pmr",
@@ -37,13 +38,6 @@ func New(container func() *do.RootScope) *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&asJSON, "json", false, "print JSON")
 
-	with := func(run func(cmd *cobra.Command, args []string, i do.Injector) error) func(*cobra.Command, []string) error {
-		return func(cmd *cobra.Command, args []string) error {
-			c := container()
-			defer func() { _ = c.Shutdown() }()
-			return run(cmd, args, c)
-		}
-	}
 	printer := func(w io.Writer) func(v any, text func()) error {
 		return func(v any, text func()) error {
 			if asJSON {
@@ -57,33 +51,43 @@ func New(container func() *do.RootScope) *cobra.Command {
 	}
 
 	root.AddCommand(
-		hookCmd(container, st),
-		explainCmd(with, printer, st),
-		reportCmd(with, printer, st),
-		evalCmd(with, printer, st),
-		trainCmd(with, printer),
-		doctorCmd(with, printer, st.Display.ErrorChars),
-		lintCmd(with),
-		queryCmd(with, printer, st),
-		verifyCmd(with),
-		costCmd(with, printer, st),
-		serveCmd(with, st),
-		mcpCmd(with),
-		cloudCmd(with, printer, st.Cloud),
+		hookCmd(open, st),
+		explainCmd(open, printer, st),
+		reportCmd(open, printer, st),
+		evalCmd(open, printer, st),
+		trainCmd(open, printer),
+		doctorCmd(open, printer, st.Display.ErrorChars),
+		lintCmd(open),
+		queryCmd(open, printer, st),
+		verifyCmd(open),
+		costCmd(open, printer, st),
+		serveCmd(open, st),
+		mcpCmd(open),
+		cloudCmd(open, printer, st.Cloud),
 	)
 	return root
 }
 
-type (
-	withFn    = func(run func(cmd *cobra.Command, args []string, i do.Injector) error) func(*cobra.Command, []string) error
-	printerFn = func(w io.Writer) func(v any, text func()) error
-)
+type printerFn = func(w io.Writer) func(v any, text func()) error
 
 func orDash(s, dash string) string {
 	if s == "" {
 		return dash
 	}
 	return s
+}
+
+// artifactLine says which learned artifact a command routed with.
+func artifactLine(a usecase.ArtifactUsed) string {
+	readiness := "ready"
+	if !a.Ready {
+		readiness = "rules only"
+	}
+	line := orDash(a.Origin, "-") + " (" + readiness + ")"
+	if a.Problem != "" {
+		line += "; the local artifact was not used: " + a.Problem
+	}
+	return line
 }
 
 func sortedKeys[V any](m map[string]V) []string { return slices.Sorted(maps.Keys(m)) }

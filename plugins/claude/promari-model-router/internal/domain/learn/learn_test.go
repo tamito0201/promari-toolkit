@@ -494,7 +494,7 @@ func TestTrain(t *testing.T) {
 				t.Error(diff)
 			}
 			if art.Ready() != tt.wantReady || (art.SafeIsotonic != nil) != tt.wantIsotonic {
-				t.Fatalf("ready=%v isotonic=%v", art.Ready(), art.SafeIsotonic != nil)
+				t.Fatalf("ready=%v (%v) isotonic=%v", art.Ready(), art.Validate(), art.SafeIsotonic != nil)
 			}
 			if !tt.wantReady {
 				if art.Temperature != 1 || art.ConformalQ != 1 || len(art.Tau) != 0 || len(art.Metrics) != 0 || len(art.Gate) != 0 {

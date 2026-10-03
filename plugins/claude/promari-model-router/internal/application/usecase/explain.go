@@ -22,6 +22,28 @@ type Explanation struct {
 	Decision     DecisionView   `json:"subagent_decision"`
 	Trace        TraceView      `json:"trace"`
 	Advice       string         `json:"advice,omitempty"`
+	Artifact     ArtifactUsed   `json:"artifact"`
+}
+
+// ArtifactUsed says which learned artifact a run routed with. A local
+// artifact that cannot be used falls back to the embedded one; a result that
+// did not say so would pass for the local artifact's.
+type ArtifactUsed struct {
+	Origin string `json:"origin"`
+	Ready  bool   `json:"ready"`
+	// Problem is why the local artifact was not used ("" when it was, or when
+	// there is none).
+	Problem string `json:"problem,omitempty"`
+}
+
+// loadArtifact loads the artifact and says which one it is.
+func loadArtifact(l repository.ArtifactLoader) (model.Artifact, ArtifactUsed) {
+	art, err := l.Load()
+	used := ArtifactUsed{Origin: art.Origin, Ready: art.Ready()}
+	if err != nil {
+		used.Problem = err.Error()
+	}
+	return art, used
 }
 
 // DecisionView is the serialisable decision.
@@ -53,7 +75,7 @@ type ExplainInput struct {
 
 // Execute runs the routing workflow without touching the ledger.
 func (u ExplainUseCase) Execute(in ExplainInput) Explanation {
-	art, _ := u.Artifacts.Load() // a broken local artifact falls back to the embedded one; `pmr doctor` reports it
+	art, used := loadArtifact(u.Artifacts)
 	lex := u.Config.Lexicon(in.Cwd)
 	st := u.Config.Settings(in.Cwd)
 	session := model.SessionModel{Model: cmp.Or(in.SessionModel, st.Eval.SessionModel), Source: model.SourceExplicit}
@@ -73,7 +95,8 @@ func (u ExplainUseCase) Execute(in ExplainInput) Explanation {
 		scores[string(c)] = v
 	}
 	return Explanation{
-		Class: string(cls.Class), Confidence: cls.Confidence, Margin: cls.Margin, Scores: scores,
+		Artifact: used,
+		Class:    string(cls.Class), Confidence: cls.Confidence, Margin: cls.Margin, Scores: scores,
 		Danger: cls.Danger, Codex: string(cls.Codex), Continuation: cls.Continuation, Lang: string(cls.Lang), Chars: cls.Chars,
 		Decision: DecisionView{Action: string(d.Action), Reason: d.Reason, Target: string(d.Target), Class: string(d.Class), SubagentType: d.SubagentType},
 		Trace:    ViewOf(tr, st.Display.TraceDecimals), Advice: advice,

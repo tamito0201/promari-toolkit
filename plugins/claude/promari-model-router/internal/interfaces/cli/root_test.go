@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
@@ -82,19 +81,14 @@ func write(t *testing.T, path, body string) {
 	}
 }
 
-// newRoot builds the command tree over a container with the given overrides.
-func newRoot(inject func(do.Injector)) *cobra.Command {
-	return cli.New(func() *do.RootScope {
-		if inject == nil {
-			return di.New()
-		}
-		return di.New(inject)
-	})
+// newRoot builds the command tree over scopes with the given replacements.
+func newRoot(inject []di.Option) *cobra.Command {
+	return cli.New(func() cli.Scope { return di.New(inject...) })
 }
 
 // execute runs one pmr command line and returns stdout. With cancelled set,
 // the command runs under an already cancelled context.
-func execute(t *testing.T, inject func(do.Injector), cancelled bool, stdin string, args ...string) (string, error) {
+func execute(t *testing.T, inject []di.Option, cancelled bool, stdin string, args ...string) (string, error) {
 	t.Helper()
 	root := newRoot(inject)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -115,9 +109,13 @@ func execute(t *testing.T, inject func(do.Injector), cancelled bool, stdin strin
 func ledgerKinds(t *testing.T) []string {
 	t.Helper()
 	c := di.New()
-	defer func() { _ = c.Shutdown() }()
+	defer func() { _ = c.Close() }()
+	ledger, err := di.Resolve[repository.LedgerRepository](c)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var kinds []string
-	for e, err := range do.MustInvoke[repository.LedgerRepository](c).Since(t.Context(), time.Time{}) {
+	for e, err := range ledger.Since(t.Context(), time.Time{}) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,16 +156,14 @@ func TestCommands(t *testing.T) {
 		{args: []string{"hook", "PreToolUse"}, stdin: lookup},
 		{args: []string{"hook", "PostToolUse"}, stdin: `{"session_id":"s","tool_name":"Agent","tool_use_id":"t-1","tool_input":{"prompt":"UserService がどこで定義されているか探して","model":"haiku"},"tool_response":{"resolvedModel":"claude-haiku-4-5-20251001","status":"completed","totalTokens":1200,"usage":{"input_tokens":10,"output_tokens":90,"cache_read_input_tokens":1100}}}`},
 	}
-	failWiring := func(i do.Injector) {
-		do.Override(i, func(do.Injector) (hook.Handlers, error) { return hook.Handlers{}, errors.New("wiring failed") })
-	}
+	failWiring := di.Replace(func() (hook.Handlers, error) { return hook.Handlers{}, errors.New("wiring failed") })
 	tests := []struct {
 		name     string
 		toml     string            // project configuration
 		env      map[string]string // extra environment
 		files    map[string]string // written under $TMP
 		setup    []step            // commands run first (seed the ledger)
-		inject   func(do.Injector) // container overrides
+		inject   []di.Option       // replacements in the scopes
 		cancel   bool              // run with a cancelled context
 		stdio    bool              // os.Stdin is a closed pipe, os.Stdout is discarded
 		args     []string          // "$TMP" is replaced by the temporary directory
@@ -190,7 +186,7 @@ func TestCommands(t *testing.T) {
 		},
 		{name: "hook needs exactly one event name", args: []string{"hook"}, wantErr: "accepts 1 arg(s), received 0"},
 		{
-			name: "hook records a wiring failure and fails open", inject: failWiring,
+			name: "hook records a wiring failure and fails open", inject: []di.Option{failWiring},
 			args: []string{"hook", "SessionStart"}, stdin: `{}`, empty: true,
 			check: func(t *testing.T, _ string) {
 				t.Helper()
@@ -202,11 +198,11 @@ func TestCommands(t *testing.T) {
 		{
 			// It used to leave no trace at all.
 			name: "hook leaves the failure file when not even the ledger can be wired",
-			inject: func(i do.Injector) {
-				failWiring(i)
-				do.Override(i, func(do.Injector) (usecase.RecordErrorUseCase, error) {
+			inject: []di.Option{
+				failWiring,
+				di.Replace(func() (usecase.RecordErrorUseCase, error) {
 					return usecase.RecordErrorUseCase{}, errors.New("no ledger")
-				})
+				}),
 			},
 			args: []string{"hook", "SessionStart"}, stdin: `{}`, empty: true,
 			check: func(t *testing.T, tmp string) {
@@ -222,12 +218,12 @@ func TestCommands(t *testing.T) {
 		},
 		{
 			name: "hook stays silent when not even the failure file can be written",
-			inject: func(i do.Injector) {
-				failWiring(i)
-				do.Override(i, func(do.Injector) (usecase.RecordErrorUseCase, error) {
+			inject: []di.Option{
+				failWiring,
+				di.Replace(func() (usecase.RecordErrorUseCase, error) {
 					return usecase.RecordErrorUseCase{}, errors.New("no ledger")
-				})
-				do.Override(i, func(do.Injector) (repository.FailureRecorder, error) { return nil, errors.New("no data dir") })
+				}),
+				di.Replace(func() (repository.FailureRecorder, error) { return nil, errors.New("no data dir") }),
 			},
 			args: []string{"hook", "SessionStart"}, stdin: `{}`, empty: true,
 			check: func(t *testing.T, tmp string) {
@@ -249,7 +245,17 @@ func TestCommands(t *testing.T) {
 				"reasons    : standard:テストを書\n" +
 				"stages     : guard > signals > tag > cascade > ood > floor > risk > ledger > gate > finish\n" +
 				"subagent   : inject (rule:standard) -> sonnet  [type=general-purpose, session=claude-opus-5-5]\n" +
-				"advice     : -\n",
+				"advice     : -\n" +
+				"artifact   : embedded (ready)\n",
+		},
+		{
+			// A broken local artifact used to fall back without a word.
+			name: "explain says when it did not route with the local artifact",
+			inject: []di.Option{di.Replace(func() repository.ArtifactStore {
+				return brokenArtifact{err: errors.New("local artifact is broken: artifact.json: no classes")}
+			})},
+			args:    []string{"explain", "この関数の単体テストを書いて"},
+			wantOut: []string{"artifact   : - (rules only); the local artifact was not used: local artifact is broken: artifact.json: no classes\n"},
 		},
 		{
 			name: "explain reads the prompt from stdin", args: []string{"explain", "--json"}, stdin: "UserService がどこで定義されているか探して",
@@ -265,6 +271,33 @@ func TestCommands(t *testing.T) {
 		},
 
 		// ------------------------------------------------------------ report
+		// A use case that cannot be built is the command's error, not a panic
+		// (commands used to resolve their use case with a call that panics).
+		{
+			name:   "report says why its use case cannot be built",
+			inject: []di.Option{di.Replace(func() (usecase.ReportUseCase, error) { return usecase.ReportUseCase{}, errors.New("no ledger") })},
+			args:   []string{"report"}, wantErr: "no ledger",
+		},
+		{
+			name:   "serve says why its report cannot be built",
+			inject: []di.Option{di.Replace(func() (usecase.ReportUseCase, error) { return usecase.ReportUseCase{}, errors.New("no ledger") })},
+			args:   []string{"serve"}, wantErr: "no ledger",
+		},
+		{
+			name:   "serve says why its explanations cannot be built",
+			inject: []di.Option{di.Replace(func() (usecase.ExplainUseCase, error) { return usecase.ExplainUseCase{}, errors.New("no artifact") })},
+			args:   []string{"serve"}, wantErr: "no artifact",
+		},
+		{
+			name:   "mcp says why its report cannot be built",
+			inject: []di.Option{di.Replace(func() (usecase.ReportUseCase, error) { return usecase.ReportUseCase{}, errors.New("no ledger") })},
+			args:   []string{"mcp"}, wantErr: "no ledger",
+		},
+		{
+			name:   "mcp says why its explanations cannot be built",
+			inject: []di.Option{di.Replace(func() (usecase.ExplainUseCase, error) { return usecase.ExplainUseCase{}, errors.New("no artifact") })},
+			args:   []string{"mcp"}, wantErr: "no artifact",
+		},
 		{
 			name: "report on an empty ledger", args: []string{"report"},
 			wantOut: []string{"last 7 day(s), 0 ledger entries", "classified n/a (0 events)", "list-price estimate", "): none", "No data. Is the plugin enabled?"},
@@ -300,8 +333,8 @@ func TestCommands(t *testing.T) {
 		{name: "report refuses a negative window", args: []string{"report", "--days", "-1"}, wantErr: "days must be a positive number"},
 		{
 			name: "report fails when the ledger fails",
-			inject: func(i do.Injector) {
-				do.OverrideValue[repository.LedgerRepository](i, fakeLedger{sinceErr: errors.New("ledger unreadable")})
+			inject: []di.Option{
+				di.Replace(func() repository.LedgerRepository { return fakeLedger{sinceErr: errors.New("ledger unreadable")} }),
 			},
 			args:    []string{"report"},
 			wantErr: "ledger unreadable",
@@ -335,6 +368,7 @@ func TestCommands(t *testing.T) {
 				"  sufficient tier: router 1.00  always-cheap 0.50  static 1.00  oracle 1.00\n" +
 				"  relative cost  : router 3.00  always-strong 5.00  static 3.00  oracle 3.00\n" +
 				"  collapse (share of the most common tier): 0.50\n" +
+				"  artifact: embedded (ready)\n" +
 				"  miss: want=architecture got=abstain              list the files in this directory\n" +
 				"✅ eval complete\n",
 		},
@@ -422,8 +456,8 @@ func TestCommands(t *testing.T) {
 		{name: "lint passes", args: []string{"lint"}, wantOut: []string{"✅ lint complete: 4 agents match data/tiers.toml"}},
 		{
 			name: "lint lists disagreeing agents",
-			inject: func(i do.Injector) {
-				do.OverrideValue[repository.ConfigProvider](i, extraAgent{settings.NewProvider()})
+			inject: []di.Option{
+				di.Replace(func() repository.ConfigProvider { return extraAgent{settings.NewProvider()} }),
 			},
 			args: []string{"lint"}, wantOut: []string{"❌ agents/nope.md is missing"}, wantErr: "1 agent(s) disagree with data/tiers.toml",
 		},
@@ -448,16 +482,16 @@ func TestCommands(t *testing.T) {
 		{name: "verify an intact chain", setup: seed, args: []string{"verify"}, wantOut: []string{"✅ verify complete: 4 rows, chain intact"}},
 		{
 			name: "verify reports a broken chain",
-			inject: func(i do.Injector) {
-				do.OverrideValue[repository.LedgerRepository](i, fakeLedger{checked: 2, broken: 3})
+			inject: []di.Option{
+				di.Replace(func() repository.LedgerRepository { return fakeLedger{checked: 2, broken: 3} }),
 			},
 			args:    []string{"verify"},
 			wantErr: "ledger chain broken at row 3 (after 2 intact rows)",
 		},
 		{
 			name: "verify reports a read failure",
-			inject: func(i do.Injector) {
-				do.OverrideValue[repository.LedgerRepository](i, fakeLedger{verifyErr: errors.New("ledger unreadable")})
+			inject: []di.Option{
+				di.Replace(func() repository.LedgerRepository { return fakeLedger{verifyErr: errors.New("ledger unreadable")} }),
 			},
 			args:    []string{"verify"},
 			wantErr: "ledger unreadable",
@@ -552,3 +586,9 @@ func TestCommands(t *testing.T) {
 		})
 	}
 }
+
+// brokenArtifact is an artifact store whose local artifact cannot be used.
+type brokenArtifact struct{ err error }
+
+func (b brokenArtifact) Load() (model.Artifact, error)     { return model.Artifact{}, b.err }
+func (brokenArtifact) Save(model.Artifact) (string, error) { return "", nil }

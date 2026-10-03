@@ -22,6 +22,7 @@ func ready(origin string) model.Artifact {
 	return model.Artifact{
 		Version: "t", Samples: 7, Origin: origin, Features: spec,
 		Classes: []model.Class{model.ClassLookup}, Weights: [][]float64{make([]float64, spec.Dim())}, Bias: []float64{0},
+		Temperature: 1,
 	}
 }
 

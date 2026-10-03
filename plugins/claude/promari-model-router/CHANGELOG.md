@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.2.0 — 2026-10-04
+
+The rest of the review (#3084), fixed:
+
+- The ledger's write-ahead log (`ledger.db-wal`) and shared-memory index (`ledger.db-shm`) are
+  kept 0600 like the database. SQLite's driver created them 0644, so the latest rows were
+  readable by other users while the ledger was open; files an older version left are
+  tightened when the ledger opens.
+- A `pmr cloud send` stopped before the CLI answered (the timeout, Ctrl-C) says the message
+  may have been queued, instead of saying it was not: sending again could run the billed work
+  twice. A child the CLI left holding its output no longer holds the command past 2 seconds.
+- A labelled prompt whose class is misspelled is an error naming the file and line, instead
+  of being learned as "abstain". `abstain` and an empty class still mean no class.
+- When the hook cannot apply an inject it recorded (the tool input is not an object), it
+  records why, instead of leaving the ledger saying the model was changed.
+- `pmr eval` and `pmr explain` say which artifact they routed with. A local artifact that
+  cannot be used fails the eval gate, instead of passing on the embedded artifact.
+- An artifact with a temperature at or below 0, a τ that is not a number, or a calibration
+  outside [0, 1] is not used: the risk guards would have let downgrades through.
+
+Fixes found by a review of the layers (layered architecture with DDD, SOLID, design patterns):
+
+- Routing no longer sends a call to a tier the ledger shows failing. When the target tier's
+  record is poor and no tier above it has the evidence to take the call (none was observed,
+  or every tier up to the ceiling fails too), the call is held on the session's tier with the
+  reason `posterior-hold`. It used to go to the failing tier.
+- A probability that is not a number no longer passes the risk threshold: it holds.
+- Subagents launched in the background are no longer learned as failures that used no tokens:
+  their result arrives when they start, without an outcome.
+- `pmr train` without `--output` no longer writes, over the artifact routing uses, one that
+  cannot route (too few labelled prompts, or the embedded set alone); it says so and writes
+  nothing. With `--output` it writes as before.
+- Settings that silently turned a guard off are rejected: `runtime.workflow_step_limit` below
+  the 10 stages of the routing workflow (every route stopped), `classifier.class_cap = 0`
+  (every prompt abstained), a `training.tau_grid` or `temperature_grid` without a positive
+  step, and a non-positive `eval.relative_cost`.
+- A command whose use case cannot be built (the ledger cannot be opened) fails with the error
+  instead of a panic and a stack trace.
+- Inside: the dependency injection is `go.uber.org/dig` instead of `samber/do`. The command
+  line no longer resolves use cases from a container: it declares what it needs
+  (`cli.Scope`, an abstract factory) and each command is handed only its use case. A use case
+  built with a port left nil fails, naming the field, when it is built. The reasons a guard
+  holds a call are named once in the model (`Decision.Held`, `Decision.Classified`), and the
+  Beta prior once (`model.NewBeta`, `Beta.Observations`).
+
 ## 1.1.1 — 2026-10-03
 
 - The release of 1.1.0 stopped at the coverage gate (99.7% against the required 100%), so

@@ -6,14 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/domain/model"
 )
 
-func evalCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
+func evalCmd(open Opener, printer printerFn, st model.Settings) *cobra.Command {
 	var file, session string
 	var minAcc float64
 	var maxHarm int
@@ -21,7 +20,7 @@ func evalCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "eval",
 		Short: "run the labelled evaluation set through the full routing workflow (CI gate)",
-		RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
+		RunE: use(open, Scope.Eval, func(cmd *cobra.Command, _ []string, uc usecase.EvalUseCase) error {
 			cwd, _ := os.Getwd()
 			opt := usecase.EvalOptions{Path: file, SessionModel: session, Cwd: cwd}
 			if cmd.Flags().Changed("min-accuracy") {
@@ -34,7 +33,7 @@ func evalCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
 				opt.UseModel = new(false)
 			}
 			opt.AllowEmbedded = allowEmbedded
-			s, err := do.MustInvoke[usecase.EvalUseCase](i).Execute(opt)
+			s, err := uc.Execute(opt)
 			if err != nil {
 				return err
 			}
@@ -53,6 +52,7 @@ func evalCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
 				fmt.Fprintf(w, "  sufficient tier: router %.2f  always-cheap %.2f  static %.2f  oracle %.2f\n", b.Router, b.AlwaysCheap, b.Static, b.Oracle)
 				fmt.Fprintf(w, "  relative cost  : router %.2f  always-strong %.2f  static %.2f  oracle %.2f\n", b.RouterCost, b.StrongCost, b.StaticCost, b.OracleCost)
 				fmt.Fprintf(w, "  collapse (share of the most common tier): %.2f\n", s.Collapse)
+				fmt.Fprintf(w, "  artifact: %s\n", artifactLine(s.Artifact))
 				if verbose {
 					for _, m := range s.Misses {
 						fmt.Fprintf(w, "  miss: want=%-12s got=%-12s %-7s %s\n", m.Want, m.Got,

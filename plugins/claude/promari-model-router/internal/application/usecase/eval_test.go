@@ -21,6 +21,9 @@ func TestEval(t *testing.T) {
 		opt   usecase.EvalOptions
 		check func(t *testing.T, s usecase.EvalSummary, st model.Settings)
 		err   bool
+		// loadErr is the artifact store's answer; nil is "no local artifact"
+		// (rules only, the zero artifact).
+		loadErr error
 	}{
 		{
 			name: "embedded set against the configured gate",
@@ -85,6 +88,24 @@ func TestEval(t *testing.T) {
 				}
 				if diff := cmp.Diff(wantMisses, s.Misses); diff != "" {
 					t.Errorf("misses (-want +got):\n%s", diff)
+				}
+			},
+		},
+		{
+			// It used to pass on the embedded artifact without a word.
+			name: "a local artifact that cannot be used fails the gate and says so",
+			path: func(t *testing.T) string {
+				t.Helper()
+				return writeFile(t, `{"lang":"en","expect":"abstain","text":"hi"}`+"\n")
+			},
+			opt:     usecase.EvalOptions{MinAccuracy: new(0.0), MaxHarmful: new(0)},
+			loadErr: errArtifact,
+			check: func(t *testing.T, s usecase.EvalSummary, _ model.Settings) {
+				t.Helper()
+				got := []any{s.Passed, s.FailedBecause, s.Artifact.Problem}
+				want := []any{false, []string{"the local artifact was not used: no artifact"}, "no artifact"}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("verdict (-want +got):\n%s", diff)
 				}
 			},
 		},
@@ -174,7 +195,7 @@ func TestEval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t)
-			f.artifacts.loadErr = errArtifact
+			f.artifacts.loadErr = tt.loadErr
 			// A shadow rollout in the config must not blank out the evaluation.
 			f.config.mutate = func(s *model.Settings) { s.Routing.Mode = model.ModeShadow }
 			opt := tt.opt

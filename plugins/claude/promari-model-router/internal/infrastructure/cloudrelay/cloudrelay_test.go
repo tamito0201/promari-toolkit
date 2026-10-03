@@ -84,6 +84,49 @@ func TestMessengerSend(t *testing.T) {
 	}
 }
 
+// A send stopped before the CLI answered may have queued the message: it is
+// not reported as refused (it used to be, inviting a second, billed send).
+func TestMessengerSendStopped(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		stop    func(cancel context.CancelFunc) // stops the caller's context, or not
+		stdout  string
+		wantErr error
+		wantURL string
+	}{
+		{name: "the timeout", stop: func(context.CancelFunc) {}, wantErr: cloudrelay.ErrSendUnknown},
+		{name: "Ctrl-C", stop: func(cancel context.CancelFunc) { cancel() }, wantErr: cloudrelay.ErrSendUnknown},
+		{
+			name: "an answer that came before the stop still counts", stop: func(cancel context.CancelFunc) { cancel() },
+			stdout: `{"ok":true,"url":"https://claude.ai/code/x"}`, wantURL: "https://claude.ai/code/x",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			id, msg := ids(t)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			tt.stop(cancel)
+			m := cloudrelay.Messenger{
+				Bin: "claude", Timeout: 10 * time.Millisecond,
+				Run: func(ctx context.Context, _ string, _ []string, _ io.Reader) ([]byte, []byte, error) {
+					<-ctx.Done() // the CLI is killed without answering
+					return []byte(tt.stdout), nil, ctx.Err()
+				},
+			}
+			url, err := m.Send(ctx, id, msg)
+			if !errors.Is(err, tt.wantErr) || url != tt.wantURL {
+				t.Fatalf("url, err = %q, %v; want %q, %v", url, err, tt.wantURL, tt.wantErr)
+			}
+			if errors.Is(err, cloudrelay.ErrSendRefused) {
+				t.Errorf("a stopped send was reported as refused: %v", err)
+			}
+		})
+	}
+}
+
 func TestMessengerRunsTheProgram(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

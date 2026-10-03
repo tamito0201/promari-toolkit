@@ -161,7 +161,11 @@ tasks:
       # -cover binary writes its counters on os.Exit as well.
       - '{{.GO}} tool covdata textfmt -i=.cover -o coverage.all.out'
       - grep -v -e '/api.gen.go:' coverage.all.out > coverage.out
-      - '{{.TOOL}} octocov'
+      # octocov checks `coverage.acceptable` only when CI is set: without it, it prints the numbers
+      # and exits 0 (cmd/root.go: `if os.Getenv("CI") == "" { return printMetrics(cmd) }`), so a
+      # local run passed at 99.7% while CI failed. Run it in CI mode everywhere; its CI mode also
+      # needs a repository name, which only names the report here (nothing is posted).
+      - 'CI="${CI:-true}" GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-local/promari-model-router}" {{.TOOL}} octocov'
 
   eval:
     desc: Evaluation gate on the embedded labelled set (thresholds in data/defaults.toml [eval])
@@ -201,4 +205,4 @@ tasks:
 
   actionlint:
     desc: Lint the GitHub Actions workflows of the repository that hosts this plugin
-    cmds: ['{{.TOOL}} actionlint {{.WORKFLOWS | default "../../../.github/workflows/*claude-plugin*.yml"}}']
+    cmds: ['{{.TOOL}} actionlint {{.WORKFLOWS | default "../../../../.github/workflows/*claude-plugin*.yml"}}']

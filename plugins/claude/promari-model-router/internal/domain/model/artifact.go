@@ -3,6 +3,9 @@ package model
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"math"
+	"slices"
 	"time"
 )
 
@@ -51,6 +54,16 @@ type Beta struct {
 
 // Mean is α / (α + β).
 func (b Beta) Mean() float64 { return b.Alpha / (b.Alpha + b.Beta) }
+
+// prior is the uniform Beta(1,1) every posterior starts from.
+var prior = Beta{Alpha: 1, Beta: 1}
+
+// NewBeta returns the posterior before any observation.
+func NewBeta() Beta { return prior }
+
+// Observations is how many outcomes the posterior has seen: what it holds
+// beyond the prior.
+func (b Beta) Observations() float64 { return b.Alpha + b.Beta - prior.Alpha - prior.Beta }
 
 // Variance is αβ / ((α+β)²(α+β+1)).
 func (b Beta) Variance() float64 {
@@ -148,6 +161,40 @@ var ErrArtifactBroken = errors.New("local artifact is broken")
 // Trusted reports whether the artifact may drive routing decisions.
 func (a Artifact) Trusted() bool { return a.Ready() && a.Origin == OriginLocal }
 
+// unit reports whether v is a probability: within [0, 1], and not NaN.
+func unit(v float64) bool { return v >= 0 && v <= 1 }
+
+// validateNumbers checks the values the risk guards compare against: a
+// temperature at or below 0 turns the softmax over (or divides by 0), and a
+// threshold or a calibrated probability that is not a probability (NaN fails
+// every comparison) lets a downgrade through that the guard should hold.
+func (a Artifact) validateNumbers() error {
+	switch {
+	case !(a.Temperature > 0) || math.IsInf(a.Temperature, 1):
+		return fmt.Errorf("temperature %v: must be a number > 0", a.Temperature)
+	case !unit(a.ConformalQ):
+		return fmt.Errorf("conformal_q %v: must be within [0, 1]", a.ConformalQ)
+	}
+	// A τ above 1 is training's "never downgrade" (one step past the grid):
+	// no probability reaches it.
+	for _, b := range slices.Sorted(maps.Keys(a.Tau)) {
+		if !(a.Tau[b] >= 0) {
+			return fmt.Errorf("tau for %s %v: must be a number >= 0", b, a.Tau[b])
+		}
+	}
+	if iso := a.SafeIsotonic; iso != nil {
+		for i, y := range iso.Y {
+			if !unit(y) {
+				return fmt.Errorf("isotonic y[%d] %v: must be within [0, 1]", i, y)
+			}
+			if i > 0 && !(iso.X[i] >= iso.X[i-1]) {
+				return fmt.Errorf("isotonic x[%d] %v is below x[%d] %v: must not decrease", i, iso.X[i], i-1, iso.X[i-1])
+			}
+		}
+	}
+	return nil
+}
+
 // Ready reports whether the artifact holds a usable classifier.
 func (a Artifact) Ready() bool { return a.Validate() == nil }
 
@@ -174,6 +221,9 @@ func (a Artifact) Validate() error {
 		if len(row) != dim {
 			return fmt.Errorf("weight row %d has %d values, want %d", c, len(row), dim)
 		}
+	}
+	if err := a.validateNumbers(); err != nil {
+		return err
 	}
 	for i, n := range a.Neighbors {
 		if len(n.Idx) != len(n.Val) {

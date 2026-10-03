@@ -192,6 +192,9 @@ func preToolUse(c call) {
 		// without it (verified on Claude Code 2.1.285).
 		var full map[string]any
 		if json.Unmarshal(c.in.ToolInput, &full) != nil || full == nil {
+			// The ledger already holds the inject: say it was not applied, or
+			// the ledger reads as a rewrite that never happened.
+			c.onError("rewrite tool_input: not an object, the model was not changed")
 			return
 		}
 		full["model"] = string(d.Target)

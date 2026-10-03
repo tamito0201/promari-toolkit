@@ -9,8 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/samber/do/v2"
-
 	"promari-model-router/internal/di"
 	"promari-model-router/internal/interfaces/cli"
 )
@@ -22,7 +20,7 @@ func run() int {
 	// supervisors, and must shut down (close the ledger) instead of dying.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	root := cli.New(func() *do.RootScope { return di.New() })
+	root := cli.New(func() cli.Scope { return di.New() })
 	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "❌", err)
 		return 1

@@ -120,7 +120,7 @@ go tool -modfile=tools/go.mod task build    # snapshot binaries for every platfo
 ```
 
 Go 1.27. Layered architecture with DDD (domain / application / infrastructure /
-interfaces), GORM on pure-Go SQLite, Cobra, samber/do, the official MCP Go SDK, and an
+interfaces), GORM on pure-Go SQLite, Cobra, uber-go/dig, the official MCP Go SDK, and an
 oapi-codegen server validated against its OpenAPI contract.
 
 ## License

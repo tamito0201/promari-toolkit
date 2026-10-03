@@ -269,11 +269,11 @@ func floorStage(s routeState) routeState {
 	case len(s.sig.Danger) > 0 && s.class.DowngradeSensitive() && s.trace.Source != "fixed":
 		// A fixed rule routes a read-only built-in (Explore): reading auth code
 		// on haiku cannot break it. The floor protects work that changes things.
-		return s.stop(model.ActionNone, "danger-keep")
+		return s.stop(model.ActionNone, model.ReasonDangerKeep)
 	case p.RetryEscalation && s.in.Retried:
-		return s.stop(model.ActionNone, "retry-keep")
+		return s.stop(model.ActionNone, model.ReasonRetryKeep)
 	case p.ContextHold && s.class.Cheap() && len(s.sig.ContextCues) > 0 && s.trace.Source != "tag":
-		return s.stop(model.ActionNone, "context-keep")
+		return s.stop(model.ActionNone, model.ReasonContextKeep)
 	}
 	return s
 }
@@ -292,13 +292,16 @@ func riskStage(s routeState) routeState {
 		s.trace.PSafe = SafeProbability(s.probs, a, s.in.Table, target)
 		s.trace.Tau = a.Tau[s.in.Settings.Buckets.Of(s.sig.Chars)]
 		// A bucket without a learned τ reads as 0, which no probability is below.
-		if s.trace.PSafe < s.trace.Tau {
-			return s.stop(model.ActionNone, "risk-hold")
+		// Written as "not at least τ" so that a probability that is not a
+		// number (NaN) holds instead of passing: every comparison with NaN is
+		// false.
+		if !(s.trace.PSafe >= s.trace.Tau) {
+			return s.stop(model.ActionNone, model.ReasonRiskHold)
 		}
 		return s
 	}
 	if s.trace.Source == "rule" && s.class.Cheap() && s.sig.Chars >= max(p.Chars, 1) && s.trace.Rule.Margin < p.MinMargin {
-		return s.stop(model.ActionNone, "long-prompt-keep")
+		return s.stop(model.ActionNone, model.ReasonLongPromptKeep)
 	}
 	return s
 }
@@ -307,6 +310,12 @@ func riskStage(s routeState) routeState {
 // work is poor (CADMAS-CTX Beta posteriors with an uncertainty penalty,
 // arXiv:2604.17950), then prefer the tier with the best μ − λ·ĉ (CARROT,
 // arXiv:2502.03261) among tiers the posterior does not veto.
+//
+// No evidence and poor evidence are different: without observations of the
+// target the static table's choice stands, but once a tier is seen failing,
+// the call goes only to a tier the evidence clears. When none does (the tier
+// above was never observed, or every tier up to the ceiling fails), the call
+// is held on the session's tier rather than sent where it was seen to fail.
 func ledgerStage(s routeState) routeState {
 	a, p := s.in.Artifact, s.in.Settings.Model
 	if !s.learned() || len(a.Posteriors) == 0 {
@@ -315,13 +324,18 @@ func ledgerStage(s routeState) routeState {
 	bucket := s.in.Settings.Buckets.Of(s.sig.Chars)
 	target := s.in.Table.Target(s.class)
 	for _, tier := range model.TierOrder[target.Rank():] {
-		if tier.Above(s.in.Table.Ceiling) {
-			break
-		}
 		post, ok := a.Posteriors[model.PosteriorKey(s.class, bucket, tier)]
-		if !ok || post.Alpha+post.Beta-2 < p.MinObservations {
+		switch {
+		case tier == target && (tier.Above(s.in.Table.Ceiling) || !ok || post.Observations() < p.MinObservations):
+			if !tier.Above(s.in.Table.Ceiling) {
+				s.trace.Posterior = math.NaN()
+			}
+			return s // no evidence about the target: keep the static table's choice
+		case tier.Above(s.in.Table.Ceiling):
+			return s.stop(model.ActionNone, model.ReasonPosteriorHold) // seen failing up to the ceiling
+		case !ok || post.Observations() < p.MinObservations:
 			s.trace.Posterior = math.NaN()
-			break // no evidence: keep the static table's choice
+			return s.stop(model.ActionNone, model.ReasonPosteriorHold) // nothing clears the tier above
 		}
 		score := post.Mean() - p.PosteriorGamma*math.Sqrt(post.Variance())
 		s.trace.Posterior = score
@@ -331,10 +345,11 @@ func ledgerStage(s routeState) routeState {
 				s.class = classForTier(s.in.Table, tier, s.class)
 				s.trace.Escalated = true
 			}
-			break
+			return s
 		}
 	}
-	return s
+	// Every tier there is was seen failing.
+	return s.stop(model.ActionNone, model.ReasonPosteriorHold)
 }
 
 func classForTier(table model.TierTable, tier model.Tier, fallback model.Class) model.Class {
@@ -353,7 +368,7 @@ func gateStage(s routeState) routeState {
 		return s
 	}
 	if open, ok := s.in.Artifact.Gate[s.class]; ok && !open && s.trace.Source != "tag" {
-		return s.stop(model.ActionNone, "gate-closed")
+		return s.stop(model.ActionNone, model.ReasonGateClosed)
 	}
 	return s
 }
@@ -369,11 +384,11 @@ func finishStage(s routeState) routeState {
 	if !session.Known() {
 		if !slices.Contains(s.in.Settings.Routing.UnknownSessionAllows, target) {
 			s.decision = s.decision.WithTarget(target)
-			return s.stop(model.ActionNone, "unknown-session")
+			return s.stop(model.ActionNone, model.ReasonUnknownSession)
 		}
 	} else if target = target.Min(session); target == session {
 		s.decision = s.decision.WithTarget(target)
-		return s.stop(model.ActionNone, "same-tier")
+		return s.stop(model.ActionNone, model.ReasonSameTier)
 	}
 	s.decision = s.decision.WithTarget(target)
 	action := model.ActionInject

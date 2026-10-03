@@ -383,7 +383,10 @@ func TestRouteLearnedStages(t *testing.T) {
 			wantEscal:  true,
 		},
 		{
-			name: "a poor record everywhere stops at the ceiling",
+			// The tier above the ceiling succeeds but is not reached; a tier
+			// seen failing is not chosen either (it used to be: the call went
+			// to haiku, which fails 99 times in 100).
+			name: "a poor record everywhere up to the ceiling holds",
 			call: model.AgentCall{Prompt: lookup},
 			artifact: func() model.Artifact {
 				a := synthetic(confidentLookup...)
@@ -393,7 +396,35 @@ func TestRouteLearnedStages(t *testing.T) {
 				}
 				return a
 			},
-			want:       model.Decision{Action: model.ActionInject, Reason: "rule:lookup", Target: model.TierHaiku, Class: model.ClassLookup},
+			want:       model.Decision{Action: model.ActionNone, Reason: model.ReasonPosteriorHold, Class: model.ClassLookup},
+			wantSource: "rule",
+		},
+		{
+			name: "a poor record on every tier there is holds",
+			call: model.AgentCall{Prompt: lookup},
+			artifact: func() model.Artifact {
+				a := synthetic(confidentLookup...)
+				a.Posteriors = map[string]model.Beta{
+					key(model.TierHaiku): beta(1, 100), key(model.TierSonnet): beta(1, 100),
+					key(model.TierOpus): beta(1, 100), key(model.TierFable): beta(1, 100),
+				}
+				return a
+			},
+			table:      func(t model.TierTable) model.TierTable { t.Ceiling = model.TierFable; return t },
+			want:       model.Decision{Action: model.ActionNone, Reason: model.ReasonPosteriorHold, Class: model.ClassLookup},
+			wantSource: "rule",
+		},
+		{
+			// It used to break out at the unobserved tier and keep haiku,
+			// the tier just seen failing.
+			name: "a poor record with nothing observed above holds",
+			call: model.AgentCall{Prompt: lookup},
+			artifact: func() model.Artifact {
+				a := synthetic(confidentLookup...)
+				a.Posteriors = map[string]model.Beta{key(model.TierHaiku): beta(1, 100)}
+				return a
+			},
+			want:       model.Decision{Action: model.ActionNone, Reason: model.ReasonPosteriorHold, Class: model.ClassLookup},
 			wantSource: "rule",
 		},
 		{

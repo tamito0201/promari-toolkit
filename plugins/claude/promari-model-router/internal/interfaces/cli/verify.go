@@ -3,18 +3,17 @@ package cli
 import (
 	"fmt"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 )
 
-func verifyCmd(with withFn) *cobra.Command {
+func verifyCmd(open Opener) *cobra.Command {
 	return &cobra.Command{
 		Use:   "verify",
 		Short: "verify the ledger's hash chain (tamper evidence)",
-		RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
-			v, err := do.MustInvoke[usecase.VerifyUseCase](i).Execute(cmd.Context())
+		RunE: use(open, Scope.Verify, func(cmd *cobra.Command, _ []string, uc usecase.VerifyUseCase) error {
+			v, err := uc.Execute(cmd.Context())
 			switch {
 			case err != nil:
 				return err

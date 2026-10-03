@@ -18,6 +18,7 @@ func TestDoctor(t *testing.T) {
 	trusted := model.Artifact{
 		Origin: model.OriginLocal, Source: "mine", Samples: 42, TrainedAt: testNow,
 		Classes: []model.Class{model.ClassLookup}, Weights: [][]float64{make([]float64, spec.Dim())}, Bias: []float64{0}, Features: spec,
+		Temperature: 1,
 	}
 	failure := func(ago time.Duration, msg string) *model.Failure {
 		return &model.Failure{At: testNow.Add(-ago), Message: msg}

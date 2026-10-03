@@ -6,27 +6,26 @@ import (
 	"os"
 	"strings"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/domain/model"
 )
 
-func explainCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
+func explainCmd(open Opener, printer printerFn, st model.Settings) *cobra.Command {
 	var session, subType string
 	cmd := &cobra.Command{
 		Use:     "explain [prompt]",
 		Aliases: []string{"classify"},
 		Short:   "show how a prompt is classified and routed, stage by stage",
-		RunE: with(func(cmd *cobra.Command, args []string, i do.Injector) error {
+		RunE: use(open, Scope.Explain, func(cmd *cobra.Command, args []string, uc usecase.ExplainUseCase) error {
 			prompt := strings.Join(args, " ")
 			if prompt == "" {
 				raw, _ := io.ReadAll(cmd.InOrStdin())
 				prompt = string(raw)
 			}
 			cwd, _ := os.Getwd()
-			ex := do.MustInvoke[usecase.ExplainUseCase](i).Execute(usecase.ExplainInput{Prompt: prompt, SubagentType: subType, SessionModel: session, Cwd: cwd})
+			ex := uc.Execute(usecase.ExplainInput{Prompt: prompt, SubagentType: subType, SessionModel: session, Cwd: cwd})
 			return printer(cmd.OutOrStdout())(ex, func() {
 				w := cmd.OutOrStdout()
 				fmt.Fprintf(w, "class      : %s  confidence=%d margin=%d\n", orDash(ex.Class, "(abstain)"), ex.Confidence, ex.Margin)
@@ -41,6 +40,7 @@ func explainCmd(with withFn, printer printerFn, st model.Settings) *cobra.Comman
 				fmt.Fprintf(w, "subagent   : %s (%s) -> %s  [type=%s, session=%s]\n", ex.Decision.Action, ex.Decision.Reason,
 					orDash(ex.Decision.Target, "-"), ex.Decision.SubagentType, session)
 				fmt.Fprintf(w, "advice     : %s\n", orDash(ex.Advice, "-"))
+				fmt.Fprintf(w, "artifact   : %s\n", artifactLine(ex.Artifact))
 			})
 		}),
 	}

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"text/tabwriter"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
@@ -32,15 +31,15 @@ type doctorLine struct {
 	Hint string `json:"hint,omitempty"`
 }
 
-func doctorCmd(with withFn, printer printerFn, errorChars int) *cobra.Command {
+func doctorCmd(open Opener, printer printerFn, errorChars int) *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
 		Short: "check conflicting settings, usage caches, the artifact, agent tiers, the ledger chain and recorded failures",
-		RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
+		RunE: scoped(open, func(cmd *cobra.Command, _ []string, s Scope) error {
 			cwd, _ := os.Getwd()
 			var checks []usecase.Check
-			if u, err := do.Invoke[usecase.DoctorUseCase](i); err != nil {
-				// The container could not build the doctor (the data directory
+			if u, err := s.Doctor(); err != nil {
+				// The scope could not build the doctor (the data directory
 				// or the ledger cannot be opened): that is the finding.
 				checks = []usecase.Check{{Status: usecase.CheckFail, Name: "wiring", Detail: err.Error()}}
 			} else {

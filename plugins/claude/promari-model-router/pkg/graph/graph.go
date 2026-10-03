@@ -31,6 +31,10 @@ type Graph[S any] struct {
 	limit   int
 }
 
+// Len is the number of nodes. A graph without cycles visits each node at most
+// once, so a step limit below Len can stop a run that is not looping.
+func (g Graph[S]) Len() int { return len(g.nodes) }
+
 // Step is one executed node and the state it produced.
 type Step[S any] struct {
 	Node  string

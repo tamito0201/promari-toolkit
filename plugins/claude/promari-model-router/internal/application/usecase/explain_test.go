@@ -53,6 +53,10 @@ func TestExplain(t *testing.T) {
 			if diff := cmp.Diff(tt.want, got.Decision); diff != "" {
 				t.Errorf("decision (-want +got):\n%s", diff)
 			}
+			// The explanation says when it did not route with the local artifact.
+			if want := errString(tt.loadErr); got.Artifact.Problem != want {
+				t.Errorf("artifact problem = %q, want %q", got.Artifact.Problem, want)
+			}
 			if tt.wantClass == "" { // the guard stopped before classification
 				if diff := cmp.Diff([]string{"guard"}, got.Trace.Path); diff != "" {
 					t.Errorf("path (-want +got):\n%s", diff)
@@ -64,4 +68,12 @@ func TestExplain(t *testing.T) {
 			}
 		})
 	}
+}
+
+// errString is the error's text, "" for no error.
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

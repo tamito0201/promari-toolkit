@@ -11,11 +11,8 @@ import (
 	"testing"
 
 	"github.com/k1LoW/runn"
-	"github.com/samber/do/v2"
 
-	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/di"
-	"promari-model-router/internal/domain/model"
 	"promari-model-router/internal/interfaces/web"
 )
 
@@ -57,10 +54,10 @@ func TestRunbooks(t *testing.T) {
 
 	// The API runbook talks to the same handler `pmr serve` mounts.
 	c := di.New()
-	t.Cleanup(func() { _ = c.Shutdown() })
+	t.Cleanup(func() { _ = c.Close() })
 	h, err := web.Handler(web.Deps{
-		Report: do.MustInvoke[usecase.ReportUseCase](c), Explain: do.MustInvoke[usecase.ExplainUseCase](c),
-		Feed: do.MustInvoke[usecase.FeedUseCase](c), Serve: do.MustInvoke[model.Settings](c).Serve,
+		Report: built(c.Report())(t), Explain: built(c.Explain())(t),
+		Feed: built(c.Feed())(t), Serve: c.Settings().Serve,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -87,5 +84,17 @@ func TestRunbooks(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// built returns what a scope built, failing the test when it could not:
+// built(scope.Report())(t).
+func built[T any](v T, err error) func(t *testing.T) T {
+	return func(t *testing.T) T {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
 	}
 }

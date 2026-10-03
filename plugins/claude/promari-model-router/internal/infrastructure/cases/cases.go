@@ -39,6 +39,9 @@ var _ repository.CaseSource = Source{}
 // New reads the embedded set from the binary.
 func New() Source { return Source{Embedded: modelrouter.Data} }
 
+// abstain is the label of a prompt the router should leave alone.
+const abstain = "abstain"
+
 // Cases parses the file at path; "" is the embedded evaluation set. A line
 // of any length is accepted (the file is already in memory); a malformed line
 // is reported as "<path>:<line>: ...".
@@ -67,7 +70,14 @@ func (s Source) Cases(path string) ([]learn.Case, error) {
 		if err := json.Unmarshal(line, &c); err != nil {
 			return nil, fmt.Errorf("%s:%d: parse labelled line: %w", name, n, err)
 		}
-		out = append(out, learn.Case{Text: c.Text, Expect: model.ParseClass(c.Expect), Danger: c.Danger, Lang: c.Lang})
+		expect := model.ParseClass(c.Expect)
+		// "abstain" and "" are the files' words for no class. Any other name
+		// that is not a class is a typo, and read as "abstain" it would teach
+		// the router to abstain on that prompt.
+		if expect.Abstained() && c.Expect != "" && c.Expect != abstain {
+			return nil, fmt.Errorf("%s:%d: unknown class %q (want one of %v, or %q)", name, n, c.Expect, model.ClassOrder, abstain)
+		}
+		out = append(out, learn.Case{Text: c.Text, Expect: expect, Danger: c.Danger, Lang: c.Lang})
 	}
 	return out, nil
 }

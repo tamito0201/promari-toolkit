@@ -13,9 +13,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/samber/do/v2"
 
-	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/di"
 	"promari-model-router/internal/domain/model"
 	"promari-model-router/internal/domain/repository"
@@ -165,10 +163,13 @@ func TestRun(t *testing.T) {
 			wantLog: []string{"subagent"},
 		},
 		{
-			name:    "PreToolUse (Task) with an input that only decodes as a struct prints nothing",
-			event:   "PreToolUse",
-			stdin:   strings.NewReader(`{"session_id":"s","tool_name":"Task","tool_use_id":"t-1","tool_input":{"prompt":"UserService がどこで定義されているか探して","big":1e999}}`),
-			wantLog: []string{"subagent"},
+			// The ledger holds an inject the hook cannot apply: it used to say
+			// nothing, and the ledger read as a rewrite that never happened.
+			name:     "PreToolUse (Task) with an input that only decodes as a struct prints nothing and says why",
+			event:    "PreToolUse",
+			stdin:    strings.NewReader(`{"session_id":"s","tool_name":"Task","tool_use_id":"t-1","tool_input":{"prompt":"UserService がどこで定義されているか探して","big":1e999}}`),
+			wantLog:  []string{"subagent", "error"},
+			wantErrs: []string{"PreToolUse: rewrite tool_input: not an object"},
 		},
 		{
 			name:  "PreToolUse asks before running above the session model",
@@ -294,9 +295,9 @@ func TestRun(t *testing.T) {
 				t.Setenv(k, v)
 			}
 			c := di.New()
-			t.Cleanup(func() { _ = c.Shutdown() })
-			h := do.MustInvoke[hook.Handlers](c)
-			rec := do.MustInvoke[usecase.RecordErrorUseCase](c)
+			t.Cleanup(func() { _ = c.Close() })
+			h := built(c.Hook())(t)
+			rec := built(c.RecordError())(t)
 			var errs []string
 			onError := func(where, detail string) {
 				errs = append(errs, where+": "+detail)
@@ -317,7 +318,7 @@ func TestRun(t *testing.T) {
 
 			var want any
 			if tt.want != nil {
-				want = map[string]any{"hookSpecificOutput": tt.want(do.MustInvoke[model.Settings](c))}
+				want = map[string]any{"hookSpecificOutput": tt.want(c.Settings())}
 			}
 			var got any
 			if out.Len() > 0 {
@@ -337,7 +338,7 @@ func TestRun(t *testing.T) {
 				}
 			}
 			var kinds []string
-			for e, err := range do.MustInvoke[repository.LedgerRepository](c).Since(t.Context(), time.Time{}) {
+			for e, err := range built(di.Resolve[repository.LedgerRepository](c))(t).Since(t.Context(), time.Time{}) {
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -347,5 +348,17 @@ func TestRun(t *testing.T) {
 				t.Errorf("ledger (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// built returns what a scope built, failing the test when it could not:
+// built(scope.Hook())(t).
+func built[T any](v T, err error) func(t *testing.T) T {
+	return func(t *testing.T) T {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
 	}
 }

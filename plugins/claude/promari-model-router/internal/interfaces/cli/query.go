@@ -5,21 +5,19 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/domain/model"
 )
 
-func queryCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
+func queryCmd(open Opener, printer printerFn, st model.Settings) *cobra.Command {
 	var limit int
 	var schema bool
 	cmd := &cobra.Command{
 		Use:   "query [SELECT ...]",
 		Short: "run a read-only SQL query on the ledger (or --schema to print the tables)",
-		RunE: with(func(cmd *cobra.Command, args []string, i do.Injector) error {
-			q := do.MustInvoke[usecase.QueryUseCase](i)
+		RunE: use(open, Scope.Query, func(cmd *cobra.Command, args []string, q usecase.QueryUseCase) error {
 			if schema {
 				stmts, err := q.Schema(cmd.Context())
 				if err != nil {

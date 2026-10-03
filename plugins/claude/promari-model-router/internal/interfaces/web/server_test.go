@@ -18,7 +18,6 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	gocmp "github.com/google/go-cmp/cmp"
-	"github.com/samber/do/v2"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/di"
@@ -61,10 +60,10 @@ func testDeps(t *testing.T) Deps {
 		t.Setenv(k, v)
 	}
 	c := di.New()
-	t.Cleanup(func() { _ = c.Shutdown() })
+	t.Cleanup(func() { _ = c.Close() })
 	return Deps{
-		Report: do.MustInvoke[usecase.ReportUseCase](c), Explain: do.MustInvoke[usecase.ExplainUseCase](c),
-		Feed: do.MustInvoke[usecase.FeedUseCase](c), Serve: do.MustInvoke[model.Settings](c).Serve,
+		Report: built(c.Report())(t), Explain: built(c.Explain())(t),
+		Feed: built(c.Feed())(t), Serve: c.Settings().Serve,
 	}
 }
 
@@ -406,11 +405,11 @@ func TestEventsOverHTTP(t *testing.T) {
 				t.Setenv(k, v)
 			}
 			c := di.New()
-			t.Cleanup(func() { _ = c.Shutdown() })
+			t.Cleanup(func() { _ = c.Close() })
 			d := testDeps(t)
-			d.Feed = do.MustInvoke[usecase.FeedUseCase](c)
+			d.Feed = built(c.Feed())(t)
 			d.Serve.SSEPollMS = 5
-			if err := do.MustInvoke[repository.LedgerRepository](c).Append(t.Context(), model.NewEntry(tt.at, model.EventPrompt)); err != nil {
+			if err := built(di.Resolve[repository.LedgerRepository](c))(t).Append(t.Context(), model.NewEntry(tt.at, model.EventPrompt)); err != nil {
 				t.Fatal(err)
 			}
 			h, err := Handler(d)
@@ -572,5 +571,17 @@ func TestServeStopsStreams(t *testing.T) {
 				t.Errorf("shutdown took %v: the stream held it", elapsed)
 			}
 		})
+	}
+}
+
+// built returns what a scope built, failing the test when it could not:
+// built(scope.Report())(t).
+func built[T any](v T, err error) func(t *testing.T) T {
+	return func(t *testing.T) T {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
 	}
 }

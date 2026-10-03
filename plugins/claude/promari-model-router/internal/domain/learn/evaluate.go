@@ -92,11 +92,7 @@ func Evaluate(cases []Case, base service.RouteInput) Report {
 }
 
 func gotClass(d model.Decision) model.Class {
-	if d.Rewrites() || d.Action == model.ActionShadow || d.Reason == "same-tier" || d.Reason == "unknown-session" {
-		return d.Class
-	}
-	switch d.Reason {
-	case "danger-keep", "long-prompt-keep", "risk-hold", "context-keep", "gate-closed", "retry-keep":
+	if d.Classified() {
 		return d.Class
 	}
 	return model.ClassNone

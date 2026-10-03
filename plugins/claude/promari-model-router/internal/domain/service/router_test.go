@@ -402,3 +402,22 @@ func TestRoutingWorkflowIsValid(t *testing.T) {
 		})
 	}
 }
+
+func TestRoutingStagesIsTheWorkflowsSize(t *testing.T) {
+	_, _, st := fixtures(t)
+	tests := []struct {
+		name string
+		ok   bool
+	}{
+		{name: "the settings' minimum step limit counts every stage", ok: service.RoutingWorkflow.Len() == model.RoutingStages},
+		{name: "the default step limit runs the whole workflow", ok: st.Runtime.WorkflowStepLimit >= service.RoutingWorkflow.Len()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.ok {
+				t.Errorf("RoutingWorkflow has %d stages, model.RoutingStages = %d, default limit %d",
+					service.RoutingWorkflow.Len(), model.RoutingStages, st.Runtime.WorkflowStepLimit)
+			}
+		})
+	}
+}

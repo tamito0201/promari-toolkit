@@ -286,7 +286,7 @@ func LedgerStats(outcomes []Outcome) (map[string]model.Beta, map[string]float64)
 	posts := map[string]model.Beta{}
 	for _, o := range LabelRetries(outcomes) {
 		key := model.PosteriorKey(o.Class, o.Bucket, o.Tier)
-		post := cmp.Or(posts[key], model.Beta{Alpha: 1, Beta: 1})
+		post := cmp.Or(posts[key], model.NewBeta())
 		posts[key] = post.Observe(o.Success)
 	}
 	costs := map[string]float64{}

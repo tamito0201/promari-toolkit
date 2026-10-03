@@ -11,8 +11,8 @@ require (
 	github.com/oapi-codegen/nethttp-middleware v1.2.0
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/pelletier/go-toml/v2 v2.4.3
-	github.com/samber/do/v2 v2.1.0
 	github.com/spf13/cobra v1.10.2
+	go.uber.org/dig v1.19.0
 	golang.org/x/text v0.42.0
 	gorm.io/gorm v1.31.2
 )
@@ -165,7 +165,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/ryo-yamaoka/otchkiss v0.2.1 // indirect
-	github.com/samber/go-type-to-string v1.8.0 // indirect
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect

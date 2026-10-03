@@ -50,13 +50,16 @@ func TestTrain(t *testing.T) {
 		wantErr    error              // matched with errors.Is
 	}{
 		{
-			name: "embedded set only: recorded as embedded",
+			// It used to be written over the artifact routing uses, putting
+			// routing back on the rules without a word.
+			name: "embedded set only: recorded as embedded, not written over the store",
 			in: func(t *testing.T) usecase.TrainInput {
 				t.Helper()
 				return usecase.TrainInput{}
 			},
 			wantOrigin: model.OriginEmbedded,
-			wantPath:   func(usecase.TrainInput) string { return "/store/artifact.json" },
+			wantPath:   func(usecase.TrainInput) string { return "" },
+			wantErr:    usecase.ErrNotRouting,
 		},
 		{
 			name: "own labels and the ledger: local, joined outcomes counted",
@@ -112,10 +115,10 @@ func TestTrain(t *testing.T) {
 			name: "store save error",
 			in: func(t *testing.T) usecase.TrainInput {
 				t.Helper()
-				return usecase.TrainInput{}
+				return usecase.TrainInput{Files: []string{writeFile(t, good), ""}}
 			},
 			saveErr:    errArtifact,
-			wantOrigin: model.OriginEmbedded,
+			wantOrigin: model.OriginLocal,
 			wantPath:   func(usecase.TrainInput) string { return "/store/artifact.json" },
 			wantErr:    errArtifact,
 		},

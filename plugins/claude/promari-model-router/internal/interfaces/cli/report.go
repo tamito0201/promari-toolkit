@@ -6,20 +6,19 @@ import (
 	"io"
 	"strings"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/domain/model"
 )
 
-func reportCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
+func reportCmd(open Opener, printer printerFn, st model.Settings) *cobra.Command {
 	var days float64
 	cmd := &cobra.Command{
 		Use:   "report",
 		Short: "summarise the decision ledger",
-		RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
-			rep, err := do.MustInvoke[usecase.ReportUseCase](i).Execute(cmd.Context(), days)
+		RunE: use(open, Scope.Report, func(cmd *cobra.Command, _ []string, uc usecase.ReportUseCase) error {
+			rep, err := uc.Execute(cmd.Context(), days)
 			if err != nil {
 				return err
 			}

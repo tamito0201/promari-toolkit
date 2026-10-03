@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -83,6 +84,8 @@ func TestArtifactReadyTrusted(t *testing.T) {
 		Weights:  [][]float64{row(), row()},
 		Bias:     []float64{0, 0},
 		Features: spec,
+		// What training writes before calibrating.
+		Temperature: 1, ConformalQ: 1,
 	}
 	with := func(f func(*model.Artifact)) model.Artifact {
 		a := ready
@@ -109,6 +112,16 @@ func TestArtifactReadyTrusted(t *testing.T) {
 		{"a seen bitset without seen bits", with(func(a *model.Artifact) { a.Seen, a.Features.SeenBits = make([]uint64, 2), 0 }), "seen bitset of 2 words for seen_bits 0", false},
 		{"an uneven isotonic map", with(func(a *model.Artifact) { a.SafeIsotonic = &model.Isotonic{X: []float64{0, 1}, Y: []float64{0}} }), "isotonic map with 2 x and 1 y", false},
 		{"an even isotonic map", with(func(a *model.Artifact) { a.SafeIsotonic = &model.Isotonic{X: []float64{0, 1}, Y: []float64{0, 1}} }), "", false},
+		// The numbers the risk guards compare against. Each used to pass, and
+		// NaN fails every comparison, so a guard read it as "go ahead".
+		{"no temperature", with(func(a *model.Artifact) { a.Temperature = 0 }), "temperature 0: must be a number > 0", false},
+		{"a negative temperature", with(func(a *model.Artifact) { a.Temperature = -1 }), "temperature -1: must be a number > 0", false},
+		{"an infinite temperature", with(func(a *model.Artifact) { a.Temperature = math.Inf(1) }), "temperature +Inf: must be a number > 0", false},
+		{"a conformal quantile above 1", with(func(a *model.Artifact) { a.ConformalQ = 1.5 }), "conformal_q 1.5: must be within [0, 1]", false},
+		{"a τ that is not a number", with(func(a *model.Artifact) { a.Tau = map[model.LengthBucket]float64{model.BucketShort: math.NaN()} }), "tau for short NaN: must be a number >= 0", false},
+		{"a τ above 1 means never downgrade", with(func(a *model.Artifact) { a.Tau = map[model.LengthBucket]float64{model.BucketShort: 1.01} }), "", false},
+		{"an isotonic y above 1", with(func(a *model.Artifact) { a.SafeIsotonic = &model.Isotonic{X: []float64{0, 1}, Y: []float64{0, 2}} }), "isotonic y[1] 2: must be within [0, 1]", false},
+		{"a decreasing isotonic x", with(func(a *model.Artifact) { a.SafeIsotonic = &model.Isotonic{X: []float64{1, 0}, Y: []float64{0, 1}} }), "isotonic x[1] 0 is below x[0] 1: must not decrease", false},
 		{"a neighbour in range", with(func(a *model.Artifact) { a.Neighbors = []model.Neighbor{{Idx: []int32{0, 11}, Val: []float32{1, 1}}} }), "", false},
 		{"a neighbour with uneven vectors", with(func(a *model.Artifact) { a.Neighbors = []model.Neighbor{{Idx: []int32{0}}} }), "neighbour 0 has 1 indices and 0 values", false},
 		{"a neighbour index past the end", with(func(a *model.Artifact) { a.Neighbors = []model.Neighbor{{Idx: []int32{12}, Val: []float32{1}}} }), "neighbour 0 has index 12 outside [0, 12)", false},

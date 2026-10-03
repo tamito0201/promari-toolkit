@@ -13,6 +13,15 @@ type SubagentRun struct {
 	Routed bool
 }
 
+// Evidence reports whether the run says how well its tier did on its class,
+// so that the learned posteriors may count it: it was routed with a class,
+// and it ran to an end. A subagent launched in the background has a result
+// when it starts (Claude Code runs PostToolUse then), with no outcome and no
+// usage: counted, it would read as a failure that used no tokens.
+func (r SubagentRun) Evidence() bool {
+	return r.Routed && r.Decision.Class != model.ClassNone && !r.Result.Status.Background()
+}
+
 // JoinSubagentRuns pairs every subagent result in entries with its decision
 // by tool_use_id: never by "the latest decision in the session", which mixes
 // up subagents running in parallel. A later decision with the same id wins.

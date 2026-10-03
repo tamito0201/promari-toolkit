@@ -22,6 +22,14 @@ func TestLoadRejectsOutOfRange(t *testing.T) {
 		{name: "session retention of zero days", user: "[runtime]\nsession_retention_days = 0\n", wantProblem: "runtime.session_retention_days = 0"},
 		{name: "a hook timeout of zero", user: "[runtime]\nhook_timeout_ms = 0\n", wantProblem: "runtime.hook_timeout_ms = 0"},
 		{name: "a negative error detail", user: "[runtime]\nerror_detail_runes = -1\n", wantProblem: "runtime.error_detail_runes = -1: must be >= 0"},
+		// Each of these used to pass, and then quietly turn a guard off.
+		{
+			name: "a step limit below the workflow's stages", user: "[runtime]\nworkflow_step_limit = 9\n",
+			wantProblem: "runtime.workflow_step_limit = 9: must be >= 10 (the stages of the routing workflow)",
+		},
+		{name: "a class cap of 0", user: "[classifier]\nclass_cap = 0\n", wantProblem: "classifier.class_cap = 0: must be > 0"},
+		{name: "a τ grid without a step", user: "[training.tau_grid]\nstep = 0.0\n", wantProblem: "training.tau_grid = "},
+		{name: "a tier that costs nothing", user: "[eval.relative_cost]\nhaiku = 0.0\n", wantProblem: "eval.relative_cost.haiku = 0: must be > 0"},
 		{name: "an empty ledger file name", user: "[runtime]\nledger_file = \"\"\n", wantProblem: "runtime.ledger_file"},
 		{name: "an SSE poll of zero", user: "[serve]\nsse_poll_ms = 0\n", wantProblem: "serve.sse_poll_ms = 0"},
 		{name: "one fold", user: "[training]\nfolds = 1\n", wantProblem: "training.folds = 1: must be >= 2"},

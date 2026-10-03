@@ -52,3 +52,27 @@ func TestJoinSubagentRuns(t *testing.T) {
 		})
 	}
 }
+
+func TestSubagentRunEvidence(t *testing.T) {
+	routed := func(c model.Class, s model.SubagentStatus) service.SubagentRun {
+		return service.SubagentRun{Routed: true, Decision: model.Entry{Class: c}, Result: model.Entry{Status: s}}
+	}
+	tests := []struct {
+		name string
+		run  service.SubagentRun
+		want bool
+	}{
+		{name: "a routed run that completed", run: routed(model.ClassLookup, model.StatusCompleted), want: true},
+		{name: "a routed run that failed", run: routed(model.ClassLookup, "error"), want: true},
+		{name: "a run launched in the background has no outcome yet", run: routed(model.ClassLookup, model.StatusAsyncLaunched)},
+		{name: "an abstained run has no class to learn", run: routed(model.ClassNone, model.StatusCompleted)},
+		{name: "a run without its decision", run: service.SubagentRun{Result: model.Entry{Status: model.StatusCompleted}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.run.Evidence(); got != tt.want {
+				t.Errorf("Evidence() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

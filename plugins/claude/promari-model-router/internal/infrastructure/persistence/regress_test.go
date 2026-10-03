@@ -34,12 +34,23 @@ func TestLedgerConcurrentAppend(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "ledger.db")
 			repos := make([]*persistence.LedgerRepo, tt.conns)
 			for i := range repos {
-				repos[i] = persistence.NewLedgerRepo(openAt(t, path, 100))
+				// The lost rows this guards against failed at once, whatever the
+				// busy timeout (a deferred transaction cannot wait for its lock
+				// upgrade). A long timeout keeps a loaded machine (the race
+				// detector beside the other checks) from failing a correct
+				// append by waiting too little: 1s did, one row in 40.
+				db, err := persistence.Open(path, persistence.Options{BusyTimeoutMS: 10_000, Batch: 100})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = db.Close() })
+				repos[i] = persistence.NewLedgerRepo(db)
 			}
 			var (
-				mu     sync.Mutex
-				failed int
-				wg     sync.WaitGroup
+				mu       sync.Mutex
+				failed   int
+				firstErr error
+				wg       sync.WaitGroup
 			)
 			start := make(chan struct{})
 			for _, repo := range repos {
@@ -49,6 +60,9 @@ func TestLedgerConcurrentAppend(t *testing.T) {
 						if err := repo.Append(t.Context(), model.NewEntry(time.Now(), model.EventSubagent)); err != nil {
 							mu.Lock()
 							failed++
+							if firstErr == nil {
+								firstErr = err
+							}
 							mu.Unlock()
 						}
 					}
@@ -69,7 +83,7 @@ func TestLedgerConcurrentAppend(t *testing.T) {
 			}
 			want := result{Stored: tt.conns * tt.per, Checked: tt.conns * tt.per}
 			if diff := cmp.Diff(want, result{failed, stored, checked, broken}); diff != "" {
-				t.Errorf("concurrent append (-want +got):\n%s", diff)
+				t.Errorf("concurrent append (first error %v) (-want +got):\n%s", firstErr, diff)
 			}
 		})
 	}

@@ -24,6 +24,7 @@ type EvalSummary struct {
 	Baselines   learn.Baselines  `json:"baselines"`
 	Misses      []Miss           `json:"misses,omitempty"`
 	Gate        EvalGate         `json:"gate"`
+	Artifact    ArtifactUsed     `json:"artifact"`
 	Passed      bool             `json:"passed"`
 	// FailedBecause lists why the gate failed (empty when it passed).
 	FailedBecause []string `json:"failed_because,omitempty"`
@@ -78,7 +79,7 @@ func (u EvalUseCase) Execute(opt EvalOptions) (EvalSummary, error) {
 	if err != nil {
 		return EvalSummary{}, err
 	}
-	art, _ := u.Artifacts.Load()
+	art, used := loadArtifact(u.Artifacts)
 	if opt.UseModel != nil {
 		st.Model.Enabled = *opt.UseModel
 	}
@@ -126,6 +127,10 @@ func (u EvalUseCase) Execute(opt EvalOptions) (EvalSummary, error) {
 	fail(s.Accuracy >= minAccuracy, fmt.Sprintf("accuracy %.3f < %.2f", s.Accuracy, minAccuracy))
 	fail(s.Harmful <= maxHarmful, fmt.Sprintf("harmful downgrades %d > %d", s.Harmful, maxHarmful))
 	fail(s.DangerLeaks == 0, fmt.Sprintf("danger leaks %d", s.DangerLeaks))
+	// A broken local artifact is evaluated as the embedded one: passing would
+	// say nothing about the artifact the user trained.
+	s.Artifact = used
+	fail(used.Problem == "", "the local artifact was not used: "+used.Problem)
 	s.Passed = len(s.FailedBecause) == 0
 	return s, nil
 }

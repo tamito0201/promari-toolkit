@@ -90,7 +90,13 @@ linters:
           files: ["**/internal/interfaces/**", "!$test"]
           deny:
             - pkg: promari-model-router/internal/infrastructure
-              desc: entry points resolve use cases from the container (internal/di), never adapters directly
+              desc: entry points are handed their use cases (cli.Scope, built by internal/di), never adapters
+            - pkg: promari-model-router/internal/di
+              desc: entry points declare what they need (cli.Scope); the composition root depends on them, not the other way
+            - pkg: go.uber.org/dig
+              desc: the DI container belongs to the composition root (internal/di); entry points resolve nothing by type
+            - pkg: github.com/samber/do
+              desc: the DI container belongs to the composition root (internal/di); entry points resolve nothing by type
             - pkg: promari-model-router/internal/domain/service
               desc: entry points call use cases; domain services are reached through them (policy, prices, messages)
     errcheck:

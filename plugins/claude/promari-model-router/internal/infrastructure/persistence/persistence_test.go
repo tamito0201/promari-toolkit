@@ -85,6 +85,28 @@ func TestOpen(t *testing.T) {
 			},
 		},
 		{
+			// An older version that stopped without closing left the database
+			// and the index readable by others (SQLite removes the index only
+			// when the last connection closes).
+			name: "tightens files left readable by others",
+			path: func(t *testing.T, dir string) string {
+				t.Helper()
+				path := filepath.Join(dir, "ledger.db")
+				if err := openAt(t, path, 1).Close(); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path+"-shm", nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				for _, p := range []string{path, path + "-shm"} {
+					if err := os.Chmod(p, 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return path
+			},
+		},
+		{
 			name: "parent directory cannot be created", wantErr: "not a directory",
 			path: func(t *testing.T, dir string) string {
 				t.Helper()
@@ -124,15 +146,20 @@ func TestOpen(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// A write while open: SQLite keeps the log and the index beside the
+			// database, and they hold the rows too.
+			exec(t, db, "CREATE TABLE IF NOT EXISTS mode_probe (x)")
+			for _, p := range []string{path, path + "-wal", path + "-shm"} {
+				info, err := os.Stat(p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(os.FileMode(0o600), info.Mode().Perm()); diff != "" {
+					t.Errorf("%s mode mismatch (-want +got):\n%s", filepath.Base(p), diff)
+				}
+			}
 			if err := db.Close(); err != nil {
 				t.Fatal(err)
-			}
-			info, err := os.Stat(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if diff := cmp.Diff(os.FileMode(0o600), info.Mode().Perm()); diff != "" {
-				t.Errorf("mode mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -187,7 +214,6 @@ func TestClose(t *testing.T) {
 		wantErr error
 	}{
 		{name: "Close closes an open database", db: open, close: (*persistence.DB).Close},
-		{name: "Shutdown closes it for the DI container", db: open, close: (*persistence.DB).Shutdown},
 		{
 			name:    "a handle without a connection pool is an error",
 			db:      func(*testing.T) *persistence.DB { return persistence.WrapGorm(&gorm.DB{Config: &gorm.Config{}}) },

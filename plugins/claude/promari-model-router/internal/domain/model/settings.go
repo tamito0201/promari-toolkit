@@ -318,6 +318,12 @@ type LexiconExtra struct {
 // FlagLists are the lexicon_extra names that take `items` instead of a class.
 var FlagLists = []string{"danger", "continuation", "context", "correction"}
 
+// RoutingStages is the number of stages of the routing workflow. The workflow
+// has no cycles, so a run takes at most this many steps, and a step limit below
+// it would stop every route that goes the whole way (a service test keeps it
+// equal to the workflow's size).
+const RoutingStages = 10
+
 // ValidateLexiconExtra rejects names that are neither a class nor a flag list,
 // and keys that the named entry would ignore. A misspelt class would otherwise
 // load without error and its phrases would silently never match.
@@ -373,7 +379,9 @@ func (s Settings) Validate() error {
 	positive("runtime.session_retention_days", rt.SessionRetentionDays)
 	positive("runtime.ledger_batch", rt.LedgerBatch)
 	nonNegative("runtime.sqlite_busy_timeout_ms", rt.SQLiteBusyTimeoutMS)
-	positive("runtime.workflow_step_limit", rt.WorkflowStepLimit)
+	check(rt.WorkflowStepLimit >= RoutingStages, "runtime.workflow_step_limit", rt.WorkflowStepLimit,
+		fmt.Sprintf(">= %d (the stages of the routing workflow)", RoutingStages))
+	// 0 is allowed: it keeps error traces out of the ledger.
 	nonNegative("runtime.error_detail_runes", rt.ErrorDetailRunes)
 	positive("runtime.error_write_timeout_ms", rt.ErrorWriteTimeoutMS)
 	check(rt.LastErrorFile != "", "runtime.last_error_file", `""`, "a file name")
@@ -397,8 +405,19 @@ func (s Settings) Validate() error {
 	positive("features.hash_buckets", f.HashBuckets)
 	positive("features.seen_bits", f.SeenBits)
 
+	// 0 scores every class 0: the router would abstain on every prompt.
+	positive("classifier.class_cap", s.Classifier.ClassCap)
+
 	tr := s.Training
 	check(tr.Folds >= minFolds, "training.folds", tr.Folds, fmt.Sprintf(">= %d", minFolds))
+	// A grid without a positive step or with its stop below its start is the
+	// start alone: a τ grid collapsed to 0.5 can no longer say "never downgrade".
+	for _, g := range []struct {
+		key  string
+		grid Grid
+	}{{"training.temperature_grid", tr.TemperatureGrid}, {"training.tau_grid", tr.TauGrid}} {
+		check(g.grid.Step > 0 && g.grid.Stop >= g.grid.Start, g.key, fmt.Sprintf("%+v", g.grid), "a step > 0 and stop >= start")
+	}
 	probability("training.alpha", tr.Alpha)
 	probability("training.set_alpha", tr.SetAlpha)
 	probability("training.tau_floor", tr.TauFloor)
@@ -414,6 +433,12 @@ func (s Settings) Validate() error {
 	positive("model.neighbors_k", s.Model.NeighborsK)
 
 	probability("eval.min_accuracy", s.Eval.MinAccuracy)
+	// A tier without a cost falls back to "unknown"; without that, the cost
+	// ratios of the gates divide by zero.
+	check(s.Eval.RelativeCost["unknown"] > 0, "eval.relative_cost.unknown", s.Eval.RelativeCost["unknown"], "> 0")
+	for _, t := range slices.Sorted(maps.Keys(s.Eval.RelativeCost)) {
+		check(s.Eval.RelativeCost[t] > 0, "eval.relative_cost."+string(t), s.Eval.RelativeCost[t], "> 0")
+	}
 	nonNegative("eval.max_harmful", s.Eval.MaxHarmful)
 
 	p := s.Pressure

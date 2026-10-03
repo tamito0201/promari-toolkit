@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/samber/do/v2"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/di"
@@ -52,10 +51,10 @@ func deps(t *testing.T) mcpserver.Deps {
 		t.Setenv(k, v)
 	}
 	c := di.New()
-	t.Cleanup(func() { _ = c.Shutdown() })
+	t.Cleanup(func() { _ = c.Close() })
 	return mcpserver.Deps{
-		Report: do.MustInvoke[usecase.ReportUseCase](c), Explain: do.MustInvoke[usecase.ExplainUseCase](c),
-		Policy: do.MustInvoke[usecase.PolicyUseCase](c), Version: "test",
+		Report: built(c.Report())(t), Explain: built(c.Explain())(t),
+		Policy: built(c.Policy())(t), Version: "test",
 	}
 }
 
@@ -135,7 +134,7 @@ func TestTools(t *testing.T) {
 			name: "route_policy returns the policy and the tags",
 			tool: "route_policy", args: map[string]any{},
 			want: func(mcpserver.Deps) any {
-				st := do.MustInvoke[model.Settings](di.New())
+				st := di.New().Settings()
 				return mcpserver.PolicyOut{Policy: service.SessionContext(st.Messages), Tags: st.Messages.RouteTags}
 			},
 		},
@@ -299,5 +298,17 @@ func TestRun(t *testing.T) {
 			}
 			_ = w.Close()
 		})
+	}
+}
+
+// built returns what a scope built, failing the test when it could not:
+// built(scope.Report())(t).
+func built[T any](v T, err error) func(t *testing.T) T {
+	return func(t *testing.T) T {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
 	}
 }

@@ -3,20 +3,19 @@ package cli
 import (
 	"fmt"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 	"promari-model-router/internal/domain/model"
 )
 
-func costCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {
+func costCmd(open Opener, printer printerFn, st model.Settings) *cobra.Command {
 	var shape usecase.SubagentShape
 	cmd := &cobra.Command{
 		Use:   "cost",
 		Short: "price one subagent run on every tier (Harness Tokenomics cost model)",
-		RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
-			est := do.MustInvoke[usecase.CostUseCase](i).Execute(shape)
+		RunE: use(open, Scope.Cost, func(cmd *cobra.Command, _ []string, uc usecase.CostUseCase) error {
+			est := uc.Execute(shape)
 			return printer(cmd.OutOrStdout())(est, func() {
 				u := est.Usage
 				fmt.Fprintf(cmd.OutOrStdout(), "usage: cache read %d, cache write %d, output %d (list prices as of %s)\n", u.CacheRead, u.CacheWrite, u.Output, est.PricesAsOf)

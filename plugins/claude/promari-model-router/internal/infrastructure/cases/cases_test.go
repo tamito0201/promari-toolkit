@@ -79,6 +79,25 @@ func TestSourceCases(t *testing.T) {
 			},
 		},
 		{
+			// A typo used to be read as "abstain", and learned as such.
+			name: "a class name that is not a class names the file and the line",
+			path: func(t *testing.T) string {
+				t.Helper()
+				return writeFile(t, `{"lang":"ja","expect":"lookup","text":"探して"}`+"\n"+`{"lang":"ja","expect":"standrad","text":"実装して"}`+"\n")
+			},
+			wantErr: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), `cases.jsonl:2: unknown class "standrad"`)
+			},
+		},
+		{
+			name: "abstain is the word for no class",
+			path: func(t *testing.T) string {
+				t.Helper()
+				return writeFile(t, `{"lang":"en","expect":"abstain","text":"hi"}`+"\n")
+			},
+			wantErr: func(err error) bool { return err == nil },
+		},
+		{
 			name: "a malformed line of the embedded set names it",
 			path: func(t *testing.T) string {
 				t.Helper()

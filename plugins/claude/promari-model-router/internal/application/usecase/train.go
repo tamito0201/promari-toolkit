@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -12,6 +13,13 @@ import (
 	"promari-model-router/internal/domain/service"
 	"promari-model-router/pkg/fp"
 )
+
+// ErrNotRouting is returned instead of writing, over the artifact routing
+// uses, one that cannot route: trained on too few labelled prompts (it has no
+// classifier) or on the embedded set alone (it is never trusted). Written
+// there, it would silently put routing back on the rules.
+var ErrNotRouting = errors.New("not written: the trained artifact cannot route (too few labelled prompts, or the embedded set alone) " +
+	"and would replace the one routing uses; pass --output to write it elsewhere")
 
 // TrainUseCase fits the artifact from labelled files and the ledger.
 type TrainUseCase struct {
@@ -74,8 +82,11 @@ func (u TrainUseCase) Execute(ctx context.Context, in TrainInput) (model.Artifac
 		art.Metrics["ledger_outcomes"] = float64(len(outcomes))
 	}
 	store := u.Artifacts
-	if in.Output != "" {
+	switch {
+	case in.Output != "":
 		store = u.OutputTo(in.Output)
+	case !art.Trusted():
+		return art, "", ErrNotRouting
 	}
 	path, err := store.Save(art)
 	return art, path, err
@@ -92,7 +103,7 @@ func (u TrainUseCase) outcomes(ctx context.Context, window time.Duration, bucket
 	for i := range runs {
 		run := &runs[i]
 		d, r := &run.Decision, &run.Result
-		if !run.Routed || d.Class == model.ClassNone {
+		if !run.Evidence() {
 			continue
 		}
 		out = append(out, learn.Outcome{

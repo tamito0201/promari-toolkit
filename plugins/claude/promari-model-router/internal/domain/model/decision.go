@@ -14,6 +14,28 @@ const (
 	ActionSkip   Action = "skip"   // routing disabled
 )
 
+// The reasons a call kept the session's tier although it had a class: a
+// guard held it (it would have gone to a cheaper tier), or there was nothing
+// to rewrite. The router writes them and the evaluation reads them, so they
+// are named once, here.
+const (
+	ReasonDangerKeep     = "danger-keep"      // the prompt names a dangerous operation
+	ReasonRetryKeep      = "retry-keep"       // the same brief was delegated before
+	ReasonContextKeep    = "context-keep"     // the brief leans on the conversation
+	ReasonRiskHold       = "risk-hold"        // P(the cheaper tier suffices) is below τ
+	ReasonLongPromptKeep = "long-prompt-keep" // a long prompt the rules are unsure of
+	ReasonPosteriorHold  = "posterior-hold"   // the ledger shows the target tier failing, and no tier above has the evidence to take it
+	ReasonGateClosed     = "gate-closed"      // the class's Triage gate is closed
+	ReasonUnknownSession = "unknown-session"  // the session's tier is not known
+	ReasonSameTier       = "same-tier"        // the target is the session's tier already
+)
+
+// held are the reasons of a guard that kept a call off a cheaper tier.
+var held = map[string]bool{
+	ReasonDangerKeep: true, ReasonRetryKeep: true, ReasonContextKeep: true, ReasonRiskHold: true,
+	ReasonLongPromptKeep: true, ReasonPosteriorHold: true, ReasonGateClosed: true,
+}
+
 // Decision is the immutable routing decision for one Agent call.
 type Decision struct {
 	Action       Action
@@ -44,6 +66,18 @@ func (d Decision) WithTarget(t Tier) Decision {
 
 // Rewrites reports whether the decision changes the tool input.
 func (d Decision) Rewrites() bool { return d.Action == ActionInject }
+
+// Held reports whether a guard kept the call off the cheaper tier its class
+// names.
+func (d Decision) Held() bool { return held[d.Reason] }
+
+// Classified reports whether the decision stands for its class: it was routed
+// (or would have been, in shadow mode), a guard held it, or its tier needed
+// nothing done. Otherwise the router abstained and the class says nothing.
+func (d Decision) Classified() bool {
+	return d.Rewrites() || d.Action == ActionShadow || d.Held() ||
+		d.Reason == ReasonSameTier || d.Reason == ReasonUnknownSession
+}
 
 // AgentCall is the part of the Agent tool input the router reads.
 type AgentCall struct {

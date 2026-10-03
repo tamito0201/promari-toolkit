@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
@@ -23,7 +22,7 @@ type cloudView struct {
 	MaxPolls            int       `json:"max_polls"`
 }
 
-func cloudCmd(with withFn, printer printerFn, st model.CloudSettings) *cobra.Command {
+func cloudCmd(open Opener, printer printerFn, st model.CloudSettings) *cobra.Command {
 	view := func(id model.CloudSessionID, page string, sentAt time.Time) cloudView {
 		return cloudView{
 			Session: id.String(), URL: orDash(page, id.URL()), SentAt: sentAt,
@@ -49,8 +48,8 @@ func cloudCmd(with withFn, printer printerFn, st model.CloudSettings) *cobra.Com
 			Use:   "use <session-id|claude.ai/code URL>",
 			Short: "set the cloud session messages go to",
 			Args:  cobra.ExactArgs(1),
-			RunE: with(func(cmd *cobra.Command, args []string, i do.Injector) error {
-				link, err := do.MustInvoke[usecase.CloudUseCase](i).Use(cmd.Context(), args[0])
+			RunE: use(open, Scope.Cloud, func(cmd *cobra.Command, args []string, uc usecase.CloudUseCase) error {
+				link, err := uc.Use(cmd.Context(), args[0])
 				if err != nil {
 					return err
 				}
@@ -60,7 +59,7 @@ func cloudCmd(with withFn, printer printerFn, st model.CloudSettings) *cobra.Com
 		&cobra.Command{
 			Use:   "send [message]",
 			Short: "queue a message into the cloud session (read from stdin when no argument is given)",
-			RunE: with(func(cmd *cobra.Command, args []string, i do.Injector) error {
+			RunE: use(open, Scope.Cloud, func(cmd *cobra.Command, args []string, uc usecase.CloudUseCase) error {
 				text := strings.Join(args, " ")
 				if text == "" {
 					raw, err := io.ReadAll(cmd.InOrStdin())
@@ -69,7 +68,7 @@ func cloudCmd(with withFn, printer printerFn, st model.CloudSettings) *cobra.Com
 					}
 					text = string(raw)
 				}
-				r, err := do.MustInvoke[usecase.CloudUseCase](i).Send(cmd.Context(), text)
+				r, err := uc.Send(cmd.Context(), text)
 				if err != nil {
 					return err
 				}
@@ -80,8 +79,8 @@ func cloudCmd(with withFn, printer printerFn, st model.CloudSettings) *cobra.Com
 			Use:   "status",
 			Short: "show the cloud session in use and when the last message went",
 			Args:  cobra.NoArgs,
-			RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
-				link, err := do.MustInvoke[usecase.CloudUseCase](i).Status(cmd.Context())
+			RunE: use(open, Scope.Cloud, func(cmd *cobra.Command, _ []string, uc usecase.CloudUseCase) error {
+				link, err := uc.Status(cmd.Context())
 				if err != nil {
 					return err
 				}

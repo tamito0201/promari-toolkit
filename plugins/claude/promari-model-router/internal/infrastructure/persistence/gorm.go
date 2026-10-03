@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ncruces/go-sqlite3/gormlite"
@@ -46,6 +47,30 @@ func fileURI(path, query string) string {
 	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: query}).String()
 }
 
+// keepPrivate makes the ledger's files readable by their owner only. The
+// rows hold prompt digests, reasons and error details, and the data directory
+// is created by Claude Code (0755), so the files are what keeps them private.
+//
+// The database is created 0600. SQLite creates the write-ahead log (-wal) and
+// the shared-memory index (-shm) beside it with 0666 less the umask (usually
+// 0644): the log takes the database's mode through the driver's `modeof` URI
+// parameter, which the driver applies to the index too late or not at all, so
+// the index is created 0600 here first. A file an older version left readable
+// by others is tightened.
+func keepPrivate(path string) {
+	if f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600); err == nil {
+		_ = f.Close()
+	}
+	if f, err := os.OpenFile(path+"-shm", os.O_CREATE|os.O_RDWR, 0o600); err == nil {
+		_ = f.Close()
+	}
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		if info, err := os.Stat(p); err == nil && info.Mode().Perm()&0o077 != 0 {
+			_ = os.Chmod(p, 0o600)
+		}
+	}
+}
+
 // Open opens (and creates, 0600) the SQLite database with WAL and a busy
 // timeout, because several hooks may write at the same moment.
 //
@@ -59,10 +84,12 @@ func Open(path string, opt Options) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	if f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600); err == nil {
-		_ = f.Close()
-	}
-	dsn := fileURI(path, fmt.Sprintf("_pragma=busy_timeout(%d)&_pragma=journal_mode(wal)&_pragma=synchronous(normal)&_txlock=immediate", opt.BusyTimeoutMS))
+	keepPrivate(path)
+	// QueryEscape writes a space as "+", which SQLite's URI parser keeps as a
+	// plus sign; "%20" is a space to both.
+	query := "modeof=" + strings.ReplaceAll(url.QueryEscape(path), "+", "%20") +
+		fmt.Sprintf("&_pragma=busy_timeout(%d)&_pragma=journal_mode(wal)&_pragma=synchronous(normal)&_txlock=immediate", opt.BusyTimeoutMS)
+	dsn := fileURI(path, query)
 	gdb, err := gorm.Open(gormlite.Open(dsn), &gorm.Config{Logger: logger.Discard, SkipDefaultTransaction: true})
 	if err != nil {
 		return nil, fmt.Errorf("open ledger database: %w", err)
@@ -444,8 +471,5 @@ func (r *SessionRepo) PruneOlderThan(ctx context.Context, cutoff time.Time) (int
 	res := r.db.g.WithContext(ctx).Where("updated_at < ?", cutoff.UTC()).Delete(&SessionRow{})
 	return res.RowsAffected, res.Error
 }
-
-// Shutdown lets the DI container close the database (do.ShutdownerWithError).
-func (db *DB) Shutdown() error { return db.Close() }
 
 func (db *DB) batch() int { return max(db.opt.Batch, 1) }

@@ -4,22 +4,21 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
 	"promari-model-router/internal/application/usecase"
 )
 
-func trainCmd(with withFn, printer printerFn) *cobra.Command {
+func trainCmd(open Opener, printer printerFn) *cobra.Command {
 	var files []string
 	var ledgerDays float64
 	var output string
 	cmd := &cobra.Command{
 		Use:   "train",
 		Short: "fit, calibrate and save the routing artifact (logistic regression + conformal risk control + ledger posteriors)",
-		RunE: with(func(cmd *cobra.Command, _ []string, i do.Injector) error {
+		RunE: use(open, Scope.Train, func(cmd *cobra.Command, _ []string, uc usecase.TrainUseCase) error {
 			cwd, _ := os.Getwd()
-			art, path, err := do.MustInvoke[usecase.TrainUseCase](i).Execute(cmd.Context(), usecase.TrainInput{Files: files, LedgerDays: ledgerDays, Output: output, Cwd: cwd})
+			art, path, err := uc.Execute(cmd.Context(), usecase.TrainInput{Files: files, LedgerDays: ledgerDays, Output: output, Cwd: cwd})
 			if err != nil {
 				return err
 			}
