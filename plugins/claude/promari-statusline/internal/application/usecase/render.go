@@ -42,6 +42,7 @@ type RenderDeps struct {
 	Terminal   repository.Terminal
 	Recorder   repository.Recorder
 	Switches   repository.Switches
+	Peers      repository.PeerBoard
 }
 
 // RenderStatusLine turns one session report into the lines of the status line.
@@ -76,12 +77,15 @@ func (u *RenderStatusLine) Execute(ctx context.Context, req RenderRequest) Rende
 	d.Recorder.Input(req.Raw)
 
 	view := service.View{Now: now, Session: req.Session, AlarmAll: d.Switches.BlinkDemo()}
-	view.Limits, view.LimitsSeen, view.Forecasts = u.limits(req.Session.Limits, now)
 	if usage, ok := req.Session.Context.Usage(); ok {
 		view.Usage = model.Some(usage)
 		view.Activity = u.observe(&req.Session, usage.Used, now)
 	}
 	view.Facts = u.gather(ctx, req)
+	// The account the limits, the forecasts and the other sessions belong to.
+	account := view.Facts.Account.Or("")
+	view.Limits, view.LimitsSeen, view.Forecasts = u.limits(account, req.Session.Limits, now)
+	view.Peers, view.Running = u.share(&req.Session, account, view.Facts, now)
 	if codex, ok := view.Facts.Codex.Get(); ok {
 		// A board that cannot be written costs another tool its advice, not this render.
 		_ = d.Board.PostCodex(codex, now)
@@ -99,10 +103,10 @@ func (u *RenderStatusLine) Execute(ctx context.Context, req RenderRequest) Rende
 // session) shows the remembered ones with the time they were seen, and neither
 // posts them nor makes a forecast from them: a stale value is not a new
 // measurement.
-func (u *RenderStatusLine) limits(reported model.RateLimits, now time.Time) (model.RateLimits, time.Time, []model.Forecast) {
+func (u *RenderStatusLine) limits(account string, reported model.RateLimits, now time.Time) (model.RateLimits, time.Time, []model.Forecast) {
 	memory := u.deps.Limits
 	if reported.Empty() {
-		last, seen, err := memory.Last()
+		last, seen, err := memory.Last(account)
 		if err != nil || now.Sub(seen) >= limitsKept {
 			return model.RateLimits{}, time.Time{}, nil
 		}
@@ -110,10 +114,10 @@ func (u *RenderStatusLine) limits(reported model.RateLimits, now time.Time) (mod
 	}
 	// Memory that cannot be written costs the next session its first chip and
 	// the forecast its history; this render shows what it has.
-	_ = memory.Remember(reported, now)
+	_ = memory.Remember(account, reported, now)
 	_ = u.deps.Board.PostClaude(reported, now)
-	history := memory.History().Record(reported, now)
-	_ = memory.SaveHistory(history)
+	history := memory.History(account).Record(reported, now)
+	_ = memory.SaveHistory(account, history)
 	return reported, time.Time{}, history.Forecasts(reported, now)
 }
 
@@ -129,6 +133,32 @@ func (u *RenderStatusLine) observe(s *model.Session, used float64, now time.Time
 	// An activity that cannot be saved is still right for this render.
 	_ = u.deps.Activities.Save(key, activity)
 	return model.Some(activity)
+}
+
+// share posts this session for the status lines of the other sessions and
+// returns the sessions of the same account with the number running, this one
+// included. Sessions of another account are neither shown nor counted. A
+// session without a usable id is not posted and sees the others all the same.
+func (u *RenderStatusLine) share(s *model.Session, account string, facts model.Facts, now time.Time) (model.Roster, int) {
+	key, ok := s.Key()
+	if peer, ok := model.PeerOf(s, account, branchOf(facts), now); ok {
+		// A post that cannot be written leaves this session out of the others'
+		// lines; this render is still right.
+		_ = u.deps.Peers.Post(peer)
+	}
+	roster := u.deps.Peers.Roster().Of(account)
+	if !ok {
+		key = ""
+	}
+	return roster.Others(key), len(roster)
+}
+
+// branchOf returns the branch of the working tree, or "" outside a repository.
+func branchOf(facts model.Facts) string {
+	if git, ok := facts.Git.Get(); ok {
+		return git.Branch
+	}
+	return ""
 }
 
 // gather asks every source at once. Each question runs in its own goroutine,

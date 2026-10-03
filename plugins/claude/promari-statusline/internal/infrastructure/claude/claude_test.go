@@ -198,6 +198,18 @@ func TestAccount(t *testing.T) {
 			t.Errorf("err = %v", err)
 		}
 	})
+	t.Run("the login of the session's configuration directory", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		sys.Env["CLAUDE_CONFIG_DIR"] = "/work-account"
+		sys.Files["/h/.claude.json"] = []byte(`{"oauthAccount":{"emailAddress":"home@example.com"}}`)
+		sys.Files["/work-account/.claude.json"] = []byte(`{"oauthAccount":{"emailAddress":"work@example.com"}}`)
+		a := claude.Account{Sys: sys}
+		got, err := a.Account(context.Background())
+		if got != "work@example.com" || err != nil || a.File() != "/work-account/.claude.json" {
+			t.Errorf("Account() = %q, %v from %s", got, err, a.File())
+		}
+	})
 }
 
 func TestStatusPage(t *testing.T) {

@@ -59,6 +59,9 @@ func (*OS) HomeDir() string {
 // Pid returns this process's id.
 func (*OS) Pid() int { return os.Getpid() }
 
+// Ppid returns the id of the parent process.
+func (*OS) Ppid() int { return os.Getppid() }
+
 // NumCPU returns the number of logical CPUs.
 func (*OS) NumCPU() int { return runtime.NumCPU() }
 

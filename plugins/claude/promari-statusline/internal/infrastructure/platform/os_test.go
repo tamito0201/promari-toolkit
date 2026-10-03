@@ -290,3 +290,30 @@ func TestOSTermWidth(t *testing.T) {
 		}
 	})
 }
+
+func TestOSProcesses(t *testing.T) {
+	sys := New()
+	if got := sys.Ppid(); got != os.Getppid() {
+		t.Errorf("Ppid = %d, want %d", got, os.Getppid())
+	}
+	if alive, ok := sys.Alive(os.Getpid()); ok && !alive {
+		t.Error("this process is not alive")
+	}
+	if alive, ok := sys.Alive(0); ok && alive {
+		t.Error("process 0 is alive")
+	}
+	// A child that has exited and been waited for is gone.
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$")
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if alive, ok := sys.Alive(cmd.Process.Pid); ok && alive {
+		t.Errorf("an exited child %d is alive", cmd.Process.Pid)
+	}
+	if ppid, name, ok := sys.Parent(os.Getpid()); ok && (ppid != os.Getppid() || name == "") {
+		t.Errorf("Parent = %d %q, want %d", ppid, name, os.Getppid())
+	}
+	if _, _, ok := sys.Parent(1 << 30); ok {
+		t.Error("a process that does not exist has a parent")
+	}
+}

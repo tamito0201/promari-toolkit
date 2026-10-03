@@ -44,6 +44,15 @@ type System interface {
 	HomeDir() string
 	// Pid returns the status line's own process id.
 	Pid() int
+	// Ppid returns the id of the process that started the status line: the
+	// Claude Code of the session (or a shell between them).
+	Ppid() int
+	// Parent returns a process's parent and command name. ok is false when
+	// the system cannot tell.
+	Parent(pid int) (ppid int, name string, ok bool)
+	// Alive reports whether a process is running. ok is false where the
+	// question cannot be asked (Windows); alive is then meaningless.
+	Alive(pid int) (alive, ok bool)
 	// NumCPU returns the number of logical CPUs.
 	NumCPU() int
 	// Run runs a child process and returns its standard output. The output is

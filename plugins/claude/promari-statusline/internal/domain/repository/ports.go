@@ -89,14 +89,16 @@ type ActivityStore interface {
 }
 
 // RateLimitMemory remembers the rate limits across renders and sessions: the
-// first render of a session does not carry them.
+// first render of a session does not carry them. The limits belong to an
+// account, so each account is remembered apart; "" is a session whose account
+// is unknown.
 type RateLimitMemory interface {
 	// Last returns the limits last seen and when. It returns ErrNone when none
 	// were remembered.
-	Last() (model.RateLimits, time.Time, error)
-	Remember(l model.RateLimits, at time.Time) error
-	History() model.RateHistory
-	SaveHistory(h model.RateHistory) error
+	Last(account string) (model.RateLimits, time.Time, error)
+	Remember(account string, l model.RateLimits, at time.Time) error
+	History(account string) model.RateHistory
+	SaveHistory(account string, h model.RateHistory) error
 }
 
 // UsageBoard shares the plan usage with other tools on this machine. Claude
@@ -105,6 +107,18 @@ type RateLimitMemory interface {
 type UsageBoard interface {
 	PostClaude(l model.RateLimits, at time.Time) error
 	PostCodex(l model.CodexLimits, at time.Time) error
+}
+
+// PeerBoard shares each session's summary with the status lines of the other
+// sessions on this machine. Every session posts to a file of its own, so two
+// sessions never write the same file.
+type PeerBoard interface {
+	// Post publishes the caller's session, stamped with the Claude Code process
+	// that runs it.
+	Post(p model.Peer) error
+	// Roster returns the sessions still running, the caller's own included. A
+	// session whose Claude Code has exited is left out and its file removed.
+	Roster() model.Roster
 }
 
 // Terminal measures the terminal the status line is drawn in.

@@ -43,6 +43,7 @@ func New(sys platform.System, streams Streams) *cli.App {
 		Terminal:   terminal,
 		Recorder:   state.Recorder{Store: store},
 		Switches:   state.Switches{Store: store},
+		Peers:      state.Peers{Store: store, Sys: sys},
 	})
 
 	return &cli.App{

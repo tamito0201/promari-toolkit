@@ -35,6 +35,7 @@ Code); it sends none of your data.
 | 🌿 Git | Branch, changed files, ahead and behind, stashes, time since the last commit |
 | 🔀 PR | With `gh`: the pull request of the branch, its checks and its review |
 | 🔖 Session, 🧭 Env | Session name, model, effort, thinking and fast mode, project, output style |
+| 👥 Sessions | The other sessions of the same account running on this machine: their name or project, branch, context and cost, as their own status lines last showed them |
 | 💻 System, 🧾 Meta | Clock, terminal uptime, load, memory, disk, battery, Claude Code processes, account, version and whether a newer one is released |
 | 🎵 Music | The song that is playing (macOS, with `nowplaying-cli`) |
 
@@ -64,7 +65,8 @@ Then, in Claude Code:
 
 A plugin cannot declare a status line, so `setup` installs it. It copies the binary to
 `~/.claude/promari-statusline/psl` and sets `statusLine` in `~/.claude/settings.json` to
-`~/.claude/promari-statusline/psl render`. The settings file keeps its order and every other
+`~/.claude/promari-statusline/psl render`, redrawn every 5 seconds (`refreshInterval`) so that an
+idle session follows the others. The settings file keeps its order and every other
 key, and a copy of it as it was is left next to it (`settings.json.bak-<time>`). `psl setup
 --dry-run` shows what would change without changing it. A settings file that is not valid
 JSON is left untouched.
@@ -118,8 +120,25 @@ such a shell.
 |---|---|
 | `~/.claude/promari-statusline/psl` | The installed binary |
 | `~/.cache/promari-statusline/` (or `$XDG_CACHE_HOME/promari-statusline/`) | What the status line remembers between renders: each session's activity, the rate limits last seen and their history, and the answers of slow sources |
+| `~/.cache/promari-statusline/peers/` | Each running session's summary, posted on every render for the other status lines; a session whose Claude Code has exited is removed |
+| `~/.cache/promari-statusline/accounts/` | The rate limits last seen and their history, apart for each account (named after a digest, not the address) |
 | `~/.cache/promari-statusline/last-input.json`, `width.txt` | What the last render received and the width it planned for; the first things to look at when a chip is missing or a line is cut |
 | `~/.cache/claude-rate-limits.json`, `~/.cache/codex-rate-statusline.json` | The plan usage, for other tools (see below) |
+
+## All sessions, in step
+
+Every status line posts its session (name, project, branch, context, cost) to a file of its
+own and shows the other sessions under `👥 Sessions`, so every terminal shows the same
+sessions. Only sessions of the same account are shown together: the account is the one signed
+in to the session's configuration directory (`CLAUDE_CONFIG_DIR`, or `~/.claude`), so sessions
+started with another configuration directory keep to their own. The rate limits remembered
+between sessions are kept apart for each account in the same way, so a session never shows
+another account's limits.
+
+A session runs while its Claude Code runs: the status line notes the Claude Code process that
+started it (past a shell that may stand between them) and leaves a session out as soon as that
+process has exited. Where a process cannot be asked about (Windows), a session counts as running
+for ten minutes after its last render.
 
 Slow sources are asked once and remembered: the pull request and the status page for five
 minutes, Codex's log for one, the tool counts of the transcript for thirty seconds, the

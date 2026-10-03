@@ -94,13 +94,27 @@ func (c Codex) Codex(ctx context.Context) (model.CodexLimits, error) {
 	return Memo(c.Store, "codex.json", "", codexTTL, func() (model.CodexLimits, error) { return c.Next.Codex(ctx) })
 }
 
-// Accounts remembers the signed-in account.
+// AccountFile is an account reader that names the file it reads.
+type AccountFile interface {
+	repository.AccountReader
+	File() string
+}
+
+// Accounts remembers the signed-in account. The answer is kept for the file it
+// was read from as it was then: a /login rewrites the file and is seen on the
+// next render, and a session of another configuration directory is never
+// answered with this one's account.
 type Accounts struct {
 	Store *Store
-	Next  repository.AccountReader
+	Next  AccountFile
 }
 
 // Account implements repository.AccountReader.
 func (c Accounts) Account(ctx context.Context) (string, error) {
-	return Memo(c.Store, "account.json", "", accountTTL, func() (string, error) { return c.Next.Account(ctx) })
+	file := c.Next.File()
+	key := file
+	if at, err := c.Store.sys.ModTime(file); err == nil {
+		key += "@" + at.UTC().Format(time.RFC3339Nano)
+	}
+	return Memo(c.Store, "account.json", key, accountTTL, func() (string, error) { return c.Next.Account(ctx) })
 }

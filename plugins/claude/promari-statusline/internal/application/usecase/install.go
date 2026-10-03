@@ -47,7 +47,7 @@ func NewInstall(deps InstallDeps) *Install { return &Install{deps: deps} }
 // Execute installs the status line. With dryRun it only reports what it would do.
 func (u *Install) Execute(dryRun bool) (InstallReport, error) {
 	d := u.deps
-	want := model.StatusLineSetting{Type: model.CommandType, Command: d.Binary.Command()}
+	want := model.StatusLineSetting{Type: model.CommandType, Command: d.Binary.Command(), RefreshInterval: model.RefreshSeconds}
 	report := InstallReport{Binary: d.Binary.Path(), Settings: d.Settings.Path(), Command: want.Command, DryRun: dryRun}
 
 	current, err := d.Settings.StatusLine()

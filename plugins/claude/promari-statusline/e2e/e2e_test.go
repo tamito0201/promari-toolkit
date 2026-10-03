@@ -202,7 +202,8 @@ func TestSetupDoctorUninstall(t *testing.T) {
   "statusLine": {
     "type": "command",
     "command": "~/.claude/promari-statusline/psl render",
-    "padding": 0
+    "padding": 0,
+    "refreshInterval": 5
   },
   "z": 1
 }

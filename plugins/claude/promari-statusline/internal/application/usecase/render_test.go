@@ -105,6 +105,12 @@ type memory struct {
 	claude     []model.RateLimits
 	codex      []model.CodexLimits
 	cells      int
+	posts      []model.Peer
+	others     model.Roster
+	// limitsOf is the account the remembered limits belong to; accounts is
+	// every account the limits were asked or told about.
+	limitsOf string
+	accounts []string
 }
 
 func (m *memory) write() error {
@@ -124,24 +130,30 @@ func (m *memory) Save(key string, a model.Activity) error {
 	return nil
 }
 
-func (m *memory) Last() (model.RateLimits, time.Time, error) {
-	if m.limits.Empty() {
+func (m *memory) Last(account string) (model.RateLimits, time.Time, error) {
+	m.accounts = append(m.accounts, account)
+	if m.limits.Empty() || account != m.limitsOf {
 		return model.RateLimits{}, time.Time{}, repository.ErrNone
 	}
 	return m.limits, m.limitsAt, nil
 }
 
-func (m *memory) Remember(l model.RateLimits, at time.Time) error {
+func (m *memory) Remember(account string, l model.RateLimits, at time.Time) error {
+	m.accounts = append(m.accounts, account)
 	if err := m.write(); err != nil {
 		return err
 	}
-	m.limits, m.limitsAt = l, at
+	m.limits, m.limitsAt, m.limitsOf = l, at, account
 	return nil
 }
 
-func (m *memory) History() model.RateHistory { return m.history }
+func (m *memory) History(account string) model.RateHistory {
+	m.accounts = append(m.accounts, account)
+	return m.history
+}
 
-func (m *memory) SaveHistory(h model.RateHistory) error {
+func (m *memory) SaveHistory(account string, h model.RateHistory) error {
+	m.accounts = append(m.accounts, account)
 	if err := m.write(); err != nil {
 		return err
 	}
@@ -165,6 +177,17 @@ func (m *memory) PostCodex(l model.CodexLimits, _ time.Time) error {
 	return nil
 }
 
+func (m *memory) Post(p model.Peer) error {
+	if err := m.write(); err != nil {
+		return err
+	}
+	m.posts = append(m.posts, p)
+	return nil
+}
+
+// Roster returns the other sessions the test set, and the posts made so far.
+func (m *memory) Roster() model.Roster { return slices.Concat(m.others, m.posts) }
+
 func (m *memory) Width() (int, string) { return m.cells, "test" }
 func (m *memory) Input(raw []byte)     { m.input = raw }
 func (m *memory) BlinkDemo() bool      { return m.demo }
@@ -187,6 +210,7 @@ func newMemory() *memory {
 func render(w *world, m *memory, at time.Time, s model.Session) usecase.Rendered {
 	u := usecase.NewRenderStatusLine(usecase.RenderDeps{
 		Clock: clock(at), Sources: w.sources(), Activities: m, Limits: m, Board: m, Terminal: m, Recorder: recorder{m}, Switches: m,
+		Peers: m,
 	})
 	return u.Execute(context.Background(), usecase.RenderRequest{Session: s, Raw: []byte(`{"raw":true}`)})
 }
@@ -460,5 +484,112 @@ func TestRenderBlinkDemo(t *testing.T) {
 	}
 	if !alarmed {
 		t.Error("the blink demo raised no alarm at 42 % usage")
+	}
+}
+
+func TestRenderSharesTheSessionAndShowsTheOthers(t *testing.T) {
+	t.Parallel()
+	w := &world{git: model.Git{Branch: "develop"}}
+	m := newMemory()
+	m.others = model.Roster{
+		{Key: "s2", Project: "web-app", Branch: "feat/login", ContextPct: model.Some(18.0), CostUSD: model.Some(0.42), At: t0},
+		{Key: "s3", Name: "docs", At: t0.Add(-5 * time.Minute)},
+	}
+	s := session()
+	s.Cost.TotalUSD = model.Some(3.1)
+	lines := text(render(w, m, t0, s))
+
+	if len(m.posts) != 1 {
+		t.Fatalf("posts = %d, want 1", len(m.posts))
+	}
+	got := m.posts[0]
+	want := model.Peer{Key: "s1", At: t0, Project: "work", Branch: "develop", Model: "Opus", ContextPct: model.Some(42.0), CostUSD: model.Some(3.1)}
+	if got != want {
+		t.Errorf("post = %+v, want %+v", got, want)
+	}
+	for _, part := range []string{"👥 Sessions", "Live ×3", "web-app feat/login Ctx 18% $0.42", "docs Idle 5m"} {
+		if !contains(lines, part) {
+			t.Errorf("missing %q in %q", part, lines)
+		}
+	}
+}
+
+func TestRenderWithoutOtherSessionsShowsNoSessions(t *testing.T) {
+	t.Parallel()
+	m := newMemory()
+	lines := text(render(&world{}, m, t0, session()))
+	if contains(lines, "👥 Sessions") {
+		t.Errorf("a session alone shows %q", lines)
+	}
+}
+
+func TestRenderOfASessionWithoutAnIDPostsNothingAndSeesTheOthers(t *testing.T) {
+	t.Parallel()
+	m := newMemory()
+	m.others = model.Roster{{Key: "s2", Project: "web-app", At: t0}}
+	s := session()
+	s.ID = "../escape"
+	lines := text(render(&world{}, m, t0, s))
+	if len(m.posts) != 0 {
+		t.Errorf("posted %+v for an id that cannot name a file", m.posts)
+	}
+	if !contains(lines, "web-app") {
+		t.Errorf("the others are missing: %q", lines)
+	}
+}
+
+func TestRenderSurvivesAPostThatCannotBeWritten(t *testing.T) {
+	t.Parallel()
+	m := newMemory()
+	m.readOnly = true
+	m.others = model.Roster{{Key: "s2", Project: "web-app", At: t0}}
+	if lines := text(render(&world{}, m, t0, session())); !contains(lines, "web-app") {
+		t.Errorf("the others are missing: %q", lines)
+	}
+}
+
+func TestRenderKeepsAccountsApart(t *testing.T) {
+	t.Parallel()
+	w := &world{account: "b@example.com"}
+	m := newMemory()
+	m.limits = model.RateLimits{FiveHour: model.Some(model.RateWindow{UsedPct: 77, ResetsAt: t0.Add(time.Hour)})}
+	m.limitsAt, m.limitsOf = t0.Add(-time.Minute), "a@example.com"
+	m.others = model.Roster{
+		{Key: "same", Account: "b@example.com", Project: "same-account", At: t0},
+		{Key: "other", Account: "a@example.com", Project: "other-account", At: t0},
+		{Key: "unknown", Project: "unknown-account", At: t0},
+	}
+	s := session() // reports no limits: the remembered ones would stand in
+	lines := text(render(w, m, t0, s))
+
+	if contains(lines, "77") {
+		t.Errorf("another account's limits are shown: %q", lines)
+	}
+	for _, a := range m.accounts {
+		if a != "b@example.com" {
+			t.Errorf("the limits were asked for account %q", a)
+		}
+	}
+	if !contains(lines, "same-account") || !contains(lines, "Live ×2") {
+		t.Errorf("the session of the same account is missing: %q", lines)
+	}
+	for _, other := range []string{"other-account", "unknown-account"} {
+		if contains(lines, other) {
+			t.Errorf("a session of another account is shown: %q in %q", other, lines)
+		}
+	}
+	if len(m.posts) != 1 || m.posts[0].Account != "b@example.com" {
+		t.Errorf("posts = %+v", m.posts)
+	}
+}
+
+func TestRenderShowsTheRememberedLimitsOfTheSameAccount(t *testing.T) {
+	t.Parallel()
+	w := &world{account: "a@example.com"}
+	m := newMemory()
+	m.limits = model.RateLimits{FiveHour: model.Some(model.RateWindow{UsedPct: 77, ResetsAt: t0.Add(time.Hour)})}
+	m.limitsAt, m.limitsOf = t0.Add(-time.Minute), "a@example.com"
+	if lines := text(render(w, m, t0, session())); !contains(lines, "77") {
+		t.Errorf("the account's own remembered limits are missing: %q", lines)
 	}
 }

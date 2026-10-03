@@ -177,6 +177,8 @@ func (n *next) Codex(context.Context) (model.CodexLimits, error) {
 
 func (n *next) Account(context.Context) (string, error) { n.asked++; return "someone@example.com", nil }
 
+func (n *next) File() string { return "/h/.claude.json" }
+
 func TestDecoratorsRememberTheirAnswers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -246,4 +248,61 @@ func TestDecoratorsRememberTheirAnswers(t *testing.T) {
 			t.Errorf("asked %d times for two branches, want 2", n.asked)
 		}
 	})
+}
+
+// login answers the account written in its file, as claude.Account does.
+type login struct {
+	sys   *platformtest.Fake
+	file  string
+	asked int
+}
+
+func (l *login) File() string { return l.file }
+
+func (l *login) Account(context.Context) (string, error) {
+	l.asked++
+	data, _ := l.sys.ReadFile(l.file)
+	return string(data), nil
+}
+
+func TestAccountsFollowTheLoginFile(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sys := platformtest.New(t0)
+	store := filecache.NewStore(sys)
+	home := &login{sys: sys, file: "/h/.claude.json"}
+	if err := sys.WriteFile(home.file, []byte("a@example.com"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ask := func(l *login) string {
+		got, err := filecache.Accounts{Store: store, Next: l}.Account(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if got := ask(home); got != "a@example.com" || home.asked != 1 {
+		t.Fatalf("first = %q after %d reads", got, home.asked)
+	}
+	if got := ask(home); got != "a@example.com" || home.asked != 1 {
+		t.Errorf("an unchanged file was read again: %q after %d reads", got, home.asked)
+	}
+
+	// /login rewrites the file: the next render sees the new account.
+	sys.T = t0.Add(time.Second)
+	if err := sys.WriteFile(home.file, []byte("b@example.com"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ask(home); got != "b@example.com" {
+		t.Errorf("after /login = %q", got)
+	}
+
+	// Another configuration directory is never answered with this one's account.
+	work := &login{sys: sys, file: "/work/.claude.json"}
+	if err := sys.WriteFile(work.file, []byte("w@example.com"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ask(work); got != "w@example.com" {
+		t.Errorf("another directory = %q", got)
+	}
 }

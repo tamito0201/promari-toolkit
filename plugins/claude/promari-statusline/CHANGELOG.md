@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.1 — 2026-10-03
+
+- The release of 1.2.0, which was stopped before it was published: its tests named a
+  project after an organisation, and the check for private information refused to publish
+  them. The tests use a neutral name now; the code is the same as 1.2.0.
+
+## 1.2.0 — 2026-10-03 (not published; use 1.2.1)
+
+- `👥 Sessions` shows the other sessions running on this machine, one chip each (name or
+  project, branch, context, cost, and how long it has been idle), the same on every terminal.
+  Only sessions of the same account are shown together; a session of another configuration
+  directory (`CLAUDE_CONFIG_DIR`) keeps to its own.
+- `psl setup` sets `refreshInterval: 5`, so an idle session's status line follows the others.
+  `psl doctor` warns when it is missing; run `psl setup` again after updating.
+- Fix: the rate limits remembered for the first render of a session, and the history the
+  forecasts are made from, are kept apart for each account. A session could show the limits
+  another account had last seen.
+- Fix: the account is read from the session's configuration directory (`CLAUDE_CONFIG_DIR`)
+  and again as soon as its login file changes. It was read from `~/.claude.json` only and kept
+  for an hour, so it lagged behind a `/login`.
+
 ## 1.1.1 — 2026-10-03
 
 - Fix: `Tools` and `ErrRate` count tool calls only. Every `"name"` in the transcript was

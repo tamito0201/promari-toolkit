@@ -172,16 +172,27 @@ func (t Todos) Todos(_ context.Context, sessionKey string) (model.Todos, error) 
 	return todos, nil
 }
 
-// Account reads the signed-in account from ~/.claude.json.
+// Account reads the account signed in to the session's configuration: the
+// login is kept per configuration directory, so every session started with the
+// same CLAUDE_CONFIG_DIR (or without one) runs as the same account.
 type Account struct {
 	Sys platform.System
 }
 
 var _ repository.AccountReader = Account{}
 
+// File returns the file that holds the login: .claude.json in CLAUDE_CONFIG_DIR
+// when it is set, and in the home directory otherwise.
+func (a Account) File() string {
+	if dir := a.Sys.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return filepath.Join(dir, ".claude.json")
+	}
+	return filepath.Join(a.Sys.HomeDir(), ".claude.json")
+}
+
 // Account implements repository.AccountReader.
 func (a Account) Account(_ context.Context) (string, error) {
-	data, err := a.Sys.ReadFile(filepath.Join(a.Sys.HomeDir(), ".claude.json"))
+	data, err := a.Sys.ReadFile(a.File())
 	if err != nil {
 		return "", fmt.Errorf("read the account: %w", err)
 	}

@@ -91,7 +91,7 @@ func (b *binary) Remove() error {
 }
 
 func ours() *model.StatusLineSetting {
-	return &model.StatusLineSetting{Type: model.CommandType, Command: ourCommand}
+	return &model.StatusLineSetting{Type: model.CommandType, Command: ourCommand, RefreshInterval: model.RefreshSeconds}
 }
 
 func other() *model.StatusLineSetting {
@@ -118,6 +118,11 @@ func TestInstall(t *testing.T) {
 		{
 			"a different padding counts as a change",
 			&settings{line: &model.StatusLineSetting{Type: model.CommandType, Command: ourCommand, Padding: 2}},
+			&binary{}, false, true, ourCommand, true, 1, 1, "",
+		},
+		{
+			"a status line without the refresh is set up again",
+			&settings{line: &model.StatusLineSetting{Type: model.CommandType, Command: ourCommand}},
 			&binary{}, false, true, ourCommand, true, 1, 1, "",
 		},
 		{"a dry run writes nothing", &settings{line: other()}, &binary{}, true, true, "~/.claude/statusline.sh", false, 0, 0, ""},
@@ -261,6 +266,14 @@ func TestDiagnose(t *testing.T) {
 				"installed binary /h/.claude/promari-statusline/psl": {model.CheckOK, "is the running binary"},
 				"git":            {model.CheckOK, "/usr/bin/git"},
 				"terminal width": {model.CheckOK, "120 cells (test), 118 used per line"},
+			},
+		},
+		{
+			"set up before the refresh existed",
+			&settings{line: &model.StatusLineSetting{Type: model.CommandType, Command: ourCommand}}, &binary{installed: true, inSync: true}, allTools, "",
+			map[string]line{
+				"settings /h/.claude/settings.json": {model.CheckWarn, "statusLine runs " + ourCommand +
+					" but has no refreshInterval: an idle session will not follow the other sessions; run `psl setup`"},
 			},
 		},
 		{

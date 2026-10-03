@@ -2,6 +2,7 @@ package state_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,18 +46,18 @@ func TestLimits(t *testing.T) {
 	sys := platformtest.New(t0)
 	limits := state.Limits{Store: filecache.NewStore(sys)}
 
-	if _, _, err := limits.Last(); !errors.Is(err, repository.ErrNone) {
+	if _, _, err := limits.Last(""); !errors.Is(err, repository.ErrNone) {
 		t.Errorf("Last() with nothing remembered: %v", err)
 	}
-	if got := limits.History(); len(got) != 0 {
+	if got := limits.History(""); len(got) != 0 {
 		t.Errorf("History() with nothing recorded: %v", got)
 	}
 
 	want := model.RateLimits{FiveHour: model.Some(model.RateWindow{UsedPct: 0, ResetsAt: t0.Add(time.Hour)})}
-	if err := limits.Remember(want, t0); err != nil {
+	if err := limits.Remember("", want, t0); err != nil {
 		t.Fatal(err)
 	}
-	got, at, err := limits.Last()
+	got, at, err := limits.Last("")
 	if err != nil || !at.Equal(t0) {
 		t.Fatalf("Last() = %+v, %v, %v", got, at, err)
 	}
@@ -65,18 +66,18 @@ func TestLimits(t *testing.T) {
 		t.Errorf("remembered %+v", got)
 	}
 
-	if err := limits.Remember(model.RateLimits{}, t0); err != nil {
+	if err := limits.Remember("", model.RateLimits{}, t0); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := limits.Last(); !errors.Is(err, repository.ErrNone) {
+	if _, _, err := limits.Last(""); !errors.Is(err, repository.ErrNone) {
 		t.Errorf("empty limits were remembered as limits: %v", err)
 	}
 
 	history := model.RateHistory{}.Record(want, t0)
-	if err := limits.SaveHistory(history); err != nil {
+	if err := limits.SaveHistory("", history); err != nil {
 		t.Fatal(err)
 	}
-	if back := limits.History(); len(back) != 1 || back[0].FiveHour.Or(-1) != 0 || back[0].SevenDay.Present() {
+	if back := limits.History(""); len(back) != 1 || back[0].FiveHour.Or(-1) != 0 || back[0].SevenDay.Present() {
 		t.Errorf("History() = %+v", back)
 	}
 }
@@ -127,5 +128,42 @@ func TestSwitches(t *testing.T) {
 	sys.Files[cache+"blink-demo"] = nil
 	if !switches.BlinkDemo() {
 		t.Error("the blink demo is off although its file exists")
+	}
+}
+
+func TestLimitsAreKeptApartForEachAccount(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	limits := state.Limits{Store: filecache.NewStore(sys)}
+	a := model.RateLimits{FiveHour: model.Some(model.RateWindow{UsedPct: 10})}
+	b := model.RateLimits{FiveHour: model.Some(model.RateWindow{UsedPct: 90})}
+	if err := limits.Remember("a@example.com", a, t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := limits.SaveHistory("a@example.com", model.RateHistory{{At: t0, FiveHour: model.Some(10.0)}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := limits.Last("b@example.com"); !errors.Is(err, repository.ErrNone) {
+		t.Errorf("another account sees limits: %v", err)
+	}
+	if len(limits.History("b@example.com")) != 0 || len(limits.History("")) != 0 {
+		t.Error("another account sees the history")
+	}
+	if err := limits.Remember("b@example.com", b, t0); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := limits.Last("a@example.com"); got != a {
+		t.Errorf("Last(a) = %+v, want %+v", got, a)
+	}
+	if got, _, _ := limits.Last("b@example.com"); got != b {
+		t.Errorf("Last(b) = %+v, want %+v", got, b)
+	}
+	for _, path := range sys.Glob(cache + "accounts/*/*") {
+		if strings.Contains(path, "example") {
+			t.Errorf("an address appears in a path: %s", path)
+		}
+	}
+	if n := len(sys.Glob(cache + "accounts/*/rate-limits.json")); n != 2 {
+		t.Errorf("%d account files, want 2", n)
 	}
 }

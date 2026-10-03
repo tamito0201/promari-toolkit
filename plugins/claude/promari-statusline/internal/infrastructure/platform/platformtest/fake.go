@@ -40,6 +40,13 @@ type Fake struct {
 	Home string
 	// ID is the process id.
 	ID int
+	// PPID is the parent's process id.
+	PPID int
+	// Procs maps a process id to its parent and command name, for Parent.
+	Procs map[int]Proc
+	// Running holds the ids of the processes that are alive; nil makes Alive
+	// unable to tell, as on Windows.
+	Running map[int]bool
 	// CPUs is the number of logical CPUs.
 	CPUs int
 	// Files maps a path to its content.
@@ -66,13 +73,21 @@ type Fake struct {
 	stdin map[string][]byte
 }
 
+// The process ids a new Fake runs as: the status line and the Claude Code
+// that started it.
+const (
+	fakePid    = 100
+	fakeParent = 90
+)
+
 // New returns a Fake at the given time with an empty machine.
 func New(now time.Time) *Fake {
 	return &Fake{
 		T:     now,
 		Env:   map[string]string{},
 		Home:  "/h",
-		ID:    100,
+		ID:    fakePid,
+		PPID:  fakeParent,
 		CPUs:  1,
 		Files: map[string][]byte{},
 		Times: map[string]time.Time{},
@@ -97,6 +112,33 @@ func (f *Fake) HomeDir() string { return f.Home }
 
 // Pid returns ID.
 func (f *Fake) Pid() int { return f.ID }
+
+// Ppid returns PPID.
+func (f *Fake) Ppid() int { return f.PPID }
+
+// Proc is a faked process: its parent and command name.
+type Proc struct {
+	PPID int
+	Name string
+}
+
+// Parent returns the process in Procs.
+func (f *Fake) Parent(pid int) (ppid int, name string, ok bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.Procs[pid]
+	return p.PPID, p.Name, ok
+}
+
+// Alive reports whether pid is in Running; ok is false while Running is nil.
+func (f *Fake) Alive(pid int) (alive, ok bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Running == nil {
+		return false, false
+	}
+	return f.Running[pid], true
+}
 
 // NumCPU returns CPUs.
 func (f *Fake) NumCPU() int { return f.CPUs }

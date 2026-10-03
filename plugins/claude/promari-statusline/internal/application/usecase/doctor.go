@@ -79,6 +79,9 @@ func (u *Diagnose) settings() model.Check {
 		check.Level, check.Detail = model.CheckFail, "cannot be read: "+err.Error()
 	case current.Command != d.Binary.Command():
 		check.Level, check.Detail = model.CheckWarn, "statusLine runs another command: "+current.Command+"; run `psl setup` to use this plugin"
+	case current.RefreshInterval <= 0:
+		check.Level, check.Detail = model.CheckWarn, "statusLine runs "+current.Command+
+			" but has no refreshInterval: an idle session will not follow the other sessions; run `psl setup`"
 	default:
 		check.Detail = "statusLine runs " + current.Command
 	}

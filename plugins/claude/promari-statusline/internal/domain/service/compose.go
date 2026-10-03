@@ -24,6 +24,11 @@ type View struct {
 	Facts     model.Facts
 	// AlarmAll makes every usage chip an alarm, to check that blinking works.
 	AlarmAll bool
+	// Peers are the other sessions running on this machine.
+	Peers model.Roster
+	// Running is the number of sessions running, this one included; zero when
+	// unknown.
+	Running int
 }
 
 // alarmPct is the usage at which a chip becomes an alarm.
@@ -73,6 +78,7 @@ func sections() []section {
 		{"🌿 Git", model.ToneGood, gitChips},
 		{"🔀 PR", model.ToneInfo, pullChips},
 		{"🔖 Session", model.ToneNote, sessionChips},
+		{"👥 Sessions", model.ToneInfo, peerChips},
 		{"🧭 Env", model.ToneAccent, envChips},
 		{"💻 System", model.ToneInfo, systemChips},
 		{"🧾 Meta", model.ToneMuted, metaChips},

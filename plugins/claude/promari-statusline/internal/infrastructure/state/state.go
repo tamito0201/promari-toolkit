@@ -4,6 +4,8 @@
 package state
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strconv"
 	"time"
 
@@ -47,16 +49,32 @@ type remembered struct {
 	Limits model.RateLimits `json:"limits"`
 }
 
-// Limits remembers the rate limits across renders and sessions.
+// Limits remembers the rate limits across renders and sessions, apart for
+// each account: a session of one account never shows another's limits.
 type Limits struct {
 	Store *filecache.Store
 }
 
 var _ repository.RateLimitMemory = Limits{}
 
+// accountsDir holds a directory per account, named after a digest of the
+// account so that no address appears in a path.
+const accountsDir = "accounts"
+
+// file returns the path parts of an account's file. An unknown account keeps
+// the files at the top of the cache, where they were before accounts were told
+// apart.
+func (Limits) file(account, name string) []string {
+	if account == "" {
+		return []string{name}
+	}
+	sum := sha256.Sum256([]byte(account))
+	return []string{accountsDir, hex.EncodeToString(sum[:8]), name}
+}
+
 // Last implements repository.RateLimitMemory.
-func (l Limits) Last() (model.RateLimits, time.Time, error) {
-	r, ok := filecache.Load[remembered](l.Store, limitsFile)
+func (l Limits) Last(account string) (model.RateLimits, time.Time, error) {
+	r, ok := filecache.Load[remembered](l.Store, l.file(account, limitsFile)...)
 	if !ok || r.Limits.Empty() {
 		return model.RateLimits{}, time.Time{}, repository.ErrNone
 	}
@@ -64,19 +82,19 @@ func (l Limits) Last() (model.RateLimits, time.Time, error) {
 }
 
 // Remember implements repository.RateLimitMemory.
-func (l Limits) Remember(limits model.RateLimits, at time.Time) error {
-	return filecache.Save(l.Store, remembered{At: at, Limits: limits}, limitsFile)
+func (l Limits) Remember(account string, limits model.RateLimits, at time.Time) error {
+	return filecache.Save(l.Store, remembered{At: at, Limits: limits}, l.file(account, limitsFile)...)
 }
 
 // History implements repository.RateLimitMemory.
-func (l Limits) History() model.RateHistory {
-	history, _ := filecache.Load[model.RateHistory](l.Store, historyFile)
+func (l Limits) History(account string) model.RateHistory {
+	history, _ := filecache.Load[model.RateHistory](l.Store, l.file(account, historyFile)...)
 	return history
 }
 
 // SaveHistory implements repository.RateLimitMemory.
-func (l Limits) SaveHistory(history model.RateHistory) error {
-	return filecache.Save(l.Store, history, historyFile)
+func (l Limits) SaveHistory(account string, history model.RateHistory) error {
+	return filecache.Save(l.Store, history, l.file(account, historyFile)...)
 }
 
 // Recorder keeps the last input and the last measured width. They are the
