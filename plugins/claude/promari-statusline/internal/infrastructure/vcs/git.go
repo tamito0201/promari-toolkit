@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"promari-statusline/internal/domain/model"
@@ -15,17 +16,27 @@ import (
 	"promari-statusline/internal/infrastructure/platform"
 )
 
-// Git reads the working tree by running git.
+// Git reads the working tree by running git. History reads what the commits
+// say; it is nil in tests, where the history is read uncached.
 type Git struct {
+	Sys     platform.System
+	History repository.HistoryReader
+}
+
+// History reads what the commits of a branch say by running git.
+type History struct {
 	Sys platform.System
 }
 
-var _ repository.GitReader = Git{}
+var (
+	_ repository.GitReader     = Git{}
+	_ repository.HistoryReader = History{}
+)
 
-// Git implements repository.GitReader. Only the branch is required: a count
-// that git cannot give (no upstream, no commit yet) is left at zero.
-func (g Git) Git(ctx context.Context, dir string) (model.Git, error) {
-	run := func(args ...string) string {
+// runner returns a function that runs git in a directory and returns its
+// output.
+func runner(ctx context.Context, sys platform.System, dir string) func(args ...string) string {
+	return func(args ...string) string {
 		// --no-optional-locks: `git status` refreshes the index when it can, and
 		// takes index.lock to do so. A status line runs several times a second
 		// and its git is killed when the timeout passes; killed with the lock
@@ -33,35 +44,174 @@ func (g Git) Git(ctx context.Context, dir string) (model.Git, error) {
 		//
 		// git exits with an error where there is simply nothing to count (a
 		// branch without an upstream), so only the output is read.
-		out, _ := g.Sys.Run(ctx, platform.Cmd{Name: "git", Args: append([]string{"--no-optional-locks", "-C", dir}, args...)})
+		out, _ := sys.Run(ctx, platform.Cmd{Name: "git", Args: append([]string{"--no-optional-locks", "-C", dir}, args...)})
 		return out
 	}
+}
+
+// History implements repository.HistoryReader.
+func (h History) History(ctx context.Context, dir, branch string) (model.History, error) {
+	run := runner(ctx, h.Sys, dir)
+	var history model.History
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		countCommits(&history, run("log", "--since=midnight", "--numstat", "--format=%x1e%s%x1f%(trailers:key=Co-authored-by,valueonly,separator=%x2C)%x1f", "HEAD"))
+	})
+	wg.Go(func() { readHabits(&history, branch, run, h.Sys.Now()) })
+	wg.Wait()
+	return history, nil
+}
+
+// Git implements repository.GitReader. Only the branch is required: a count
+// that git cannot give (no upstream, no commit yet) is left at zero.
+func (g Git) Git(ctx context.Context, dir string) (model.Git, error) {
+	run := runner(ctx, g.Sys, dir)
 	branch := strings.TrimSpace(run("branch", "--show-current"))
 	if branch == "" {
 		return model.Git{}, repository.ErrNone
 	}
-	git := model.Git{Branch: branch, Stashes: strings.Count(run("stash", "list"), "\n")}
-	countStatus(&git, run("status", "--porcelain"))
-	readDiff(&git, run("diff", "HEAD", "--numstat", "--patch", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames"))
-	git.Operation = g.operation(strings.TrimSpace(run("rev-parse", "--absolute-git-dir")))
-	for subject := range strings.Lines(run("log", "--since=midnight", "--format=%s", "HEAD")) {
+	// The questions are independent of each other, so they are asked at once:
+	// a status line waits for the slowest instead of the sum. Each goroutine
+	// writes fields of its own.
+	git := model.Git{Branch: branch}
+	var wg sync.WaitGroup
+	wg.Go(func() { git.Stashes = strings.Count(run("stash", "list"), "\n") })
+	wg.Go(func() { countStatus(&git, run("status", "--porcelain")) })
+	wg.Go(func() {
+		readDiff(&git, run("diff", "HEAD", "--numstat", "--patch", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames"))
+	})
+	wg.Go(func() { git.Operation = g.operation(strings.TrimSpace(run("rev-parse", "--absolute-git-dir"))) })
+	wg.Go(func() {
+		// "behind<TAB>ahead" for upstream...HEAD.
+		if counts := strings.Fields(run("rev-list", "--left-right", "--count", "@{upstream}...HEAD")); len(counts) == 2 {
+			behind, errBehind := strconv.Atoi(counts[0])
+			ahead, errAhead := strconv.Atoi(counts[1])
+			if errBehind == nil && errAhead == nil {
+				git.Behind, git.Ahead = behind, ahead
+			}
+		}
+	})
+	wg.Go(func() {
+		if committed, err := strconv.ParseInt(strings.TrimSpace(run("log", "-1", "--format=%ct")), 10, 64); err == nil {
+			git.LastCommit = time.Unix(committed, 0)
+		}
+	})
+	var history model.History
+	wg.Go(func() {
+		var reader repository.HistoryReader = History{Sys: g.Sys}
+		if g.History != nil {
+			reader = g.History
+		}
+		// A history that cannot be read leaves its counts at zero, as a git
+		// that cannot count does.
+		history, _ = reader.History(ctx, dir, branch)
+	})
+	wg.Wait()
+	history.Apply(&git)
+	return git, nil
+}
+
+// readHabits reads what the habits of a team's repository are measured by:
+// the default branch, how old the branch and its unpushed commits are, the
+// merged branches left behind and the user's run of days with commits.
+func readHabits(git *model.History, branch string, run func(args ...string) string, now time.Time) {
+	git.DefaultBranch = strings.TrimPrefix(strings.TrimSpace(run("symbolic-ref", "--short", "refs/remotes/origin/HEAD")), "origin/")
+	var wg sync.WaitGroup
+	var start, unpushed time.Time
+	var upstream bool
+	if git.DefaultBranch != "" && !model.IsDefaultBranch(branch, git.DefaultBranch) {
+		wg.Go(func() { start = oldest(run("log", "--format=%ct", "origin/"+git.DefaultBranch+"..HEAD")) })
+		wg.Go(func() {
+			if n, err := strconv.Atoi(strings.TrimSpace(run("rev-list", "--count", "HEAD..origin/"+git.DefaultBranch))); err == nil {
+				git.BehindDefault = n
+			}
+		})
+		wg.Go(func() {
+			git.MergedBranches = countMerged(run("branch", "--merged", git.DefaultBranch, "--format=%(refname:short)"), branch, git.DefaultBranch)
+		})
+	}
+	wg.Go(func() {
+		upstream = strings.TrimSpace(run("rev-parse", "--abbrev-ref", "@{upstream}")) != ""
+		if upstream {
+			unpushed = oldest(run("log", "--format=%ct", "@{upstream}..HEAD"))
+		}
+	})
+	wg.Go(func() {
+		if email := strings.TrimSpace(run("config", "user.email")); email != "" {
+			git.Streak, git.LongestStreak = model.Streaks(strings.Fields(run("log", "--since=60.days", "--author="+email, "--format=%cs", "HEAD")), now)
+		}
+	})
+	wg.Wait()
+	git.BranchStart = start
+	git.OldestUnpushed = unpushed
+	if !upstream {
+		// A branch never pushed: every commit of its own waits to be pushed.
+		git.OldestUnpushed = start
+	}
+}
+
+// oldest returns the earliest of commit times, one Unix time per line, or the
+// zero time when there is none.
+func oldest(out string) time.Time {
+	var first time.Time
+	for field := range strings.FieldsSeq(out) {
+		if at, err := strconv.ParseInt(field, 10, 64); err == nil && (first.IsZero() || time.Unix(at, 0).Before(first)) {
+			first = time.Unix(at, 0)
+		}
+	}
+	return first
+}
+
+// countMerged counts the branches merged into the default branch, the current
+// one and the default left out.
+func countMerged(out, current, defaultBranch string) int {
+	n := 0
+	for name := range strings.FieldsSeq(out) {
+		if name != current && name != defaultBranch {
+			n++
+		}
+	}
+	return n
+}
+
+// commitFields are the parts of a record of today's commits: the subject, the
+// co-authors and the lines of each file.
+const commitFields = 3
+
+// countCommits counts today's commits from `git log` records: a record
+// separator, the subject and the co-authors each ended by a unit separator,
+// then the lines of each file (--numstat). A subject or a trailer cannot hold
+// either separator.
+func countCommits(git *model.History, out string) {
+	for record := range strings.SplitSeq(out, "\x1e") {
+		fields := strings.SplitN(record, "\x1f", commitFields)
+		if len(fields) != commitFields {
+			continue
+		}
+		subject, coauthors, stat := fields[0], fields[1], fields[2]
 		git.CommitsToday++
 		if model.IsFixCommit(subject) {
 			git.FixesToday++
 		}
-	}
-	// "behind<TAB>ahead" for upstream...HEAD.
-	if counts := strings.Fields(run("rev-list", "--left-right", "--count", "@{upstream}...HEAD")); len(counts) == 2 {
-		behind, errBehind := strconv.Atoi(counts[0])
-		ahead, errAhead := strconv.Atoi(counts[1])
-		if errBehind == nil && errAhead == nil {
-			git.Behind, git.Ahead = behind, ahead
+		if model.IsAICoauthor(coauthors) {
+			git.AICommitsToday++
 		}
+		if model.IsVagueCommit(subject) {
+			git.VagueToday++
+		}
+		if model.IsConventionalCommit(subject) {
+			git.ConventionalToday++
+		}
+		size := 0
+		for line := range strings.Lines(stat) {
+			if change, ok := numStat(strings.TrimRight(line, "\r\n")); ok {
+				git.TodayAdded += change.Added
+				git.TodayDeleted += change.Deleted
+				size += change.Lines()
+			}
+		}
+		git.LargestToday = max(git.LargestToday, size)
 	}
-	if committed, err := strconv.ParseInt(strings.TrimSpace(run("log", "-1", "--format=%ct")), 10, 64); err == nil {
-		git.LastCommit = time.Unix(committed, 0)
-	}
-	return git, nil
 }
 
 // conflictCodes are the two-letter states of `git status --porcelain` for an
@@ -81,6 +231,12 @@ func countStatus(git *model.Git, porcelain string) {
 			continue
 		}
 		code := line[:len("XY")]
+		if path := line[len("XY "):]; len(line) > len("XY ") && model.IsJunkPath(path) {
+			git.Junk++
+			if code[0] != ' ' && code != "??" {
+				git.JunkStaged++
+			}
+		}
 		switch {
 		case code == "??":
 			git.Untracked++
@@ -114,12 +270,48 @@ func readDiff(git *model.Git, out string) {
 			file = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
 		case strings.HasPrefix(line, "--- "):
 			// The old name of the file; the new one follows.
-		case !model.IsSourcePath(file) || !model.MarksDebt(line):
 		case strings.HasPrefix(line, "+"):
-			git.DebtAdded++
+			if model.MarksConflict(line[1:]) {
+				git.ConflictMarkers++
+			}
+			readAdded(git, file, line[1:])
 		case strings.HasPrefix(line, "-"):
-			git.DebtRemoved++
+			readRemoved(git, file, line[1:])
 		}
+	}
+}
+
+// readAdded counts what an added line brings: a debt, a test double, a
+// dependency.
+func readAdded(git *model.Git, file, line string) {
+	if model.IsTestPath(file) && model.IsSourcePath(file) {
+		if model.MarksSkip(line) {
+			git.SkipsAdded++
+		}
+		if model.MarksAssert(line) {
+			git.AssertsAdded++
+		}
+	}
+	switch {
+	case model.IsSourcePath(file) && model.MarksDebt(line):
+		git.DebtAdded++
+	case model.IsTestPath(file) && model.IsSourcePath(file) && model.MarksMock(line):
+		git.MocksAdded++
+	case model.AddsDependency(file, line):
+		git.DepsAdded++
+	}
+}
+
+// readRemoved counts what a deleted line takes away: a debt, an assertion.
+func readRemoved(git *model.Git, file, line string) {
+	if !model.IsSourcePath(file) {
+		return
+	}
+	if model.MarksDebt(line) {
+		git.DebtRemoved++
+	}
+	if model.IsTestPath(file) && model.MarksAssert(line) {
+		git.AssertsRemoved++
 	}
 }
 

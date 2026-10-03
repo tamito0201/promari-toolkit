@@ -1,5 +1,78 @@
 # Changelog
 
+## 1.7.1 — 2026-10-03
+
+- The release of 1.6.0 and 1.7.0, which were stopped before they were published: their tests
+  wrote a real e-mail address as the co-author of a commit, and the check for private
+  information refused to publish them. The tests use an address under example.com now; the code
+  is the same as 1.7.0, which includes 1.6.0.
+
+## 1.7.0 — 2026-10-03 (not published; use 1.7.1)
+
+A new `🎓 Habits` category measures how a repository is worked with against the rules and the
+numbers of a training course for new engineers, whose team exercise grades its trainees by their
+git history:
+
+- Where the work is done: `On main directly` blinks when the default branch (read from
+  `origin/HEAD`) has changes or unpushed commits. A branch not named "kind/topic"
+  (`feature/login-ui`, `fix/cart-bug`) shows `Name ✗` in a repository with a remote.
+- How long: `Branch 5h00m` is the age of the branch's first commit of its own (yellow after
+  3 hours, as a task is cut to two or three; red after a day), `Unpushed 26h00m` the age of the
+  oldest commit not pushed (red and blinking after a day: push within the day),
+  `Behind main ×12` the commits of the default branch not taken in yet.
+- How the commits are made: lines per commit of today (green at 10 to 100, the course's standard
+  being 20 to 50), commits per day (green at 2 to 5), the largest commit when above 100 lines, the
+  lines added per line deleted, `Conv N/M` for a team that follows Conventional Commits, and
+  `Vague msg ×N` for subjects such as "fix", "update" or "修正" that say nothing.
+- What should not be there: `Conflict marks ×N` (conflict markers added to files, blinking),
+  `Junk ×N` (build output, editor state, dependencies and `.env` files changed or untracked; red
+  when staged), `Merged ×N left` (merged branches not deleted).
+- `Streak Nd (max Md)`: the run of days with the user's commits (green from 3).
+- The pull request: `No assignee`, `No reviewer`, `Review wait 2h00m` (no review after 30
+  minutes), and `To review ×N (oldest …)`, the pull requests waiting for the user's review.
+
+The history these come from (today's commits, the branch's age, the merged branches, the days
+with commits) changes only with commits, so it is read at most once a minute; the questions git
+is asked are asked at once instead of one after another. The status line takes no longer to draw
+than 1.6.0 once the history is remembered.
+
+## 1.6.0 — 2026-10-03 (not published; use 1.7.1)
+
+Measures from the 2025-2026 studies of coding agents, each checked against the paper it comes
+from and against the transcripts of real sessions before it was added.
+
+- `🧪 Quality` adds:
+  - `Claim≠`: the times the agent said the tests passed while the last run had failed or had not
+    run since an edit, or said a problem was fixed while the last run had failed. Inaccurate
+    self-reports were 22.58% of the developers' complaints in 20,574 sessions (Tang et al. 2026),
+    and 26% of failed trajectories reported a success (Zhao et al. 2026). Only test runs the
+    status line recognises count, so a claim made before any of them is not counted.
+  - The tool calls made since the tests went red (`red 12m · 14 calls`): most failed
+    trajectories went on without progress after the failure was certain (Zhao et al. 2026).
+  - `Weaken`: skips added to tests and assertions removed from them, the marks of reward
+    hacking (13.8% of the rollouts of SWE-Marathon, 2026).
+  - `Mocks +N`: test doubles added (coding agents added mocks in 36% of their commits, people in
+    26%: Hora and Robbes, MSR 2026); `Deps +N`: dependencies added to a manifest (19.6% of the
+    packages sixteen models generated did not exist: Spracklen et al., USENIX Security 2025);
+    `AI N/M today`: the commits of today co-authored by an AI, from the Co-authored-by trailer
+    (Robbes et al. 2026).
+- A new `🧬 Trace` category shows how the agent works through the session:
+  - `Explore N/edit`: reads and searches per edit (passing trajectories browse more:
+    Oderinwale 2026).
+  - `Reread ×N`: reads and searches identical to one made since the last edit (in Claude Code
+    they came up in 64-92% of the tasks and took 5-11% of their cost: Hu et al. 2026).
+  - `EditRun max N`: the longest run of edits with no other call between, yellow from five
+    (about 80% of the trajectories with such runs failed, against 59%: Oderinwale 2026).
+  - `Obs ≈N (P% ctx) max M`: the tokens of the tools' output since the last compaction,
+    estimated at four bytes a token (observations took 62-84% of an agent's context:
+    Lindenbauer et al., NeurIPS 2025 workshop).
+  - `Since compact N prompts` (multi-turn conversations answered 39% worse: Laban et al. 2025)
+    and `PromptTok p50 · max (×N)`, the spread of the tokens per prompt (runs of the same task
+    differed up to 30 times: Bai et al. 2026).
+- Test runs started through a wrapper (`sh tools/run.sh task ci`), with variables set in front
+  (`CI=true go test`), with `node --test` or a Node test file are recognised.
+- The reading of a transcript moves to format 3 and is read again from the start once.
+
 ## 1.5.0 — 2026-10-03
 
 - A new `🧪 Quality` category shows what the session's checks and the uncommitted change say

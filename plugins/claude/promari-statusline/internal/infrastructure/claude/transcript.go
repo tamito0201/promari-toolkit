@@ -106,6 +106,7 @@ func readEntry(t *model.Transcript, line []byte) {
 			}
 		case compactBoundary:
 			t.Compactions++
+			t.Trace.Compacted()
 			if at, err := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp")); err == nil {
 				t.LastCompaction = at
 			}
@@ -136,9 +137,15 @@ func readAttachment(t *model.Transcript, kind string) {
 // from every entry: each holds a block of its own.
 func readResponse(t *model.Transcript, entry jsonx.Object) {
 	message := jsonx.Child(entry, "message")
+	side := jsonx.Or[bool](entry, "isSidechain")
 	for _, block := range jsonx.Or[[]jsonx.Object](message, "content") {
-		if jsonx.Or[string](block, "type") == "tool_use" {
-			readCall(t, block, jsonx.Or[bool](entry, "isSidechain"))
+		switch jsonx.Or[string](block, "type") {
+		case "tool_use":
+			readCall(t, block, side)
+		case "text":
+			if !side {
+				t.Quality.Claimed(jsonx.Or[string](block, "text"))
+			}
 		}
 	}
 	if t.Cursor.Counted(jsonx.Or[string](message, "id")) {
@@ -182,8 +189,13 @@ func readCall(t *model.Transcript, block jsonx.Object, side bool) {
 	input := jsonx.Child(block, "input")
 	id := jsonx.Or[string](block, "id")
 	q := &t.Quality
+	sig := signature(name, block["input"])
 	if !side {
-		q.Call(signature(name, block["input"]))
+		q.Call(sig)
+		t.Trace.Called(callKind(name), sig)
+		if !q.RedSince.IsZero() {
+			q.RedCalls++
+		}
 	}
 	if member, ok := editTools[name]; ok {
 		file := jsonx.Or[string](input, member)
@@ -203,6 +215,23 @@ func readCall(t *model.Transcript, block jsonx.Object, side bool) {
 	}
 }
 
+// searchTools are the tools that search the files.
+var searchTools = []string{"Grep", "Glob", "LS"}
+
+// callKind tells reads, searches and edits apart for the trace.
+func callKind(name string) int {
+	switch {
+	case name == "Read":
+		return model.CallRead
+	case slices.Contains(searchTools, name):
+		return model.CallSearch
+	}
+	if _, edit := editTools[name]; edit {
+		return model.CallEdit
+	}
+	return model.CallOther
+}
+
 // bashTool is the tool that runs shell commands.
 const bashTool = "Bash"
 
@@ -219,6 +248,13 @@ func signature(name string, input []byte) string {
 // ended, and whether an edit was made. A refused or interrupted call did not
 // run and decides nothing.
 func readResults(t *model.Transcript, entry jsonx.Object) {
+	if !jsonx.Or[bool](entry, "isSidechain") {
+		for _, block := range jsonx.Or[[]jsonx.Object](jsonx.Child(entry, "message"), "content") {
+			if jsonx.Or[string](block, "type") == "tool_result" {
+				t.Trace.Observed(len(resultText(block)))
+			}
+		}
+	}
 	q := &t.Quality
 	if len(q.Pending) == 0 {
 		return
@@ -281,6 +317,7 @@ func readPrompt(t *model.Transcript, entry jsonx.Object) {
 	}
 	if isHumanPrompt(entry) {
 		t.Prompts++
+		t.Trace.Prompt(t.Tokens.AllInput() + t.Tokens.Output)
 	}
 }
 

@@ -154,6 +154,16 @@ func (n *next) PullRequest(context.Context, string, string) (model.PullRequest, 
 	return model.PullRequest{Number: n.asked}, nil
 }
 
+func (n *next) History(context.Context, string, string) (model.History, error) {
+	n.asked++
+	return model.History{CommitsToday: 1}, nil
+}
+
+func (n *next) ReviewQueue(context.Context, string) (model.ReviewQueue, error) {
+	n.asked++
+	return model.ReviewQueue{Count: 1}, nil
+}
+
 func (n *next) Track(context.Context) (model.Track, error) {
 	n.asked++
 	return model.Track{Title: "t"}, nil
@@ -194,6 +204,14 @@ func TestDecoratorsRememberTheirAnswers(t *testing.T) {
 	}{
 		{"pull request", 5 * time.Minute, func(s *filecache.Store, n *next) error {
 			_, err := filecache.PullRequests{Store: s, Next: n}.PullRequest(ctx, "/work", "develop")
+			return err
+		}},
+		{"history", time.Minute, func(s *filecache.Store, n *next) error {
+			_, err := filecache.Histories{Store: s, Next: n}.History(ctx, "/work", "develop")
+			return err
+		}},
+		{"review queue", 5 * time.Minute, func(s *filecache.Store, n *next) error {
+			_, err := filecache.ReviewQueues{Store: s, Next: n}.ReviewQueue(ctx, "/work")
 			return err
 		}},
 		{"track", 15 * time.Second, func(s *filecache.Store, n *next) error {

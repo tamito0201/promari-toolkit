@@ -32,6 +32,7 @@ type world struct {
 
 	git        model.Git
 	pull       model.PullRequest
+	reviews    model.ReviewQueue
 	spend      model.Spend
 	codex      model.CodexLimits
 	transcript model.Transcript
@@ -64,6 +65,10 @@ func (w *world) Spend(_ context.Context, input []byte) (model.Spend, error) {
 
 func (w *world) Codex(context.Context) (model.CodexLimits, error) { return w.codex, w.ask("codex") }
 
+func (w *world) ReviewQueue(_ context.Context, dir string) (model.ReviewQueue, error) {
+	return w.reviews, w.ask("reviews " + dir)
+}
+
 func (w *world) Transcript(_ context.Context, path string, _ model.Transcript) (model.Transcript, error) {
 	return w.transcript, w.ask("transcript " + path)
 }
@@ -88,7 +93,7 @@ func (w *world) Machine(_ context.Context, dir string) model.Machine {
 
 func (w *world) sources() usecase.Sources {
 	return usecase.Sources{
-		Git: w, Pulls: w, Spend: w, Codex: w, Transcript: w, Todos: w, Track: w, Incident: w, Release: w, Account: w, Machine: w,
+		Git: w, Pulls: w, Reviews: w, Spend: w, Codex: w, Transcript: w, Todos: w, Track: w, Incident: w, Release: w, Account: w, Machine: w,
 	}
 }
 
@@ -273,7 +278,7 @@ func TestRenderGathersEveryFact(t *testing.T) {
 	}
 	slices.Sort(w.asked)
 	wantAsked := []string{
-		"account", "codex", "git /work", "incident", "latest", "machine /work", "pull /work develop",
+		"account", "codex", "git /work", "incident", "latest", "machine /work", "pull /work develop", "reviews /work",
 		`spend {"raw":true}`, "todos s1", "track", "transcript /t.jsonl",
 	}
 	if !slices.Equal(w.asked, wantAsked) {

@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"context"
+	"encoding/json/v2"
 	"slices"
 	"strings"
 	"time"
@@ -20,14 +21,38 @@ type GitHub struct {
 	Sys platform.System
 }
 
-var _ repository.PullRequestReader = GitHub{}
+var (
+	_ repository.PullRequestReader = GitHub{}
+	_ repository.ReviewQueueReader = GitHub{}
+)
+
+// ReviewQueue implements repository.ReviewQueueReader.
+func (g GitHub) ReviewQueue(ctx context.Context, dir string) (model.ReviewQueue, error) {
+	out, err := g.Sys.Run(ctx, platform.Cmd{
+		Name:    "gh",
+		Args:    []string{"pr", "list", "--search", "review-requested:@me", "--json", "createdAt"},
+		Dir:     dir,
+		Timeout: ghTimeout,
+	})
+	var list []jsonx.Object
+	if err != nil || json.Unmarshal([]byte(out), &list) != nil || len(list) == 0 {
+		return model.ReviewQueue{}, repository.ErrNone
+	}
+	queue := model.ReviewQueue{Count: len(list)}
+	for _, pr := range list {
+		if at, err := time.Parse(time.RFC3339, jsonx.Or[string](pr, "createdAt")); err == nil && (queue.Oldest.IsZero() || at.Before(queue.Oldest)) {
+			queue.Oldest = at
+		}
+	}
+	return queue, nil
+}
 
 // PullRequest implements repository.PullRequestReader. gh reads the branch
 // from the working tree, so only dir is passed on.
 func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullRequest, error) {
 	out, err := g.Sys.Run(ctx, platform.Cmd{
 		Name:    "gh",
-		Args:    []string{"pr", "view", "--json", "number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable"},
+		Args:    []string{"pr", "view", "--json", "number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable,assignees,reviewRequests,latestReviews"},
 		Dir:     dir,
 		Timeout: ghTimeout,
 	})
@@ -49,6 +74,11 @@ func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullReque
 		Files:     int(jsonx.Or[float64](view, "changedFiles")),
 		Draft:     jsonx.Or[bool](view, "isDraft"),
 		Conflicts: jsonx.Or[string](view, "mergeable") == "CONFLICTING",
+		Assignees: len(jsonx.Or[[]jsonx.Object](view, "assignees")),
+		Reviewers: len(jsonx.Or[[]jsonx.Object](view, "reviewRequests")),
+		Reviews:   len(jsonx.Or[[]jsonx.Object](view, "latestReviews")),
+		// gh names every member it was asked for, empty or not.
+		PeopleKnown: view["assignees"] != nil && view["reviewRequests"] != nil,
 	}
 	if created, err := time.Parse(time.RFC3339, jsonx.Or[string](view, "createdAt")); err == nil {
 		pull.Created = created

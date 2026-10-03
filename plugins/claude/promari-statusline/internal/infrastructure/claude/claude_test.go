@@ -755,6 +755,9 @@ func TestTranscriptQuality(t *testing.T) {
 	if q.Edits != 2 || q.EditFailures != 1 || q.ReEdits != 1 || q.EditFailStreak != 0 {
 		t.Errorf("edits = %d, failures %d, re-edits %d, streak %d", q.Edits, q.EditFailures, q.ReEdits, q.EditFailStreak)
 	}
+	if tr := got.Trace; tr.Explores != 2 || tr.Rereads != 1 || tr.MaxEditRun != 2 || tr.ObservedBytes == 0 || q.RedCalls != 7 {
+		t.Errorf("Trace = %+v, RedCalls = %d", tr, q.RedCalls)
+	}
 	// Repeated as they were: the edit after it failed, the run after it was refused, the read.
 	if !slices.Equal(q.Unverified, []string{"/w/a.go"}) || q.Repeats != 3 || len(q.Pending) != 0 {
 		t.Errorf("Unverified = %v, Repeats = %d, Pending = %v", q.Unverified, q.Repeats, q.Pending)
@@ -773,5 +776,31 @@ func TestTranscriptFormat(t *testing.T) {
 	}
 	if got.Prompts == 99 || got.Quality.Tests.Runs != 1 || got.Cursor.Format != model.TranscriptFormat {
 		t.Errorf("got Prompts %d, Tests %+v, Format %d; a reading of another format is read again from the start", got.Prompts, got.Quality.Tests, got.Cursor.Format)
+	}
+}
+
+// claims is a transcript in which the agent says the tests pass before any ran,
+// two prompts with tokens between them, and a compaction.
+const claims = `{"type":"user","message":{"role":"user","content":"fix it"}}
+{"type":"assistant","message":{"id":"r1","usage":{"input_tokens":100,"output_tokens":50},"content":[{"type":"text","text":"Done. All tests pass now."}]}}
+{"type":"assistant","isSidechain":true,"message":{"id":"r2","usage":{"input_tokens":10},"content":[{"type":"text","text":"tests passed"}]}}
+{"type":"user","message":{"role":"user","content":"again"}}
+{"type":"system","subtype":"compact_boundary","timestamp":"2026-10-03T05:00:00Z"}
+{"type":"user","message":{"role":"user","content":"and again"}}
+`
+
+func TestTranscriptClaims(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	sys.Files["/c.jsonl"] = []byte(claims)
+	got, err := claude.Transcript{Sys: sys}.Transcript(context.Background(), "/c.jsonl", model.Transcript{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Quality.Claims != 0 {
+		t.Errorf("Claims = %d; before a test run is recognised, a claim cannot be told from the truth", got.Quality.Claims)
+	}
+	if tr := got.Trace; !slices.Equal(tr.TurnTokens, []float64{160}) || tr.PromptsSinceCompact != 1 {
+		t.Errorf("TurnTokens = %v, PromptsSinceCompact = %d", tr.TurnTokens, tr.PromptsSinceCompact)
 	}
 }

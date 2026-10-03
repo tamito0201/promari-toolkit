@@ -28,9 +28,20 @@ type GitReader interface {
 	Git(ctx context.Context, dir string) (model.Git, error)
 }
 
+// HistoryReader reads what the commits of a branch say.
+type HistoryReader interface {
+	History(ctx context.Context, dir, branch string) (model.History, error)
+}
+
 // PullRequestReader reads the pull request of a branch.
 type PullRequestReader interface {
 	PullRequest(ctx context.Context, dir, branch string) (model.PullRequest, error)
+}
+
+// ReviewQueueReader reads the pull requests of a repository that wait for the
+// user's review. It returns ErrNone when none waits.
+type ReviewQueueReader interface {
+	ReviewQueue(ctx context.Context, dir string) (model.ReviewQueue, error)
 }
 
 // SpendReader reads the estimated spending. input is the session report as

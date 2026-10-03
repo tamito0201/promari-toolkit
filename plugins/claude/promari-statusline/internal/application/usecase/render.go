@@ -21,6 +21,7 @@ const limitsKept = 7 * 24 * time.Hour
 type Sources struct {
 	Git        repository.GitReader
 	Pulls      repository.PullRequestReader
+	Reviews    repository.ReviewQueueReader
 	Spend      repository.SpendReader
 	Codex      repository.CodexReader
 	Transcript repository.TranscriptReader
@@ -171,6 +172,9 @@ func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) model.
 	var facts model.Facts
 	var wg sync.WaitGroup
 	wg.Go(func() { facts.Git, facts.Pull = u.gitAndPull(ctx, s.WorkDir()) })
+	wg.Go(func() {
+		facts.Reviews = read(func() (model.ReviewQueue, error) { return src.Reviews.ReviewQueue(ctx, s.WorkDir()) })
+	})
 	wg.Go(func() { facts.Spend = read(func() (model.Spend, error) { return src.Spend.Spend(ctx, req.Raw) }) })
 	wg.Go(func() { facts.Codex = read(func() (model.CodexLimits, error) { return src.Codex.Codex(ctx) }) })
 	wg.Go(func() { facts.Track = read(func() (model.Track, error) { return src.Track.Track(ctx) }) })

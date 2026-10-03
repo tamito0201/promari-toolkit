@@ -72,8 +72,9 @@ func New(sys platform.System, streams Streams) *cli.App {
 // remembers its answer; the use case sees the port either way.
 func sources(sys platform.System, store *filecache.Store) usecase.Sources {
 	return usecase.Sources{
-		Git:        vcs.Git{Sys: sys},
+		Git:        vcs.Git{Sys: sys, History: filecache.Histories{Store: store, Next: vcs.History{Sys: sys}}},
 		Pulls:      filecache.PullRequests{Store: store, Next: vcs.GitHub{Sys: sys}},
+		Reviews:    filecache.ReviewQueues{Store: store, Next: vcs.GitHub{Sys: sys}},
 		Spend:      usage.CCUsage{Sys: sys},
 		Codex:      filecache.Codex{Store: store, Next: usage.Codex{Sys: sys}},
 		Transcript: filecache.Transcripts{Store: store, Next: claude.Transcript{Sys: sys}},

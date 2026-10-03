@@ -50,6 +50,37 @@ func (c PullRequests) PullRequest(ctx context.Context, dir, branch string) (mode
 	})
 }
 
+// historyTTL is how long the history of a branch is remembered: it changes
+// only when commits are made or fetched, and its slowest parts (today's lines,
+// the merged branches, the days with commits) would cost every render.
+const historyTTL = time.Minute
+
+// Histories remembers what the commits of a branch say.
+type Histories struct {
+	Store *Store
+	Next  repository.HistoryReader
+}
+
+// History implements repository.HistoryReader.
+func (c Histories) History(ctx context.Context, dir, branch string) (model.History, error) {
+	return Memo(c.Store, "history.json", dir+":"+branch, historyTTL, func() (model.History, error) {
+		return c.Next.History(ctx, dir, branch)
+	})
+}
+
+// ReviewQueues remembers the pull requests that wait for the user's review.
+type ReviewQueues struct {
+	Store *Store
+	Next  repository.ReviewQueueReader
+}
+
+// ReviewQueue implements repository.ReviewQueueReader.
+func (c ReviewQueues) ReviewQueue(ctx context.Context, dir string) (model.ReviewQueue, error) {
+	return Memo(c.Store, "review-queue.json", dir, pullTTL, func() (model.ReviewQueue, error) {
+		return c.Next.ReviewQueue(ctx, dir)
+	})
+}
+
 // Tracks remembers the song that is playing.
 type Tracks struct {
 	Store *Store

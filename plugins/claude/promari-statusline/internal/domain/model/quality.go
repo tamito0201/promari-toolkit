@@ -35,8 +35,8 @@ const (
 // runner is recognised at the start of the command or after a separator, so
 // "cd x && go test ./..." is a test and "git log --grep 'go test'" is not.
 var (
-	testCommand  = regexp.MustCompile(`(?:^|[;&|(\n]\s*|\btime\s+)(?:go test|gotestsum|pytest|python3? -m (?:pytest|unittest)|(?:npx |pnpm (?:exec |dlx )?)?(?:jest|vitest|mocha|playwright test)|(?:npm|pnpm|yarn|bun) (?:run )?test|cargo (?:test|nextest)|task (?:test|ci)\b|make (?:test|check)\b|mvn (?:test|verify)|\./gradlew test|gradle test|rspec|phpunit|deno test|swift test|dotnet test)`)
-	buildCommand = regexp.MustCompile(`(?:^|[;&|(\n]\s*|\btime\s+)(?:go (?:build|vet)|golangci-lint|staticcheck|(?:npx |pnpm (?:exec )?)?(?:tsc|eslint|biome|prettier --check)|ruff|mypy|pyright|cargo (?:build|check|clippy)|(?:npm|pnpm|yarn|bun) (?:run )?(?:build|lint|typecheck|type-check)|task (?:lint|build)\b|make (?:build|lint)\b|shellcheck|dotnet build|swift build)`)
+	testCommand  = regexp.MustCompile(`(?:^|[;&|(\n]\s*|\btime\s+|\brun\.sh\s+|\bmise (?:run|exec --)\s+)(?:[A-Z][A-Z0-9_]*=\S*\s+)*(?:go test|gotestsum|node --test|node \S*(?:test|spec)\S*\.[cm]?[jt]s\b|pytest|python3? -m (?:pytest|unittest)|(?:npx |pnpm (?:exec |dlx )?)?(?:jest|vitest|mocha|playwright test)|(?:npm|pnpm|yarn|bun) (?:run )?test|cargo (?:test|nextest)|task (?:test|ci)\b|make (?:test|check)\b|mvn (?:test|verify)|\./gradlew test|gradle test|rspec|phpunit|deno test|swift test|dotnet test)`)
+	buildCommand = regexp.MustCompile(`(?:^|[;&|(\n]\s*|\btime\s+|\brun\.sh\s+|\bmise (?:run|exec --)\s+)(?:[A-Z][A-Z0-9_]*=\S*\s+)*(?:go (?:build|vet)|golangci-lint|staticcheck|(?:npx |pnpm (?:exec )?)?(?:tsc|eslint|biome|prettier --check)|ruff|mypy|pyright|cargo (?:build|check|clippy)|(?:npm|pnpm|yarn|bun) (?:run )?(?:build|lint|typecheck|type-check)|task (?:lint|build)\b|make (?:build|lint)\b|shellcheck|dotnet build|swift build)`)
 )
 
 // The lines test runners print when tests fail, and when they all passed. A
@@ -155,6 +155,19 @@ type Quality struct {
 	// failed edit, the chance that an agent's edit eventually succeeds fell from
 	// 90.5% to 57.2% (Yang et al., "SWE-agent", NeurIPS 2024).
 	EditFailStreak int `json:"edit_fail_streak,omitzero"`
+	// RedCalls are the tool calls made since the tests began to fail: failed
+	// trajectories mostly went on without progress after the failure was
+	// certain (Zhao et al., "Failure as a Process", 2026).
+	RedCalls int `json:"red_calls,omitzero"`
+	// Claims are the texts that said the tests passed while they had failed,
+	// had not run or had not run since an edit, or that said the work was done
+	// while the tests failed. 26% of failed trajectories reported a success
+	// (Zhao et al. 2026); inaccurate self-reports were 22.58% of the developers'
+	// complaints in 20,574 sessions (Tang et al., "How Coding Agents Fail Their
+	// Users", 2026).
+	Claims int `json:"claims,omitzero"`
+	// EditsSinceRun are the source edits since the tests last ran.
+	EditsSinceRun int `json:"edits_since_run,omitzero"`
 	// RedSince is when the tests began to fail, zero while they pass or before
 	// they ran.
 	RedSince time.Time `json:"red_since,omitzero"`
@@ -216,6 +229,9 @@ func (q *Quality) EditFailed() {
 // tests pass again.
 func (q *Quality) Edited(file string) {
 	q.EditFailStreak = 0
+	if IsSourcePath(file) {
+		q.EditsSinceRun++
+	}
 	if !IsSourcePath(file) || len(q.Unverified) >= MaxUnverified || slices.Contains(q.Unverified, file) {
 		return
 	}
@@ -227,11 +243,13 @@ func (q *Quality) Edited(file string) {
 func (q *Quality) Checked(kind CheckKind, o Outcome, masked bool, at time.Time) {
 	switch kind {
 	case CheckTest:
+		q.EditsSinceRun = 0
 		countRun(&q.Tests, o, masked)
 		switch o {
 		case OutcomePass:
 			q.Unverified = nil
 			q.RedSince = time.Time{}
+			q.RedCalls = 0
 		case OutcomeFail:
 			if q.RedSince.IsZero() {
 				q.RedSince = at
@@ -347,3 +365,62 @@ var fixSubject = regexp.MustCompile(`(?i)^(?:(?:fix|hotfix|bugfix|revert)(?:\([^
 
 // IsFixCommit reports whether a commit's subject says it fixes or reverts.
 func IsFixCommit(subject string) bool { return fixSubject.MatchString(subject) }
+
+// mockMark matches a line of a test that makes a test double: a mock, a stub
+// or a patch, in the frameworks of the common languages. Coding agents' commits
+// added mocks more often than people's: 36% against 26% (Hora and Robbes, "Are
+// Coding Agents Generating Over-Mocked Tests?", MSR 2026).
+var mockMark = regexp.MustCompile(`(?i)\bmock|\bstub\b|\bspy(?:On)?\(|jest\.fn|vi\.fn|sinon\.|monkeypatch|@patch\b|\bpatch\(|\bfake[A-Z_]`)
+
+// MarksMock reports whether a line makes a test double.
+func MarksMock(line string) bool { return mockMark.MatchString(line) }
+
+// dependencyLine matches a line that declares a dependency, by manifest. Lock
+// files are left out: they list what the manifests already declared.
+var dependencyLine = map[string]*regexp.Regexp{
+	"go.mod":           regexp.MustCompile(`^\s*(?:require\s+)?[a-z0-9.\-]+\.[a-z]{2,}/\S+\s+v\d`),
+	"package.json":     regexp.MustCompile(`^\s*"(?:@[^"/]+/)?[^"@/]+"\s*:\s*"(?:[\^~<>=]*\d|workspace:|catalog:|npm:|github:|git\+|file:|link:|latest)`),
+	"requirements.txt": regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-\[\]]*\s*(?:[=<>!~]=?.*)?$`),
+	"pyproject.toml":   regexp.MustCompile(`^\s*"[A-Za-z0-9][A-Za-z0-9_.\-\[\]]*\s*(?:[=<>!~]=?[^"]*)?",?\s*$`),
+	"Cargo.toml":       regexp.MustCompile(`^[A-Za-z0-9_\-]+\s*=\s*(?:"[\^~=<>]*\d|\{.*\b(?:version|git|path)\s*=)`),
+	"Gemfile":          regexp.MustCompile(`^\s*gem\s+['"]`),
+}
+
+// notDependencies are the keys of a manifest whose value looks like a version
+// but is no dependency: the package's own version and the toolchain's.
+var notDependencies = regexp.MustCompile(`^\s*"?(?:version|node|npm|pnpm|yarn|edition|rust-version|packageManager)"?\s*[:=]`)
+
+// AddsDependency reports whether an added line of a file declares a
+// dependency. Agents add dependencies that do not exist: 19.6% of the packages
+// that sixteen models generated were hallucinated (Spracklen et al., "We Have a
+// Package for You!", USENIX Security 2025).
+func AddsDependency(file, line string) bool {
+	name := path.Base(file)
+	if strings.HasPrefix(name, "requirements") && strings.HasSuffix(name, ".txt") {
+		name = "requirements.txt"
+	}
+	pattern, ok := dependencyLine[name]
+	return ok && !notDependencies.MatchString(line) && pattern.MatchString(line)
+}
+
+// aiCoauthor matches the co-author trailer of a coding agent or an assistant.
+var aiCoauthor = regexp.MustCompile(`(?i)claude|anthropic|copilot|codex|openai|cursor|devin|gemini|aider|windsurf`)
+
+// IsAICoauthor reports whether a commit's co-authors name an AI. Claude Code
+// signs every commit it makes with such a trailer; a commit whose trailer was
+// removed is not counted, so the share is a lower bound (Robbes et al.,
+// "Agentic Much? Adoption of Coding Agents on GitHub", 2026).
+func IsAICoauthor(coauthors string) bool { return aiCoauthor.MatchString(coauthors) }
+
+// Claimed records a text of the agent, counting it when it claims more than
+// the checks showed.
+func (q *Quality) Claimed(text string) {
+	// Before a test run was recognised, nothing tells a claim from the truth:
+	// the tests may have run in a way the status line does not know. A run
+	// whose outcome is unknown is no ground either: an empty output piped
+	// through grep -v ok means that everything passed.
+	unverified := q.Tests.Runs > 0 && (q.Tests.Last == OutcomeFail || q.EditsSinceRun > 0)
+	if ClaimsTests(text) && unverified || ClaimsDone(text) && q.Tests.Last == OutcomeFail {
+		q.Claims++
+	}
+}

@@ -75,6 +75,8 @@ type Transcript struct {
 	Diagnostics int `json:"diagnostics,omitzero"`
 	// Quality is what the tool calls say about the quality of the work.
 	Quality Quality `json:"quality,omitzero"`
+	// Trace is how the agent works: exploring, editing, reading again.
+	Trace Trace `json:"trace,omitzero"`
 	// Started is when the transcript's first entry was written.
 	Started time.Time `json:"started,omitzero"`
 	// Cursor is where the next read continues.
@@ -96,8 +98,8 @@ type TranscriptCursor struct {
 }
 
 // TranscriptFormat is the version of what a reading of a transcript counts. It
-// goes up whenever a reading counts something new (2: the quality of the work).
-const TranscriptFormat = 2
+// goes up whenever a reading counts something new (2: the quality of the work; 3: the trace and the claims).
+const TranscriptFormat = 3
 
 // recentKept is how many response ids the cursor remembers.
 const recentKept = 16

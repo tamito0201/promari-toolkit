@@ -39,13 +39,16 @@ func sessionQuality(now time.Time, q model.Quality) []model.Chip {
 		c := checkChip("Tests", q.Tests)
 		if !q.RedSince.IsZero() {
 			red := now.Sub(q.RedSince)
-			c = append(c, text(model.ToneDanger, " red "+span(red)))
+			c = append(c, text(model.ToneDanger, " red "+span(red)+" · "+strconv.Itoa(q.RedCalls)+" calls"))
 			c = alarmIf(red > redTooLong, c)
 		}
 		chips = append(chips, c)
 	}
 	if q.Builds.Runs > 0 {
 		chips = append(chips, checkChip("Build", q.Builds))
+	}
+	if q.Claims > 0 {
+		chips = append(chips, chip(model.ToneCaution, "Claim≠ ×"+strconv.Itoa(q.Claims)))
 	}
 	if n := len(q.Unverified); n > 0 {
 		chips = append(chips, chip(model.ToneCaution, "Untested "+strconv.Itoa(n)+" files"))
@@ -111,8 +114,27 @@ func changeQuality(git model.Git) []model.Chip {
 		}
 		chips = append(chips, chip(tone, "Debt +"+strconv.Itoa(git.DebtAdded)+" -"+strconv.Itoa(git.DebtRemoved)))
 	}
+	if weakened := git.AssertsRemoved - git.AssertsAdded; git.SkipsAdded > 0 || weakened > 0 {
+		c := chip(model.ToneDanger, "Weaken")
+		if git.SkipsAdded > 0 {
+			c = append(c, text(model.ToneDanger, " skip +"+strconv.Itoa(git.SkipsAdded)))
+		}
+		if weakened > 0 {
+			c = append(c, text(model.ToneDanger, " assert -"+strconv.Itoa(weakened)))
+		}
+		chips = append(chips, c)
+	}
+	if git.MocksAdded > 0 {
+		chips = append(chips, chip(model.ToneMuted, "Mocks +"+strconv.Itoa(git.MocksAdded)))
+	}
+	if git.DepsAdded > 0 {
+		chips = append(chips, chip(model.ToneCaution, "Deps +"+strconv.Itoa(git.DepsAdded)))
+	}
 	if git.FixesToday > 0 {
 		chips = append(chips, chip(model.ToneMuted, "Fix "+strconv.Itoa(git.FixesToday)+"/"+strconv.Itoa(git.CommitsToday)+" today"))
+	}
+	if git.AICommitsToday > 0 {
+		chips = append(chips, chip(model.ToneMuted, "AI "+strconv.Itoa(git.AICommitsToday)+"/"+strconv.Itoa(git.CommitsToday)+" today"))
 	}
 	return chips
 }

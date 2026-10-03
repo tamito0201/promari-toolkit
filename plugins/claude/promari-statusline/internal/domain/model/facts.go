@@ -8,6 +8,7 @@ import "time"
 type Facts struct {
 	Git        Optional[Git]
 	Pull       Optional[PullRequest]
+	Reviews    Optional[ReviewQueue]
 	Spend      Optional[Spend]
 	Codex      Optional[CodexLimits]
 	Transcript Optional[Transcript]
@@ -42,12 +43,56 @@ type Git struct {
 	// those that fix or revert.
 	CommitsToday int
 	FixesToday   int
+	// AICommitsToday are the commits of today that an AI co-authored.
+	AICommitsToday int
 	// Changes are the files changed against HEAD with their lines, and
 	// DebtAdded the lines added to source files that mark a debt (TODO, FIXME,
 	// HACK, XXX), DebtRemoved those deleted.
 	Changes     []FileChange
 	DebtAdded   int
 	DebtRemoved int
+	// MocksAdded are the lines added to test files that make a test double;
+	// DepsAdded the lines added to manifests that declare a dependency.
+	MocksAdded int
+	DepsAdded  int
+	// SkipsAdded are the lines added to test files that skip a test;
+	// AssertsAdded and AssertsRemoved the assertions added and removed.
+	SkipsAdded     int
+	AssertsAdded   int
+	AssertsRemoved int
+	// DefaultBranch is the branch origin's HEAD points at, or "" when unknown.
+	DefaultBranch string
+	// BranchStart is when the first commit of the branch that the default
+	// branch does not have was made, and OldestUnpushed when the oldest commit
+	// not pushed yet was made; zero when there is none.
+	BranchStart    time.Time
+	OldestUnpushed time.Time
+	// TodayAdded and TodayDeleted are the lines today's commits changed, and
+	// VagueToday the commits whose subject says nothing about the change.
+	TodayAdded   int
+	TodayDeleted int
+	VagueToday   int
+	// LargestToday is the most lines one commit of today changed, and
+	// ConventionalToday the commits of today whose subject starts with a
+	// Conventional Commits type.
+	LargestToday      int
+	ConventionalToday int
+	// BehindDefault are the commits of the default branch the branch does not
+	// have yet.
+	BehindDefault int
+	// ConflictMarkers are conflict markers added to files; Junk are changed or
+	// untracked paths that do not belong in a repository, JunkStaged those of
+	// them staged.
+	ConflictMarkers int
+	Junk            int
+	JunkStaged      int
+	// MergedBranches are the local branches merged into the default branch and
+	// not deleted.
+	MergedBranches int
+	// Streak is the run of days with the user's commits up to today, and
+	// LongestStreak the longest in the last 60 days.
+	Streak        int
+	LongestStreak int
 	// LastCommit is zero when the branch has no commit.
 	LastCommit time.Time
 }
@@ -77,6 +122,15 @@ type PullRequest struct {
 	Created   time.Time `json:"created,omitzero"`
 	Draft     bool      `json:"draft,omitzero"`
 	Conflicts bool      `json:"conflicts,omitzero"`
+	// Assignees, Reviewers and Reviews are the people assigned, the reviews
+	// requested and the reviews given.
+	Assignees int `json:"assignees,omitzero"`
+	Reviewers int `json:"reviewers,omitzero"`
+	Reviews   int `json:"reviews,omitzero"`
+	// PeopleKnown is true when the three above were read: a pull request read
+	// by an older version, or reported by Claude Code, knows none of them, and
+	// unknown is not none.
+	PeopleKnown bool `json:"people_known,omitzero"`
 }
 
 // Size returns the lines the pull request changes.

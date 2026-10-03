@@ -1,6 +1,6 @@
 {
   "name": "@promari/statusline",
-  "version": "1.5.0",
+  "version": "1.7.1",
   "description": "Claude Code plugin (Go): a multi-line status line with context, rate limits, cost, KPIs and git at a glance",
   "license": "MIT",
   "private": true,

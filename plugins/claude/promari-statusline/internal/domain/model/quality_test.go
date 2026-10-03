@@ -25,6 +25,13 @@ func TestClassifyCommand(t *testing.T) {
 		{"cargo nextest run", model.CheckTest},
 		{"task ci", model.CheckTest},
 		{"time make check", model.CheckTest},
+		{"sh tools/run.sh task ci > log", model.CheckTest},
+		{"node --test", model.CheckTest},
+		{"node scripts/fresh.test.mjs", model.CheckTest},
+		{"node build.js", model.CheckNone},
+		{"GOFLAGS=-count=1 CI=true go test ./...", model.CheckTest},
+		{"mise run test", model.CheckNone}, // a task named test is not a runner
+		{"sh tools/run.sh task lint", model.CheckBuild},
 		{"go vet ./... && golangci-lint run", model.CheckBuild},
 		{"npx tsc --noEmit", model.CheckBuild},
 		{"pnpm run lint", model.CheckBuild},
@@ -209,5 +216,156 @@ func TestChangeMeasures(t *testing.T) {
 	}
 	if (model.FileChange{Added: 2, Deleted: 3}).Lines() != 5 {
 		t.Error("Lines")
+	}
+}
+
+func TestResearchMarkers(t *testing.T) {
+	t.Parallel()
+	for _, line := range []string{"m := mocks.NewStore(t)", "jest.fn()", "vi.fn()", "sinon.stub(a)", "@patch('x')", "monkeypatch.setattr", "fakeClock := x", "spyOn(a)"} {
+		if !model.MarksMock(line) {
+			t.Errorf("MarksMock(%q) = false", line)
+		}
+	}
+	for _, line := range []string{"got := add(1, 2)", "hammock := 1"} {
+		if model.MarksMock(line) {
+			t.Errorf("MarksMock(%q) = true", line)
+		}
+	}
+	for _, c := range []struct {
+		file, line string
+		want       bool
+	}{
+		{"go.mod", "\tgithub.com/x/y v1.2.3", true},
+		{"go.mod", "require golang.org/x/text v0.20.0", true},
+		{"go.mod", "go 1.27", false},
+		{"web/package.json", `  "left-pad": "^1.3.0",`, true},
+		{"package.json", `  "@scope/pkg": "workspace:*",`, true},
+		{"package.json", `  "version": "1.5.0",`, false},
+		{"package.json", `  "node": ">=20",`, false},
+		{"package.json", `  "description": "a tool",`, false},
+		{"requirements-dev.txt", "requests==2.32.0", true},
+		{"requirements.txt", "# a comment", false},
+		{"pyproject.toml", `  "httpx>=0.27",`, true},
+		{"Cargo.toml", `serde = { version = "1", features = ["derive"] }`, true},
+		{"Cargo.toml", `version = "0.1.0"`, false},
+		{"Gemfile", `gem "rails"`, true},
+		{"go.sum", "github.com/x/y v1.2.3 h1:abc", false},
+	} {
+		if got := model.AddsDependency(c.file, c.line); got != c.want {
+			t.Errorf("AddsDependency(%q, %q) = %v", c.file, c.line, got)
+		}
+	}
+	if !model.IsAICoauthor("Claude <claude@example.com>") || !model.IsAICoauthor("A <a@x>,Copilot <c@x>") || model.IsAICoauthor("Alice <a@x>") {
+		t.Error("IsAICoauthor")
+	}
+	for _, line := range []string{`t.Skip("x")`, "@pytest.mark.skip", "@pytest.mark.xfail(reason='x')", "it.skip('x', () => {})", "xit('x')", "@Disabled", "#[ignore]"} {
+		if !model.MarksSkip(line) {
+			t.Errorf("MarksSkip(%q) = false", line)
+		}
+	}
+	if model.MarksSkip("skipped := 0") || !model.MarksAssert("assert.Equal(t, 1, got)") || !model.MarksAssert(`t.Errorf("x")`) || !model.MarksAssert("expect(a).toBe(1)") || model.MarksAssert("got := 1") {
+		t.Error("MarksSkip / MarksAssert")
+	}
+}
+
+func TestClaims(t *testing.T) {
+	t.Parallel()
+	for _, s := range []string{"All tests pass now.", "tests passed", "テストはすべて通りました", "テストが成功しました"} {
+		if !model.ClaimsTests(s) {
+			t.Errorf("ClaimsTests(%q) = false", s)
+		}
+	}
+	for _, s := range []string{"I will run the tests", "CI は通りました", "テストを書きます"} {
+		if model.ClaimsTests(s) {
+			t.Errorf("ClaimsTests(%q) = true", s)
+		}
+	}
+	if !model.ClaimsDone("修正しました") || !model.ClaimsDone("I fixed the cause.") || model.ClaimsDone("a fixed path") || model.ClaimsDone("レビューが完了しました") || model.ClaimsDone("これから修正します") {
+		t.Error("ClaimsDone")
+	}
+
+	var q model.Quality
+	q.Claimed("tests pass") // no test run recognised yet: nothing to tell it from the truth
+	q.Checked(model.CheckTest, model.OutcomeUnknown, false, t0)
+	q.Claimed("tests pass") // the last run ended unknown: the agent may have read an empty output right
+	q.Claimed("修正しました")     // fixed while nothing failed: no claim
+	q.Checked(model.CheckTest, model.OutcomePass, false, t0)
+	q.Claimed("tests pass") // verified
+	q.Edited("/w/a.go")
+	q.Claimed("tests pass") // an edit since the last run: a claim
+	q.Checked(model.CheckTest, model.OutcomeFail, false, t0)
+	q.Claimed("tests pass") // the last run failed: a claim
+	q.Claimed("修正しました")     // fixed while the last run failed: a claim
+	if q.Claims != 3 {
+		t.Errorf("Claims = %d, want 3", q.Claims)
+	}
+}
+
+func TestTrace(t *testing.T) {
+	t.Parallel()
+	var tr model.Trace
+	for _, c := range []struct {
+		kind int
+		sig  string
+	}{
+		{model.CallRead, "a"},
+		{model.CallRead, "a"},
+		{model.CallSearch, "g"},
+		{model.CallSearch, "g"},
+		{model.CallOther, "x"},
+		{model.CallEdit, "e"},
+		{model.CallRead, "a"}, // an edit forgets the reads
+		{model.CallEdit, "e1"},
+		{model.CallEdit, "e2"},
+		{model.CallOther, "b"},
+		{model.CallEdit, "e3"},
+		{model.CallRead, ""},
+		{model.CallRead, ""},
+	} {
+		tr.Called(c.kind, c.sig)
+	}
+	if tr.Explores != 7 || tr.Rereads != 1 || tr.Researches != 1 || tr.MaxEditRun != 2 || tr.EditRun != 0 {
+		t.Errorf("Trace = %+v", tr)
+	}
+	if r, ok := tr.ExploreRatio(3); !ok || math.Abs(r-7.0/3) > 1e-9 {
+		t.Errorf("ExploreRatio = %v, %v", r, ok)
+	}
+	if _, ok := tr.ExploreRatio(0); ok {
+		t.Error("no edit, no ratio")
+	}
+	var full model.Trace
+	for i := range 250 {
+		full.Called(model.CallRead, string(rune('A'+i)))
+	}
+	if len(full.Seen) != 200 {
+		t.Errorf("Seen = %d, bounded", len(full.Seen))
+	}
+
+	tr.Observed(400)
+	tr.Observed(4000)
+	if all, largest := tr.ObservedTokens(); all != 1100 || largest != 1000 {
+		t.Errorf("ObservedTokens = %v, %v", all, largest)
+	}
+	tr.Prompt(100)
+	tr.Prompt(100) // cost nothing: no turn
+	if _, _, ok := tr.TurnSpread(); ok {
+		t.Error("no prompt ended yet")
+	}
+	tr.Prompt(300)
+	tr.Prompt(350)
+	tr.Prompt(1350)
+	if median, largest, ok := tr.TurnSpread(); !ok || median != 200 || largest != 1000 || tr.PromptsSinceCompact != 5 {
+		t.Errorf("TurnSpread = %v, %v, %v; since compact %d", median, largest, ok, tr.PromptsSinceCompact)
+	}
+	tr.Compacted()
+	if tr.ObservedBytes != 0 || tr.LargestObserved != 0 || tr.PromptsSinceCompact != 0 {
+		t.Errorf("after a compaction: %+v", tr)
+	}
+	var many model.Trace
+	for i := range 210 {
+		many.Prompt(float64(i))
+	}
+	if len(many.TurnTokens) != 200 {
+		t.Errorf("TurnTokens = %d, bounded", len(many.TurnTokens))
 	}
 }
