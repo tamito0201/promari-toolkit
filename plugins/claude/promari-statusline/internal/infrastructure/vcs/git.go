@@ -58,8 +58,54 @@ func (h History) History(ctx context.Context, dir, branch string) (model.History
 		countCommits(&history, run("log", "--since=midnight", "--numstat", "--format=%x1e%s%x1f%(trailers:key=Co-authored-by,valueonly,separator=%x2C)%x1f", "HEAD"))
 	})
 	wg.Go(func() { readHabits(&history, branch, run, h.Sys.Now()) })
+	wg.Go(func() {
+		history.SwitchesToday = countSwitches(run("log", "-g", "--date=unix", "--format=%gd%x09%gs", "-n", reflogLimit, "HEAD"), h.Sys.Now())
+	})
+	wg.Go(func() { history.FetchedAt = h.fetchedAt(dir, run) })
 	wg.Wait()
 	return history, nil
+}
+
+// reflogLimit bounds the reflog entries read for today's branch switches.
+const reflogLimit = "300"
+
+// countSwitches counts today's branch switches in the reflog of HEAD: one
+// entry per line, "HEAD@{<unix time>}<TAB><message>", newest first.
+func countSwitches(out string, now time.Time) int {
+	y, m, d := now.Date()
+	midnight := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	n := 0
+	for line := range strings.Lines(out) {
+		selector, message, ok := strings.Cut(strings.TrimRight(line, "\r\n"), "\t")
+		at, err := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(selector, "HEAD@{"), "}"), 10, 64)
+		if !ok || err != nil {
+			continue
+		}
+		if time.Unix(at, 0).Before(midnight) {
+			break
+		}
+		if strings.HasPrefix(message, "checkout: moving from ") {
+			n++
+		}
+	}
+	return n
+}
+
+// fetchedAt returns when the remote was last fetched: the time of FETCH_HEAD
+// in the repository's common git directory, shared by its worktrees.
+func (h History) fetchedAt(dir string, run func(args ...string) string) time.Time {
+	common := strings.TrimSpace(run("rev-parse", "--git-common-dir"))
+	if common == "" {
+		return time.Time{}
+	}
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(dir, common)
+	}
+	at, err := h.Sys.ModTime(filepath.Join(common, "FETCH_HEAD"))
+	if err != nil {
+		return time.Time{}
+	}
+	return at
 }
 
 // Git implements repository.GitReader. Only the branch is required: a count
@@ -127,6 +173,9 @@ func readHabits(git *model.History, branch string, run func(args ...string) stri
 			}
 		})
 		wg.Go(func() {
+			git.OldBranches = countOld(run("for-each-ref", "--format=%(refname:short)%09%(committerdate:unix)", "refs/heads"), branch, git.DefaultBranch, now)
+		})
+		wg.Go(func() {
 			git.MergedBranches = countMerged(run("branch", "--merged", git.DefaultBranch, "--format=%(refname:short)"), branch, git.DefaultBranch)
 		})
 	}
@@ -162,6 +211,24 @@ func oldest(out string) time.Time {
 	return first
 }
 
+// countOld counts the local branches whose last commit is older than
+// model.OldBranchAfter, the current one and the default left out. One branch
+// per line: "<name><TAB><unix time>".
+func countOld(out, current, defaultBranch string, now time.Time) int {
+	n := 0
+	for line := range strings.Lines(out) {
+		name, unix, ok := strings.Cut(strings.TrimRight(line, "\r\n"), "\t")
+		at, err := strconv.ParseInt(unix, 10, 64)
+		if !ok || err != nil || name == current || name == defaultBranch {
+			continue
+		}
+		if now.Sub(time.Unix(at, 0)) > model.OldBranchAfter {
+			n++
+		}
+	}
+	return n
+}
+
 // countMerged counts the branches merged into the default branch, the current
 // one and the default left out.
 func countMerged(out, current, defaultBranch string) int {
@@ -192,6 +259,9 @@ func countCommits(git *model.History, out string) {
 		git.CommitsToday++
 		if model.IsFixCommit(subject) {
 			git.FixesToday++
+		}
+		if model.IsRevertCommit(subject) {
+			git.RevertsToday++
 		}
 		if model.IsAICoauthor(coauthors) {
 			git.AICommitsToday++

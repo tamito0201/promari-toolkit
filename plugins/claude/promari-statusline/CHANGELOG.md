@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.10.0 — 2026-10-03
+
+More measures after the KPI books of 1.9.0, each beside the measures it belongs with:
+
+- `🎓 Habits` shows `Old ×N 14d+` (local branches without a commit for two weeks: candidates to
+  abandon), `Switch ×N today` (branch switches in the reflog: time lost to changes of plan) and
+  `Fetched 2d ago` (yellow when the remote has not been fetched for a day, as the counts read
+  from it are no fresher); `🧪 Quality` shows `Revert ×N today` and, once failing tests pass
+  again, `green 45m (fixed in 12m)` (the time since the last quality failure and how long its
+  repair took); `🔀 PR` shows how long the checks of the last push took (`CI ✅ 16 6m`) and
+  `Rounds ×N`, the reviews that asked for changes (yellow from two); `📏 Rules` adds `No ///`,
+  a public C# type or member without an XML documentation comment (the course's team exercise
+  asks for one on every class and member).
+- The test coverage is 100% and the gate is raised to it. The calls to the operating system
+  whose failures a test cannot cause (a write to a file just created, the size of a file just
+  opened) are variables a test of the package swaps; branches that could not be reached are
+  gone.
+
 ## 1.9.0 — 2026-10-03
 
 A new `⏰ Due` category shows the work the user owes in the repository, after three books on

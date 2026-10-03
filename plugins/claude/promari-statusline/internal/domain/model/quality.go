@@ -171,6 +171,11 @@ type Quality struct {
 	// RedSince is when the tests began to fail, zero while they pass or before
 	// they ran.
 	RedSince time.Time `json:"red_since,omitzero"`
+	// GreenSince is when failing tests last passed again, and LastRepair how
+	// long they had failed: the time elapsed since the last quality failure,
+	// which the KPI books report weekly.
+	GreenSince time.Time     `json:"green_since,omitzero"`
+	LastRepair time.Duration `json:"last_repair,omitzero"`
 	// Repeats are the tool calls identical to the call just before: the same
 	// tool with the same input.
 	Repeats int `json:"repeats,omitzero"`
@@ -248,6 +253,9 @@ func (q *Quality) Checked(kind CheckKind, o Outcome, masked bool, at time.Time) 
 		switch o {
 		case OutcomePass:
 			q.Unverified = nil
+			if !q.RedSince.IsZero() {
+				q.GreenSince, q.LastRepair = at, at.Sub(q.RedSince)
+			}
 			q.RedSince = time.Time{}
 			q.RedCalls = 0
 		case OutcomeFail:

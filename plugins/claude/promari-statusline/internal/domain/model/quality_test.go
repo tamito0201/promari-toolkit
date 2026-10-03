@@ -119,9 +119,12 @@ func TestQualityRecords(t *testing.T) {
 	if len(q.Unverified) != 2 || q.Tests.Last != model.OutcomeUnknown {
 		t.Error("a run of unknown outcome verifies nothing")
 	}
-	q.Checked(model.CheckTest, model.OutcomePass, false, t0)
+	q.Checked(model.CheckTest, model.OutcomePass, false, t0.Add(12*time.Minute))
 	if q.Unverified != nil || !q.RedSince.IsZero() {
 		t.Errorf("after a pass: Unverified = %v, RedSince = %v", q.Unverified, q.RedSince)
+	}
+	if !q.GreenSince.Equal(t0.Add(12*time.Minute)) || q.LastRepair != 12*time.Minute {
+		t.Errorf("the repair: GreenSince = %v, LastRepair = %v", q.GreenSince, q.LastRepair)
 	}
 	if rate, ok := q.Tests.FailRate(); !ok || math.Abs(rate-200.0/3) > 0.01 {
 		t.Errorf("FailRate = %v, %v; the unknown run is not counted", rate, ok)
@@ -367,5 +370,20 @@ func TestTrace(t *testing.T) {
 	}
 	if len(many.TurnTokens) != 200 {
 		t.Errorf("TurnTokens = %d, bounded", len(many.TurnTokens))
+	}
+}
+
+func TestQualityRepairOnlyAfterRed(t *testing.T) {
+	t.Parallel()
+	var q model.Quality
+	q.Checked(model.CheckTest, model.OutcomePass, false, t0)
+	if !q.GreenSince.IsZero() {
+		t.Error("a pass without a failure before it repairs nothing")
+	}
+	q.Checked(model.CheckTest, model.OutcomeFail, false, t0.Add(time.Minute))
+	q.Checked(model.CheckTest, model.OutcomePass, false, t0.Add(4*time.Minute))
+	q.Checked(model.CheckTest, model.OutcomePass, false, t0.Add(9*time.Minute))
+	if !q.GreenSince.Equal(t0.Add(4*time.Minute)) || q.LastRepair != 3*time.Minute {
+		t.Errorf("GreenSince = %v, LastRepair = %v; a pass after a pass keeps the repair", q.GreenSince, q.LastRepair)
 	}
 }

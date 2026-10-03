@@ -27,6 +27,7 @@ var ruleLabels = [...]struct {
 	model.RuleBrRun:       {"<br><br>", model.ToneCaution},
 	model.RuleNaming:      {"Naming", model.ToneCaution},
 	model.RuleNoBraces:    {"No {}", model.ToneCaution},
+	model.RuleNoDoc:       {"No ///", model.ToneMuted},
 	model.RuleLongLine:    {">120 col", model.ToneMuted},
 	model.RuleTabIndent:   {"Tab indent", model.ToneMuted},
 }

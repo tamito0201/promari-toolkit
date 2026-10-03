@@ -43,6 +43,7 @@ const (
 	RuleBrRun                   // <br> repeated to make space
 	RuleNaming                  // a name the naming rules forbid
 	RuleNoBraces                // if, for or while without braces
+	RuleNoDoc                   // a public C# member without an XML doc comment
 	RuleLongLine                // a line longer than 120 columns
 	RuleTabIndent               // a tab used to indent C#
 	ruleCount
@@ -118,11 +119,14 @@ var (
 	catchAll    = map[string]bool{"": true, "Exception": true, "System.Exception": true, "SystemException": true, "System.SystemException": true, "Throwable": true}
 	emptyBody   = regexp.MustCompile(`^\{\s*\}`)
 
-	httpPost       = regexp.MustCompile(`\[\s*HttpPost\b`)
-	antiForgery    = regexp.MustCompile(`\b(?:Validate|AutoValidate)AntiForgeryToken\b|\bIgnoreAntiforgeryToken\b`)
-	apiController  = regexp.MustCompile(`\[\s*ApiController\b`)
-	htmlRaw        = regexp.MustCompile(`@?Html\.Raw\(\s*[^"\s)]`)
-	singletonDB    = regexp.MustCompile(`\bAddSingleton\s*<\s*\w*(?:DbContext|Context)\s*[,>]`)
+	httpPost      = regexp.MustCompile(`\[\s*HttpPost\b`)
+	antiForgery   = regexp.MustCompile(`\b(?:Validate|AutoValidate)AntiForgeryToken\b|\bIgnoreAntiforgeryToken\b`)
+	apiController = regexp.MustCompile(`\[\s*ApiController\b`)
+	htmlRaw       = regexp.MustCompile(`@?Html\.Raw\(\s*[^"\s)]`)
+	singletonDB   = regexp.MustCompile(`\bAddSingleton\s*<\s*\w*(?:DbContext|Context)\s*[,>]`)
+	// publicMember matches the declaration of a public type or member;
+	// overrides take the documentation of what they override.
+	publicMember   = regexp.MustCompile(`^\s*public\s+(?:(?:static|sealed|abstract|partial|virtual|async|readonly|new|required|unsafe|extern|const)\s+)*(?:class|interface|record|struct|enum|[\w<>\[\],?.]+\s+\w+\s*(?:\(|\{|=>|=|;|$))`)
 	jsVar          = regexp.MustCompile(`^\s*var\s+[A-Za-z_$]`)
 	brRun          = regexp.MustCompile(`(?i)<br\s*/?>\s*<br\s*/?>`)
 	noBraces       = regexp.MustCompile(`^\s*(?:(?:else\s+)?if|for|foreach|while)\s*\(.*\)\s*[^\s{;/].*;\s*$|^\s*else\s+(?:[^\s{i/]|i[^f]).*;\s*$`)
@@ -154,6 +158,10 @@ type Lint struct {
 	catchBody   bool
 	catchThrows bool
 	catchBraced bool
+	// The last added line of C# that is not an attribute or blank, and whether
+	// it is known: a hunk's first line has no known line before it.
+	prevCode  string
+	prevKnown bool
 	// The POST actions, anti-forgery tokens and API controller marks the file
 	// adds.
 	posts, tokens int
@@ -164,6 +172,7 @@ type Lint struct {
 func (l *Lint) File(file string) {
 	l.flushFile()
 	l.file = file
+	l.prevKnown = false
 	l.course = hasExt(file, courseFiles)
 	l.judged = (IsSourcePath(file) || l.course) && !generatedPath.MatchString(file)
 	l.test = IsTestPath(file)
@@ -173,7 +182,7 @@ func (l *Lint) File(file string) {
 }
 
 // Gap marks lines between hunks: a block open across them cannot be judged.
-func (l *Lint) Gap() { l.catchOpen = false }
+func (l *Lint) Gap() { l.catchOpen, l.prevKnown = false, false }
 
 // Done ends the change.
 func (l *Lint) Done() { l.flushFile() }
@@ -314,9 +323,25 @@ func (l *Lint) checkCSharp(line string) {
 	if strings.Contains(code, "AddSingleton") && singletonDB.MatchString(code) {
 		l.Found[RuleSingletonDB]++
 	}
+	l.checkDoc(strings.TrimSpace(line))
 	if namingBroken(code) {
 		l.Found[RuleNaming]++
 	}
+}
+
+// checkDoc counts a public type or member whose line before, attributes and
+// blank lines aside, is not an XML documentation comment ("///"). The first
+// line of a hunk is not judged: the line before it was not changed and is not
+// in the diff.
+func (l *Lint) checkDoc(head string) {
+	if head == "" || strings.HasPrefix(head, "[") {
+		return
+	}
+	if l.prevKnown && strings.HasPrefix(head, "public ") && !strings.Contains(head, " override ") &&
+		publicMember.MatchString(head) && !strings.HasPrefix(l.prevCode, "///") {
+		l.Found[RuleNoDoc]++
+	}
+	l.prevCode, l.prevKnown = head, true
 }
 
 // namingBroken reports whether a C# line declares a name the naming rules

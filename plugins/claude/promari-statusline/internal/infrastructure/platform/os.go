@@ -111,6 +111,25 @@ func (o *OS) Get(ctx context.Context, url string, timeout time.Duration) (body [
 	return body, nil
 }
 
+// The calls to the operating system whose failures a test cannot cause from
+// outside (a write to a file just created, the size of a file just opened,
+// the path of the running binary, the size of a terminal), as variables a test
+// of this package swaps. Nothing else assigns them.
+var (
+	createTemp = func(dir, pattern string) (tempFile, error) { return os.CreateTemp(dir, pattern) }
+	statFile   = func(f *os.File) (fs.FileInfo, error) { return f.Stat() }
+	executable = os.Executable
+	getSize    = term.GetSize
+)
+
+// tempFile is the part of *os.File that WriteFile uses.
+type tempFile interface {
+	io.Writer
+	Chmod(mode fs.FileMode) error
+	Close() error
+	Name() string
+}
+
 // ReadFile returns a file's content.
 func (*OS) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
 
@@ -121,7 +140,7 @@ func (*OS) ReadFrom(path string, offset int64) (data []byte, size int64, err err
 		return nil, 0, fmt.Errorf("read %s: %w", path, err)
 	}
 	defer func() { err = errors.Join(err, f.Close()) }()
-	info, err := f.Stat()
+	info, err := statFile(f)
 	if err != nil {
 		return nil, 0, fmt.Errorf("read %s: %w", path, err)
 	}
@@ -144,7 +163,7 @@ func (*OS) WriteFile(path string, data []byte, mode fs.FileMode) (err error) {
 	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp*")
+	tmp, err := createTemp(dir, filepath.Base(path)+".tmp*")
 	if err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
@@ -184,7 +203,7 @@ func (*OS) LookPath(name string) (string, bool) {
 // Executable returns the path of the running binary, with symbolic links
 // resolved.
 func (*OS) Executable() (string, error) {
-	path, err := os.Executable()
+	path, err := executable()
 	if err != nil {
 		return "", fmt.Errorf("find the running binary: %w", err)
 	}
@@ -220,7 +239,7 @@ func (o *OS) TermWidth() (width int, ok bool) {
 	if err != nil {
 		return 0, false
 	}
-	width, _, sizeErr := term.GetSize(int(tty.Fd()))
+	width, _, sizeErr := getSize(int(tty.Fd()))
 	if err := errors.Join(sizeErr, tty.Close()); err != nil {
 		return 0, false
 	}

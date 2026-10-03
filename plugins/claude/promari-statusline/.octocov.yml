@@ -2,7 +2,7 @@
 coverage:
   paths: [coverage.out]
   # Set to what the tests reach (see Taskfile.yml `coverage`); it only moves up.
-  acceptable: 95%
+  acceptable: 100%
 codeToTestRatio:
   code: ["**/*.go", "!**/*_test.go"]
   test: ["**/*_test.go"]

@@ -54,3 +54,41 @@ func TestWorkloadWithoutGitHub(t *testing.T) {
 		t.Errorf("a repository gh cannot read has no workload: %v", err)
 	}
 }
+
+func TestPullRequestRoundsAndCI(t *testing.T) {
+	t.Parallel()
+	const command = "gh pr view --json number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable,assignees,reviewRequests,latestReviews,reviews"
+	tests := []struct {
+		name   string
+		out    string
+		rounds int
+		ci     time.Duration
+	}{
+		{
+			"two rounds of changes, checks that took six minutes, a status without times",
+			`{"number":7,"reviews":[{"state":"CHANGES_REQUESTED"},{"state":"COMMENTED"},{"state":"CHANGES_REQUESTED"},{"state":"APPROVED"}],
+				"statusCheckRollup":[
+					{"conclusion":"SUCCESS","startedAt":"2026-10-03T03:00:00Z","completedAt":"2026-10-03T03:04:00Z"},
+					{"conclusion":"SKIPPED","startedAt":"2026-10-03T03:01:00Z","completedAt":"2026-10-03T03:06:00Z"},
+					{"state":"SUCCESS"},
+					{"conclusion":"SUCCESS","startedAt":"0001-01-01T00:00:00Z","completedAt":"0001-01-01T00:00:00Z"}]}`,
+			2, 6 * time.Minute,
+		},
+		{
+			"a check still running has no duration yet",
+			`{"number":7,"statusCheckRollup":[{"conclusion":"SUCCESS","startedAt":"2026-10-03T03:00:00Z","completedAt":"2026-10-03T03:04:00Z"},{"status":"IN_PROGRESS","startedAt":"2026-10-03T03:01:00Z"}]}`,
+			0, 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sys := platformtest.New(t0)
+			sys.Cmds[command] = platformtest.Result{Out: tt.out}
+			got, err := vcs.GitHub{Sys: sys}.PullRequest(context.Background(), "/work", "x")
+			if err != nil || got.Rounds != tt.rounds || got.CIDuration != tt.ci {
+				t.Errorf("PullRequest() = rounds %d, CI %v, %v; want %d, %v", got.Rounds, got.CIDuration, err, tt.rounds, tt.ci)
+			}
+		})
+	}
+}

@@ -110,6 +110,18 @@ func TestLintFindsTheRules(t *testing.T) {
 		{"if with braces", "A.cs", []string{`    if (x > 0) { return x; }`, `    if (x > 0)`, `    else if (y) {`}, model.RuleNoBraces, 0},
 		{"a for with its parts", "A.cs", []string{`    for (int i = 0; i < n; i++)`}, model.RuleNoBraces, 0},
 
+		{"a public method without ///", "Svc.cs", []string{`    }`, `    public int Count(string name)`}, model.RuleNoDoc, 1},
+		{"a public type with /// before its attribute", "Svc.cs", []string{`/// <summary>Orders.</summary>`, `[ApiController]`, `public class OrdersController : Controller`}, model.RuleNoDoc, 0},
+		{"a public property with ///", "Item.cs", []string{`    /// <summary>The name.</summary>`, `    public string Name { get; set; }`}, model.RuleNoDoc, 0},
+		{"an override takes its base's documentation", "Item.cs", []string{`    }`, `    public override string ToString()`}, model.RuleNoDoc, 0},
+		{"the first line of a hunk is not judged", "Item.cs", []string{`    public int Count { get; }`}, model.RuleNoDoc, 0},
+		{"a private member needs none", "Item.cs", []string{`    }`, `    private int count;`}, model.RuleNoDoc, 0},
+		{"SQL in a string that goes on to the next line", "Repo.cs", []string{`var sql = @"SELECT name FROM users`}, model.RuleSQLConcat, 0},
+		{"a promise's catch is not a block", "api.js", []string{`fetchIt().catch(e => log(e));`}, model.RuleEmptyCatch, 0},
+		{"catch-all on one line", "Svc.cs", []string{`    catch (Exception e) { Log(e); }`}, model.RuleCatchAll, 1},
+		{"catch-all on one line that throws on", "Svc.cs", []string{`    catch (Exception e) { Log(e); throw; }`}, model.RuleCatchAll, 0},
+		{"a block that throws on its first line", "Svc.cs", []string{`    catch (Exception e) { Log(e); throw;`, `    }`}, model.RuleCatchAll, 0},
+		{"a catch without braces is not followed", "Svc.swift", []string{`    } catch`, `    log(error)`, `    }`}, model.RuleEmptyCatch, 0},
 		{"a long line", "A.cs", []string{long}, model.RuleLongLine, 1},
 		{"a long line of Go is not judged", "a.go", []string{long}, model.RuleLongLine, 0},
 		{"a tab in C#", "A.cs", []string{"\tint count = 0;"}, model.RuleTabIndent, 1},
@@ -173,5 +185,18 @@ func BenchmarkLint(b *testing.B) {
 			l.Added(sample[i%len(sample)])
 		}
 		l.Done()
+	}
+}
+
+func TestLintStopsAtItsLimit(t *testing.T) {
+	t.Parallel()
+	var l model.Lint
+	l.File("Big.cs")
+	for range model.MaxLintedLines + 3 {
+		l.Added("    throw ex;")
+	}
+	l.Done()
+	if l.Found[model.RuleThrowEx] != model.MaxLintedLines || l.Linted != model.MaxLintedLines || l.Skipped != 3 {
+		t.Errorf("found %d, linted %d, skipped %d", l.Found[model.RuleThrowEx], l.Linted, l.Skipped)
 	}
 }

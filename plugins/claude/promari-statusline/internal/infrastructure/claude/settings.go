@@ -157,9 +157,9 @@ func decode(data []byte) ([]member, error) {
 		}
 		members = append(members, member{name: name, value: value.Clone()})
 	}
-	if _, err := dec.ReadToken(); err != nil {
-		return nil, err
-	}
+	// The loop stopped where PeekKind saw the closing brace, which reads
+	// without error.
+	_, _ = dec.ReadToken()
 	// Whatever follows the object would be lost when the file is written back.
 	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
 		return nil, errTrailing
@@ -174,15 +174,16 @@ var errTrailing = errors.New("there is content after the object")
 func encode(members []member) ([]byte, error) {
 	var out bytes.Buffer
 	enc := jsontext.NewEncoder(&out, jsontext.WithIndent("  "), jsontext.EscapeForHTML(false))
-	if err := enc.WriteToken(jsontext.BeginObject); err != nil {
-		return nil, fmt.Errorf("encode the settings: %w", err)
-	}
+	// The writes are judged together at the end: a member that cannot be
+	// written stops the members after it, and the object is not written back.
+	err := enc.WriteToken(jsontext.BeginObject)
 	for _, m := range members {
-		if err := errors.Join(enc.WriteToken(jsontext.String(m.name)), enc.WriteValue(m.value)); err != nil {
-			return nil, fmt.Errorf("encode the settings: %s: %w", m.name, err)
+		if werr := errors.Join(enc.WriteToken(jsontext.String(m.name)), enc.WriteValue(m.value)); werr != nil {
+			err = errors.Join(err, fmt.Errorf("%s: %w", m.name, werr))
+			break
 		}
 	}
-	if err := enc.WriteToken(jsontext.EndObject); err != nil {
+	if err = errors.Join(err, enc.WriteToken(jsontext.EndObject)); err != nil {
 		return nil, fmt.Errorf("encode the settings: %w", err)
 	}
 	return out.Bytes(), nil

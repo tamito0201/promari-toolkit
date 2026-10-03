@@ -167,6 +167,9 @@ func pullChips(v *View) []model.Chip {
 	case pull.Passed > 0:
 		c = append(c, space(), text(model.ToneGood, "CI ✅ "+strconv.Itoa(pull.Passed)))
 	}
+	if pull.CIDuration > 0 {
+		c = append(c, text(model.ToneMuted, " "+span(pull.CIDuration)))
+	}
 	switch pull.Review {
 	case model.ReviewApproved:
 		c = append(c, space(), text(model.ToneGood, "approved"))
@@ -178,6 +181,14 @@ func pullChips(v *View) []model.Chip {
 	chips := []model.Chip{c}
 	if pull.Conflicts {
 		chips = append(chips, chip(model.ToneDanger, "conflicts"))
+	}
+	if pull.Rounds > 0 {
+		// Changes asked for after the work was offered as done: rework.
+		tone := model.ToneMuted
+		if pull.Rounds > 1 {
+			tone = model.ToneCaution
+		}
+		chips = append(chips, chip(tone, "Rounds ×"+strconv.Itoa(pull.Rounds)))
 	}
 	if size := pull.Size(); size > 0 {
 		chips = append(chips, model.Chip{

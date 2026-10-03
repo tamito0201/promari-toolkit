@@ -80,3 +80,25 @@ func TestCommitMeasures(t *testing.T) {
 		}
 	}
 }
+
+func TestIsRevertCommit(t *testing.T) {
+	t.Parallel()
+	for _, s := range []string{`Revert "feat: x"`, "revert: undo y", "revert(api)!: z"} {
+		if !model.IsRevertCommit(s) {
+			t.Errorf("%q reverts", s)
+		}
+	}
+	for _, s := range []string{"fix: revert handling of z", "Reverting later", "feat: x"} {
+		if model.IsRevertCommit(s) {
+			t.Errorf("%q does not revert", s)
+		}
+	}
+}
+
+func TestStreaksSkipAnUnreadableDay(t *testing.T) {
+	t.Parallel()
+	today := time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)
+	if current, longest := model.Streaks([]string{"x", "2026-10-03", "2026-10-02"}, today); current != 2 || longest != 2 {
+		t.Errorf("Streaks() = %d, %d", current, longest)
+	}
+}

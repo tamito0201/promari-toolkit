@@ -52,7 +52,7 @@ func (g GitHub) ReviewQueue(ctx context.Context, dir string) (model.ReviewQueue,
 func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullRequest, error) {
 	out, err := g.Sys.Run(ctx, platform.Cmd{
 		Name:    "gh",
-		Args:    []string{"pr", "view", "--json", "number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable,assignees,reviewRequests,latestReviews"},
+		Args:    []string{"pr", "view", "--json", "number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable,assignees,reviewRequests,latestReviews,reviews"},
 		Dir:     dir,
 		Timeout: ghTimeout,
 	})
@@ -83,7 +83,21 @@ func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullReque
 	if created, err := time.Parse(time.RFC3339, jsonx.Or[string](view, "createdAt")); err == nil {
 		pull.Created = created
 	}
+	for _, review := range jsonx.Or[[]jsonx.Object](view, "reviews") {
+		if jsonx.Or[string](review, "state") == "CHANGES_REQUESTED" {
+			pull.Rounds++
+		}
+	}
+	var first, last time.Time
 	for _, check := range jsonx.Or[[]jsonx.Object](view, "statusCheckRollup") {
+		// A check run has its times; a commit status has none and is left out
+		// of the duration.
+		if at, err := time.Parse(time.RFC3339, jsonx.Or[string](check, "startedAt")); err == nil && at.Year() > 1 && (first.IsZero() || at.Before(first)) {
+			first = at
+		}
+		if at, err := time.Parse(time.RFC3339, jsonx.Or[string](check, "completedAt")); err == nil && at.Year() > 1 && at.After(last) {
+			last = at
+		}
 		conclusion := strings.ToUpper(jsonx.Or[string](check, "conclusion"))
 		state := strings.ToUpper(jsonx.Or[string](check, "state"))
 		switch {
@@ -95,6 +109,9 @@ func (g GitHub) PullRequest(ctx context.Context, dir, _ string) (model.PullReque
 		default:
 			pull.Pending++
 		}
+	}
+	if pull.Pending == 0 && !first.IsZero() && last.After(first) {
+		pull.CIDuration = last.Sub(first)
 	}
 	return pull, nil
 }

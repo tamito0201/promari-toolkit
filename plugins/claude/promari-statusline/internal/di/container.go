@@ -31,7 +31,7 @@ func New(sys platform.System, streams Streams) *cli.App {
 	store := filecache.NewStore(sys)
 	terminal := host.Terminal{Sys: sys}
 	settings := claude.Settings{Sys: sys}
-	binary := claude.Binary{Sys: sys, Suffix: executableSuffix()}
+	binary := claude.Binary{Sys: sys, Suffix: executableSuffix(runtime.GOOS)}
 	projects := claude.Projects{Sys: sys}
 	install := usecase.InstallDeps{Settings: settings, Binary: binary, Projects: projects}
 
@@ -88,8 +88,8 @@ func sources(sys platform.System, store *filecache.Store) usecase.Sources {
 	}
 }
 
-func executableSuffix() string {
-	if runtime.GOOS == "windows" {
+func executableSuffix(goos string) string {
+	if goos == "windows" {
 		return ".exe"
 	}
 	return ""

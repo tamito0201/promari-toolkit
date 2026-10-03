@@ -63,6 +63,18 @@ func branchHabits(now time.Time, git model.Git) []model.Chip {
 	if git.MergedBranches > 0 {
 		chips = append(chips, chip(model.ToneMuted, "Merged ×"+strconv.Itoa(git.MergedBranches)+" left"))
 	}
+	if git.OldBranches > 0 {
+		// Candidates to abandon: no commit for two weeks.
+		chips = append(chips, chip(model.ToneMuted, "Old ×"+strconv.Itoa(git.OldBranches)+" 14d+"))
+	}
+	if git.SwitchesToday > 0 {
+		chips = append(chips, chip(model.ToneMuted, "Switch ×"+strconv.Itoa(git.SwitchesToday)+" today"))
+	}
+	// The counts read from the remote (behind, merged) are only as fresh as the
+	// last fetch.
+	if !git.FetchedAt.IsZero() && git.DefaultBranch != "" && now.Sub(git.FetchedAt) > model.FetchTooOld {
+		chips = append(chips, chip(model.ToneCaution, "Fetched "+span(now.Sub(git.FetchedAt))+" ago"))
+	}
 	return chips
 }
 

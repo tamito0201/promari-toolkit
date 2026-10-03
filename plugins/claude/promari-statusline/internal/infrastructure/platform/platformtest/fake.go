@@ -62,6 +62,9 @@ type Fake struct {
 	Width int
 	// ReadErr makes ReadFile fail for the files it names.
 	ReadErr map[string]error
+	// ReadFromErr fails a read from an offset of a file: a file that can be
+	// read at one offset and not at another.
+	ReadFromErr func(name string, offset int64) error
 	// ReadOnly makes WriteFile and Remove fail.
 	ReadOnly bool
 	// Path maps the name of an executable on PATH to its location.
@@ -185,8 +188,14 @@ func (f *Fake) ReadFile(name string) ([]byte, error) {
 	return slices.Clone(data), nil
 }
 
-// ReadFrom returns Files[path] from offset, and its length.
+// ReadFrom returns Files[path] from offset, and its length. ReadFromErr, when
+// set, fails the reads it returns an error for.
 func (f *Fake) ReadFrom(name string, offset int64) ([]byte, int64, error) {
+	if f.ReadFromErr != nil {
+		if err := f.ReadFromErr(name, offset); err != nil {
+			return nil, 0, err
+		}
+	}
 	data, err := f.ReadFile(name)
 	if err != nil {
 		return nil, 0, err

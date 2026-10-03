@@ -45,6 +45,10 @@ func sessionQuality(now time.Time, q model.Quality) []model.Chip {
 				c = append(c, text(model.ToneCaution, " → ask"))
 			}
 			c = alarmIf(red > redTooLong, c)
+		} else if !q.GreenSince.IsZero() {
+			// Green again: how long since the last failure was repaired, and how
+			// long the repair took.
+			c = append(c, text(model.ToneMuted, " green "+span(now.Sub(q.GreenSince))+" (fixed in "+span(q.LastRepair)+")"))
 		}
 		chips = append(chips, c)
 	}
@@ -136,6 +140,9 @@ func changeQuality(git model.Git) []model.Chip {
 	}
 	if git.FixesToday > 0 {
 		chips = append(chips, chip(model.ToneMuted, "Fix "+strconv.Itoa(git.FixesToday)+"/"+strconv.Itoa(git.CommitsToday)+" today"))
+	}
+	if git.RevertsToday > 0 {
+		chips = append(chips, chip(model.ToneCaution, "Revert ×"+strconv.Itoa(git.RevertsToday)+" today"))
 	}
 	if git.AICommitsToday > 0 {
 		chips = append(chips, chip(model.ToneMuted, "AI "+strconv.Itoa(git.AICommitsToday)+"/"+strconv.Itoa(git.CommitsToday)+" today"))

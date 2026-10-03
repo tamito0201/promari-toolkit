@@ -1,6 +1,7 @@
 package model
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -33,6 +34,14 @@ const (
 	// asking: the course's manual says to try alone for about 15 minutes, its
 	// team exercise to ask after 30.
 	SelfSolveLimit = 15 * time.Minute
+	// OldBranchAfter is how long a local branch may go without a commit
+	// before it is a candidate to abandon: the KPI books' two weeks without
+	// progress, and their "abandonments to be actioned".
+	OldBranchAfter = 14 * 24 * time.Hour
+	// FetchTooOld is how long the remote may go unread before the counts read
+	// from it (behind, merged) are no longer current: the KPI books ask for
+	// measures no more than a day old.
+	FetchTooOld = 24 * time.Hour
 	// SteadyStreak is the run of days with commits that marks a steady
 	// contribution.
 	SteadyStreak = 3
@@ -128,13 +137,7 @@ func Streaks(days []string, today time.Time) (current, longest int) {
 		current++
 		day = day.AddDate(0, 0, -1)
 	}
-	sorted := slices.Sorted(func(yield func(string) bool) {
-		for d := range set {
-			if !yield(d) {
-				return
-			}
-		}
-	})
+	sorted := slices.Sorted(maps.Keys(set))
 	run := 0
 	var prev time.Time
 	for _, d := range sorted {
@@ -156,6 +159,13 @@ func Streaks(days []string, today time.Time) (current, longest int) {
 // conventionalSubject matches a subject that starts with a Conventional
 // Commits type: feat, fix, docs and the others, with an optional scope.
 var conventionalSubject = regexp.MustCompile(`^(?:feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(?:\([^)]*\))?!?: \S`)
+
+// revertSubject matches the subject of a commit that reverts another.
+var revertSubject = regexp.MustCompile(`(?i)^(?:Revert "|revert(?:\([^)]*\))?!?:)`)
+
+// IsRevertCommit reports whether a commit's subject says it reverts another:
+// work that came back, the books' returned goods.
+func IsRevertCommit(subject string) bool { return revertSubject.MatchString(subject) }
 
 // IsConventionalCommit reports whether a subject follows Conventional Commits.
 func IsConventionalCommit(subject string) bool { return conventionalSubject.MatchString(subject) }
@@ -189,6 +199,11 @@ type History struct {
 	MergedBranches int       `json:"merged_branches,omitzero"`
 	Streak         int       `json:"streak,omitzero"`
 	LongestStreak  int       `json:"longest_streak,omitzero"`
+
+	RevertsToday  int       `json:"reverts_today,omitzero"`
+	OldBranches   int       `json:"old_branches,omitzero"`
+	SwitchesToday int       `json:"switches_today,omitzero"`
+	FetchedAt     time.Time `json:"fetched_at,omitzero"`
 }
 
 // Apply copies the history into the state of the working tree.
@@ -199,4 +214,5 @@ func (h History) Apply(g *Git) {
 	g.DefaultBranch, g.BranchStart, g.OldestUnpushed = h.DefaultBranch, h.BranchStart, h.OldestUnpushed
 	g.BehindDefault, g.MergedBranches = h.BehindDefault, h.MergedBranches
 	g.Streak, g.LongestStreak = h.Streak, h.LongestStreak
+	g.RevertsToday, g.OldBranches, g.SwitchesToday, g.FetchedAt = h.RevertsToday, h.OldBranches, h.SwitchesToday, h.FetchedAt
 }

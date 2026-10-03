@@ -100,10 +100,8 @@ func findRateLimits(v any) (model.CodexLimits, bool) {
 }
 
 func toLimits(raw map[string]any) model.CodexLimits {
-	data, err := json.Marshal(raw)
-	if err != nil {
-		return model.CodexLimits{}
-	}
+	// raw was decoded from JSON, so it always encodes again.
+	data, _ := json.Marshal(raw)
 	obj, _ := jsonx.Parse(data)
 	limits := model.CodexLimits{
 		Primary:   window(jsonx.Child(obj, "primary")),

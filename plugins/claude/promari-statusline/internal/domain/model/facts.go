@@ -100,6 +100,14 @@ type Git struct {
 	// LongestStreak the longest in the last 60 days.
 	Streak        int
 	LongestStreak int
+	// RevertsToday are today's commits that revert another; OldBranches the
+	// local branches without a commit for OldBranchAfter; SwitchesToday the
+	// times the working tree changed branch today; FetchedAt when the remote
+	// was last fetched, zero when never or unknown.
+	RevertsToday  int
+	OldBranches   int
+	SwitchesToday int
+	FetchedAt     time.Time
 	// LastCommit is zero when the branch has no commit.
 	LastCommit time.Time
 }
@@ -138,6 +146,11 @@ type PullRequest struct {
 	// by an older version, or reported by Claude Code, knows none of them, and
 	// unknown is not none.
 	PeopleKnown bool `json:"people_known,omitzero"`
+	// Rounds are the reviews that asked for changes: the round trips a change
+	// took. CIDuration is how long the checks of the last push took, zero
+	// while any runs or when the checks report no times.
+	Rounds     int           `json:"rounds,omitzero"`
+	CIDuration time.Duration `json:"ci_duration,omitzero"`
 }
 
 // Size returns the lines the pull request changes.

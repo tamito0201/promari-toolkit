@@ -3,6 +3,7 @@ package vcs_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -75,7 +76,7 @@ func TestGit(t *testing.T) {
 			},
 			model.Git{
 				Branch: "develop", Changed: 8, Staged: 3, Untracked: 1, Conflicts: 2, Inserted: 12, Deleted: 30,
-				Operation: "rebase", CommitsToday: 4, FixesToday: 2, AICommitsToday: 2, TodayAdded: 35, TodayDeleted: 15, VagueToday: 3, LargestToday: 40, ConventionalToday: 3, // a, b and 修正 say nothing after their prefix
+				Operation: "rebase", CommitsToday: 4, FixesToday: 2, RevertsToday: 1, AICommitsToday: 2, TodayAdded: 35, TodayDeleted: 15, VagueToday: 3, LargestToday: 40, ConventionalToday: 3, // a, b and 修正 say nothing after their prefix
 				Changes: []model.FileChange{{Path: "a.go", Added: 10, Deleted: 30}, {Path: "b_test.go", Added: 2}, {Path: "img.png"}},
 			},
 			nil,
@@ -208,6 +209,62 @@ func TestGitHabits(t *testing.T) {
 	}
 }
 
+func TestGitHistoryExtras(t *testing.T) {
+	t.Parallel()
+	const at = "git --no-optional-locks -C /work "
+	day := 24 * time.Hour
+	reflog := fmt.Sprintf("garbage\nHEAD@{%d}\tcheckout: moving from a to b\nHEAD@{%d}\tcommit: x\nHEAD@{%d}\tcheckout: moving from b to a\nHEAD@{%d}\tcheckout: moving from c to b\n",
+		t0.Add(-time.Minute).Unix(), t0.Add(-2*time.Minute).Unix(), t0.Add(-3*time.Minute).Unix(), t0.Add(-day).Unix())
+	branches := fmt.Sprintf("feature/x\t%d\nmain\t%d\nold/a\t%d\nold/b\t%d\nfresh\t%d\nbroken\n",
+		t0.Add(-30*day).Unix(), t0.Add(-30*day).Unix(), t0.Add(-15*day).Unix(), t0.Add(-20*day).Unix(), t0.Add(-day).Unix())
+	sys := platformtest.New(t0)
+	sys.Cmds = map[string]platformtest.Result{
+		at + "branch --show-current":                                                     {Out: "feature/x\n"},
+		at + "symbolic-ref --short refs/remotes/origin/HEAD":                             {Out: "origin/main\n"},
+		at + "for-each-ref --format=%(refname:short)%09%(committerdate:unix) refs/heads": {Out: branches},
+		at + "log -g --date=unix --format=%gd%x09%gs -n 300 HEAD":                        {Out: reflog},
+		at + "rev-parse --git-common-dir":                                                {Out: ".git\n"},
+		at + "rev-list --count HEAD..origin/main":                                        {Out: "12\n"},
+		at + "rev-parse --absolute-git-dir":                                              {Out: "/work/.git\n"},
+	}
+	sys.Files["/work/.git/FETCH_HEAD"] = nil
+	sys.Times["/work/.git/FETCH_HEAD"] = t0.Add(-2 * day)
+	got, err := vcs.Git{Sys: sys}.Git(context.Background(), "/work")
+	// The branches of 15 and 20 days; the current and the default are left out.
+	if err != nil || got.OldBranches != 2 || got.SwitchesToday != 2 || !got.FetchedAt.Equal(t0.Add(-2*day)) || got.BehindDefault != 12 || got.Operation != "" {
+		t.Errorf("Git() = old %d, switches %d, fetched %v, behind %d, operation %q, %v", got.OldBranches, got.SwitchesToday, got.FetchedAt, got.BehindDefault, got.Operation, err)
+	}
+
+	// A repository never fetched has no FETCH_HEAD.
+	never := platformtest.New(t0)
+	never.Cmds = map[string]platformtest.Result{
+		at + "branch --show-current":      {Out: "main\n"},
+		at + "rev-parse --git-common-dir": {Out: "/work/.git\n"},
+	}
+	if got, _ := (vcs.Git{Sys: never}).Git(context.Background(), "/work"); !got.FetchedAt.IsZero() {
+		t.Errorf("FetchedAt = %v, want zero", got.FetchedAt)
+	}
+}
+
+func TestGitDiffEdges(t *testing.T) {
+	t.Parallel()
+	const at = "git --no-optional-locks -C /work "
+	diff := "1\t0\ta_test.go\nx\ty\tz.go\n0\t1\tREADME.md\n" +
+		"diff --git a/a_test.go b/a_test.go\n--- a/a_test.go\n+++ b/a_test.go\n@@ -1 +1 @@\n+\tassert.Equal(t, 1, got)\n" +
+		"diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +0,0 @@\n-TODO: write it\n"
+	sys := platformtest.New(t0)
+	sys.Cmds = map[string]platformtest.Result{
+		at + "branch --show-current": {Out: "feature/x\n"},
+		at + "diff HEAD --numstat --patch --unified=0 --no-color --no-ext-diff --no-renames": {Out: diff},
+	}
+	got, _ := vcs.Git{Sys: sys}.Git(context.Background(), "/work")
+	// An assertion added to a test counts; a numstat line that is not numbers
+	// and a debt removed from a document do not.
+	if got.AssertsAdded != 1 || len(got.Changes) != 2 || got.DebtRemoved != 0 {
+		t.Errorf("Git() = asserts %d, changes %v, debt removed %d", got.AssertsAdded, got.Changes, got.DebtRemoved)
+	}
+}
+
 // remembered is a history read earlier, as the cache answers it.
 type remembered struct{ history model.History }
 
@@ -259,7 +316,7 @@ func TestReviewQueue(t *testing.T) {
 
 func TestGitHub(t *testing.T) {
 	t.Parallel()
-	const command = "gh pr view --json number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable,assignees,reviewRequests,latestReviews"
+	const command = "gh pr view --json number,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,createdAt,isDraft,mergeable,assignees,reviewRequests,latestReviews,reviews"
 	tests := []struct {
 		name string
 		out  platformtest.Result
