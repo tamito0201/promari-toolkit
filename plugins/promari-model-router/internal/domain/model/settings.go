@@ -23,6 +23,7 @@ type Settings struct {
 	Advice       AdviceSettings          `toml:"advice"`
 	Pressure     PressureSettings        `toml:"pressure"`
 	Codex        CodexSettings           `toml:"codex"`
+	Cloud        CloudSettings           `toml:"cloud"`
 	Runtime      RuntimeSettings         `toml:"runtime"`
 	Display      DisplaySettings         `toml:"display"`
 	Doctor       DoctorSettings          `toml:"doctor"`
@@ -212,6 +213,21 @@ type CodexSettings struct {
 	Enabled bool   `toml:"enabled"`
 	Model   string `toml:"model"`
 	Effort  string `toml:"effort"`
+}
+
+// CloudSettings tune `pmr cloud`, the relay to a Claude Code cloud session.
+// They are read from the defaults and the user file only: a project file may
+// not name the program to run (see infrastructure/settings).
+type CloudSettings struct {
+	// ClaudeBin is the Claude Code CLI that queues a message into the session.
+	ClaudeBin     string `toml:"claude_bin"`
+	SendTimeoutMS int    `toml:"send_timeout_ms"`
+	// LinkFile holds the session and the time of the last message (in the data dir).
+	LinkFile string `toml:"link_file"`
+	// PollIntervalSeconds and MaxPolls pace /cloud reading the reply: each
+	// read costs the local session tokens, so it reads seldom and stops early.
+	PollIntervalSeconds int `toml:"poll_interval_seconds"`
+	MaxPolls            int `toml:"max_polls"`
 }
 
 // RuntimeSettings are process-level limits and paths.

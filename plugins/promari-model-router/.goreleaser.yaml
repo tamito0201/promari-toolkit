@@ -15,7 +15,7 @@ builds:
     env: [CGO_ENABLED=0]
     flags: [-trimpath]
     ldflags:
-      - -s -w -X github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/cli.Version={{.Version}}
+      - -s -w -X promari-model-router/internal/interfaces/cli.Version={{.Version}}
     goos: [darwin, linux, windows]
     goarch: [amd64, arm64]
     ignore:

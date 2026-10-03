@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/failurelog"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/infrastructure/failurelog"
 )
 
 // put writes body at path, creating the directory.

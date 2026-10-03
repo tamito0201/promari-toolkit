@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/clock"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/infrastructure/clock"
 )
 
 func TestNow(t *testing.T) {

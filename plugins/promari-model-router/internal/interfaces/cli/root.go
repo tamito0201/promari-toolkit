@@ -14,7 +14,7 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/model"
 )
 
 // Version is set at build time with -ldflags "-X .../cli.Version=...".
@@ -69,6 +69,7 @@ func New(container func() *do.RootScope) *cobra.Command {
 		costCmd(with, printer, st),
 		serveCmd(with, st),
 		mcpCmd(with),
+		cloudCmd(with, printer, st.Cloud),
 	)
 	return root
 }

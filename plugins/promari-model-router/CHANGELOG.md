@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.1.1 — 2026-10-03
+
+- The release of 1.1.0 stopped at the coverage gate (99.7% against the required 100%), so
+  nothing was published; 1.1.1 is the first release with `pmr cloud`. The missing tests cover
+  the relay's failure paths (unreadable CLI output, an unreadable or unwritable state file,
+  an unreadable standard input) and `pmr cloud wait` finishing.
+- `pmr cloud wait` returns at once when it is cancelled, even with a zero interval.
+
+## 1.1.0 — 2026-10-03 (tagged, not published)
+
+- New: `pmr cloud` and `/promari-model-router:cloud` relay messages from this terminal to a
+  Claude Code cloud session and print its reply here, so the work runs (and is billed) in
+  the cloud. Sending goes through `claude -p --cloud`, with the message on standard input;
+  reading goes through Claude Code's RemoteTrigger tool. pmr holds no Claude.ai credential.
+- `[cloud]` settings (`claude_bin`, `send_timeout_ms`, `link_file`, `poll_interval_seconds`,
+  `max_polls`) are read from the user file only.
+- The Go module is `promari-model-router`: import paths no longer carry the owner's name.
+
 ## 1.0.3 — 2026-10-02
 
 - Fix: `bin/pmr` builds the binary with Go when the release has no binary for the platform

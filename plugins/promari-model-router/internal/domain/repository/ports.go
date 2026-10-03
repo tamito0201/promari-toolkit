@@ -15,9 +15,9 @@ import (
 	"iter"
 	"time"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/learn"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/learn"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
 )
 
 // ---------------------------------------------------------------- sessions
@@ -230,6 +230,22 @@ type FailureRecorder interface {
 // there is none).
 type FailureReader interface {
 	LastFailure() (f model.Failure, ok bool, err error)
+}
+
+// ---------------------------------------------------------------- relay to a cloud session
+
+// CloudMessenger queues a message into a Claude Code cloud session and
+// returns the session's page. It does not wait for the reply: the session
+// answers on its own time, and the reply is read on claude.ai's side.
+type CloudMessenger interface {
+	Send(ctx context.Context, session model.CloudSessionID, msg model.CloudMessage) (pageURL string, err error)
+}
+
+// CloudLinkStore keeps the relay's state between commands (ok is false when
+// no session was ever set).
+type CloudLinkStore interface {
+	Load(ctx context.Context) (link model.CloudLink, ok bool, err error)
+	Save(ctx context.Context, link model.CloudLink) error
 }
 
 // ---------------------------------------------------------------- time

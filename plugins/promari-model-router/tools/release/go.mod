@@ -1,4 +1,4 @@
-module github.com/tamito0201/promari-toolkit/plugins/promari-model-router/tools/release
+module promari-model-router/tools/release
 
 go 1.27.1
 

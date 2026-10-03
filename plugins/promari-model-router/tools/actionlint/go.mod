@@ -1,4 +1,4 @@
-module github.com/tamito0201/promari-toolkit/plugins/promari-model-router/tools/actionlint
+module promari-model-router/tools/actionlint
 
 go 1.27
 

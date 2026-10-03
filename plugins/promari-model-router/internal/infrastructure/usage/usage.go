@@ -10,10 +10,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/fsutil"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/infrastructure/fsutil"
+	"promari-model-router/pkg/fp"
 )
 
 // Reader implements repository.UsageReader. It reads the caches and hands

@@ -59,13 +59,13 @@ linters:
         domain:
           files: ["**/internal/domain/**", "!$test"]
           deny:
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application
+            - pkg: promari-model-router/internal/application
               desc: the domain must not depend on use cases
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure
+            - pkg: promari-model-router/internal/infrastructure
               desc: the domain talks to the outside only through repository ports
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces
+            - pkg: promari-model-router/internal/interfaces
               desc: the domain must not depend on entry points
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di
+            - pkg: promari-model-router/internal/di
               desc: the domain must not depend on the container
             - pkg: gorm.io
               desc: persistence belongs to infrastructure
@@ -74,24 +74,24 @@ linters:
         application:
           files: ["**/internal/application/**", "!$test"]
           deny:
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure
+            - pkg: promari-model-router/internal/infrastructure
               desc: use cases depend on repository ports, not on implementations
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces
+            - pkg: promari-model-router/internal/interfaces
               desc: use cases must not depend on entry points
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di
+            - pkg: promari-model-router/internal/di
               desc: use cases must not depend on the container
             # `$` makes these exact matches: "os" alone would also catch
             # os/signal, and the module path would catch every package in it.
             - pkg: os$
               desc: files and the environment are reached through ports (CaseSource, ArtifactWriter, EnvReader)
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router$
+            - pkg: promari-model-router$
               desc: the embedded data is read by infrastructure adapters (cases, agents, artifact)
         interfaces:
           files: ["**/internal/interfaces/**", "!$test"]
           deny:
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure
+            - pkg: promari-model-router/internal/infrastructure
               desc: entry points resolve use cases from the container (internal/di), never adapters directly
-            - pkg: github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service
+            - pkg: promari-model-router/internal/domain/service
               desc: entry points call use cases; domain services are reached through them (policy, prices, messages)
     errcheck:
       # Writing human-facing text to the terminal: a failed write has no
@@ -141,10 +141,13 @@ formatters:
     - gci
   settings:
     gofumpt:
+      # The module path has no dot, which gofumpt would otherwise read as the
+      # standard library and pull into the first import group.
+      module-path: promari-model-router
       extra:
         group-params: true
     gci:
       sections:
         - standard
         - default
-        - prefix(github.com/tamito0201/promari-toolkit/plugins/promari-model-router)
+        - prefix(promari-model-router)

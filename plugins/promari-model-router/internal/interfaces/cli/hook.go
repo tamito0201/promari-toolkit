@@ -8,10 +8,10 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/hook"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/interfaces/hook"
 )
 
 // hookCmd is what hooks/hooks.json runs. It never fails the process and never

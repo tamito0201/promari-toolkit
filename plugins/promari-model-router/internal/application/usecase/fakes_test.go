@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/agents"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/clock"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/settings"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/internal/infrastructure/agents"
+	"promari-model-router/internal/infrastructure/clock"
+	"promari-model-router/internal/infrastructure/settings"
 )
 
 // In-memory fakes for the domain ports: the use cases are exercised without

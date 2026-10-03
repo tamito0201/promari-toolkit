@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/graph"
+	"promari-model-router/pkg/graph"
 )
 
 func inc(n int) int     { return n + 1 }

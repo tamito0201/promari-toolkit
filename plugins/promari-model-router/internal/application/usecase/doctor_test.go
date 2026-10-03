@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/pkg/fp"
 )
 
 func TestDoctor(t *testing.T) {

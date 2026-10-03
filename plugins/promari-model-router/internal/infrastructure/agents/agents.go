@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"strings"
 
-	modelrouter "github.com/tamito0201/promari-toolkit/plugins/promari-model-router"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
+	modelrouter "promari-model-router"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
 )
 
 var frontmatterRE = regexp.MustCompile(`(?s)^---\n(.*?)\n---`)

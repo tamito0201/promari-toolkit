@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/model"
 )
 
 // Pair is a predicted probability and whether the event happened.

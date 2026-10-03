@@ -12,8 +12,8 @@ import (
 	"io"
 	"runtime/debug"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
 )
 
 // Config is the process-level configuration the adapter reads itself (from

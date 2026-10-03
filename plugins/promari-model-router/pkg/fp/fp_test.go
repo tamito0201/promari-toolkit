@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/pkg/fp"
 )
 
 // collect drains seq, stopping after stopAfter elements when it is positive,

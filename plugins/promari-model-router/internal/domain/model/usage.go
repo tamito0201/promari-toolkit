@@ -1,6 +1,6 @@
 package model
 
-import "github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+import "promari-model-router/pkg/fp"
 
 // Pressure is the Claude plan usage read from the status-line cache.
 type Pressure struct {

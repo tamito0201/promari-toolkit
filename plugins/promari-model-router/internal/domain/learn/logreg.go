@@ -9,8 +9,8 @@ import (
 	"math"
 	"slices"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
 )
 
 // SoftmaxModel is a multinomial logistic regression (arXiv:2608.00106 uses

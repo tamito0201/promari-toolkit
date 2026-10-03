@@ -13,10 +13,10 @@ import (
 	"github.com/k1LoW/runn"
 	"github.com/samber/do/v2"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/web"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/di"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/interfaces/web"
 )
 
 func TestRunbooks(t *testing.T) {

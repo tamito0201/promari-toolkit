@@ -5,8 +5,8 @@ import (
 	"math"
 	"slices"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/pkg/fp"
 )
 
 // AUC is the area under the ROC curve by the Mann–Whitney statistic: the

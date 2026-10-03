@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	modelrouter "github.com/tamito0201/promari-toolkit/plugins/promari-model-router"
+	modelrouter "promari-model-router"
 )
 
 func TestEmbeddedFiles(t *testing.T) {

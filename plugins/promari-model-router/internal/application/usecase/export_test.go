@@ -1,7 +1,7 @@
 package usecase
 
 import (
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/service"
 )
 
 // Test-only hooks into unexported helpers (compiled only with the tests).

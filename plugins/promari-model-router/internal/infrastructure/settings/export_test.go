@@ -3,8 +3,8 @@ package settings
 import (
 	"io/fs"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
 )
 
 // Test-only hooks into unexported helpers (compiled only with the tests).

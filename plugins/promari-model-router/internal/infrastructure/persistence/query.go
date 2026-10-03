@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/repository"
 )
 
 // ErrNotReadOnly rejects anything but a single SELECT / WITH statement.

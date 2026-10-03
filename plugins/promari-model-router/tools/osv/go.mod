@@ -1,4 +1,4 @@
-module github.com/tamito0201/promari-toolkit/plugins/promari-model-router/tools/osv
+module promari-model-router/tools/osv
 
 go 1.27.0
 

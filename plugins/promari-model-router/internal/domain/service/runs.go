@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/model"
 )
 
 // SubagentRun is one subagent result with the routing decision it belongs to.

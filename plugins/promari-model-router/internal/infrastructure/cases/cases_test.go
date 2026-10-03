@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/learn"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/cases"
+	"promari-model-router/internal/domain/learn"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/infrastructure/cases"
 )
 
 // writeFile writes content to a fresh file and returns its path.

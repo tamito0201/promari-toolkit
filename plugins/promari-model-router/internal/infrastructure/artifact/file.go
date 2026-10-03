@@ -3,9 +3,9 @@ package artifact
 import (
 	"encoding/json"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/fsutil"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/infrastructure/fsutil"
 )
 
 // File writes an artifact to an explicit path (`pmr train --output`). It is

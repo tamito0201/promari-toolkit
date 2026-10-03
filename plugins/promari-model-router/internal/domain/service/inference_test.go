@@ -6,8 +6,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
 )
 
 var approx = cmpopts.EquateApprox(0, 1e-4)

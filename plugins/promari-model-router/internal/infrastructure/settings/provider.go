@@ -4,9 +4,9 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/service"
 )
 
 // Provider implements repository.ConfigProvider with a per-cwd cache. Every

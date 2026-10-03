@@ -3,9 +3,9 @@ package learn
 import (
 	"slices"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/pkg/fp"
 )
 
 // Case is one labelled evaluation example.

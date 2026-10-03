@@ -10,13 +10,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/artifact"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/cases"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/clock"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/infrastructure/artifact"
+	"promari-model-router/internal/infrastructure/cases"
+	"promari-model-router/internal/infrastructure/clock"
+	"promari-model-router/pkg/fp"
 )
 
 // Each case is a full training run (CPU-bound, about 5 minutes for the table

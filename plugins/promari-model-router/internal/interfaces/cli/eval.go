@@ -9,8 +9,8 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
 )
 
 func evalCmd(with withFn, printer printerFn, st model.Settings) *cobra.Command {

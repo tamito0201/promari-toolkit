@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/fsutil"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/infrastructure/fsutil"
 )
 
 // EnvSettings implements repository.SettingsReader from the process

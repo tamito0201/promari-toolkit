@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/graph"
+	"promari-model-router/pkg/graph"
 )
 
 // The edges are tested on their own because Route cannot reach every case:

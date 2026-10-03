@@ -22,8 +22,8 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
 )
 
 // DB owns the GORM handle. The handle is not exported: the repositories in

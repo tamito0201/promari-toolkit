@@ -21,9 +21,9 @@ import (
 
 	middleware "github.com/oapi-codegen/nethttp-middleware"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/web/api"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/interfaces/web/api"
 )
 
 // Version is reported by /healthz.

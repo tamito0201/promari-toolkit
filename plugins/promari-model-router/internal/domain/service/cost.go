@@ -3,7 +3,7 @@ package service
 import (
 	"slices"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/model"
 )
 
 // Price is USD per million tokens for one tier.

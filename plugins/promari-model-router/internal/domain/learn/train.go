@@ -7,9 +7,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/pkg/fp"
 )
 
 // Sample is one labelled prompt. Class ClassNone means "no single class"

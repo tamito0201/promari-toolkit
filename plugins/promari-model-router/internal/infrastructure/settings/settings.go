@@ -30,10 +30,10 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	modelrouter "github.com/tamito0201/promari-toolkit/plugins/promari-model-router"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/fsutil"
+	modelrouter "promari-model-router"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/internal/infrastructure/fsutil"
 )
 
 // FileName is the configuration file name in ~/.claude and <project>/.claude.

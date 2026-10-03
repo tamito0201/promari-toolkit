@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/model"
 )
 
 // DenseFeatures is the number of dense features appended after the hash

@@ -9,20 +9,21 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/agents"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/artifact"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/cases"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/clock"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/failurelog"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/persistence"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/settings"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/transcript"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/usage"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/hook"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/internal/infrastructure/agents"
+	"promari-model-router/internal/infrastructure/artifact"
+	"promari-model-router/internal/infrastructure/cases"
+	"promari-model-router/internal/infrastructure/clock"
+	"promari-model-router/internal/infrastructure/cloudrelay"
+	"promari-model-router/internal/infrastructure/failurelog"
+	"promari-model-router/internal/infrastructure/persistence"
+	"promari-model-router/internal/infrastructure/settings"
+	"promari-model-router/internal/infrastructure/transcript"
+	"promari-model-router/internal/infrastructure/usage"
+	"promari-model-router/internal/interfaces/hook"
 )
 
 // Paths locate the plugin's state.
@@ -90,6 +91,14 @@ var Infrastructure = do.Package(
 	}),
 	do.Lazy(func(i do.Injector) (service.PriceTable, error) {
 		return do.MustInvoke[repository.ConfigProvider](i).Prices(), nil
+	}),
+	do.Lazy(func(i do.Injector) (repository.CloudMessenger, error) {
+		c := do.MustInvoke[model.Settings](i).Cloud
+		return cloudrelay.Messenger{Bin: c.ClaudeBin, Timeout: time.Duration(c.SendTimeoutMS) * time.Millisecond}, nil
+	}),
+	do.Lazy(func(i do.Injector) (repository.CloudLinkStore, error) {
+		p := do.MustInvoke[Paths](i)
+		return cloudrelay.Store{Path: filepath.Join(p.DataDir, do.MustInvoke[model.Settings](i).Cloud.LinkFile)}, nil
 	}),
 	// The failure file needs no database, so it is there when the ledger is not.
 	do.Lazy(func(i do.Injector) (repository.FailureRecorder, error) {
@@ -181,6 +190,12 @@ var Application = do.Package(
 	}),
 	do.Lazy(func(i do.Injector) (usecase.LintUseCase, error) {
 		return usecase.LintUseCase{Tiers: do.MustInvoke[repository.ConfigProvider](i), Agents: do.MustInvoke[repository.AgentSource](i)}, nil
+	}),
+	do.Lazy(func(i do.Injector) (usecase.CloudUseCase, error) {
+		return usecase.CloudUseCase{
+			Messenger: do.MustInvoke[repository.CloudMessenger](i), Links: do.MustInvoke[repository.CloudLinkStore](i),
+			Clock: do.MustInvoke[repository.Clock](i),
+		}, nil
 	}),
 	do.Lazy(func(i do.Injector) (usecase.QueryUseCase, error) {
 		return usecase.QueryUseCase{Ledger: do.MustInvoke[repository.LedgerQuery](i)}, nil

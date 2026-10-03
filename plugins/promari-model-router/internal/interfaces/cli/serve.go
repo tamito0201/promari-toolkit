@@ -4,10 +4,10 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/mcpserver"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/web"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/interfaces/mcpserver"
+	"promari-model-router/internal/interfaces/web"
 )
 
 func serveCmd(with withFn, st model.Settings) *cobra.Command {

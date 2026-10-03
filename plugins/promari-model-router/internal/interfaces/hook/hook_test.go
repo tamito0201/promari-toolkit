@@ -15,12 +15,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/do/v2"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/hook"
+	"promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/di"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/internal/interfaces/hook"
 )
 
 // isolate points every piece of state (ledger, artifact, user and project

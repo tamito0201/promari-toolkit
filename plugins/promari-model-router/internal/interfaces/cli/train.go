@@ -7,7 +7,7 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/application/usecase"
+	"promari-model-router/internal/application/usecase"
 )
 
 func trainCmd(with withFn, printer printerFn) *cobra.Command {

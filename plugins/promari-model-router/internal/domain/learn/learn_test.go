@@ -9,10 +9,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/learn"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/settings"
+	"promari-model-router/internal/domain/learn"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/service"
+	"promari-model-router/internal/infrastructure/settings"
 )
 
 // approx compares floats up to rounding noise.

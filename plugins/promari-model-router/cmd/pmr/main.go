@@ -11,8 +11,8 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/di"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/interfaces/cli"
+	"promari-model-router/internal/di"
+	"promari-model-router/internal/interfaces/cli"
 )
 
 func main() { os.Exit(run()) }

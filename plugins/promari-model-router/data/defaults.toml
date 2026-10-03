@@ -146,6 +146,14 @@ enabled = true
 model = "gpt-6-luna"
 effort = "medium"
 
+# ---------------------------------------------------------------- relay to a cloud session
+[cloud]                  # `pmr cloud` and /cloud; user file only (never a project file)
+claude_bin = "claude"
+send_timeout_ms = 60000
+link_file = "cloud.json"
+poll_interval_seconds = 30
+max_polls = 4
+
 # ---------------------------------------------------------------- runtime
 [runtime]
 hook_timeout_ms = 4000

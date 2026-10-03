@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
+	"promari-model-router/internal/domain/repository"
 )
 
 // QueryUseCase answers ad-hoc read-only questions about the ledger

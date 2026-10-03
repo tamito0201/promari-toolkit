@@ -5,8 +5,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/pkg/fp"
 )
 
 // AdviceInput is everything the advice for one user prompt depends on.

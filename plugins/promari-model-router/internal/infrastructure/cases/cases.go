@@ -10,10 +10,10 @@ import (
 	"io/fs"
 	"os"
 
-	modelrouter "github.com/tamito0201/promari-toolkit/plugins/promari-model-router"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/learn"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/repository"
+	modelrouter "promari-model-router"
+	"promari-model-router/internal/domain/learn"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/domain/repository"
 )
 
 // EmbeddedPath is the evaluation set inside the embedded data.

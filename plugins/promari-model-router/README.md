@@ -88,6 +88,23 @@ items = ["給与計算"]
 | `pmr cost` | Price one subagent run on every tier |
 | `pmr serve` | Read-only HTTP API on loopback ([OpenAPI](openapi/openapi.yaml)) |
 | `pmr mcp` | MCP server (stdio): `explain_route`, `routing_report`, `route_policy` |
+| `pmr cloud use <session-id\|url>` / `send` / `status` / `wait` | Relay messages to a Claude Code cloud session (see below) |
+
+### Relay to a cloud session
+
+`/promari-model-router:cloud <message>` sends the message to the cloud session set with
+`pmr cloud use`, then prints the session's reply in this terminal. The work runs, and is
+billed, in the cloud session; this terminal only carries text both ways.
+
+- Sending runs `claude -p --cloud <id> --output-format json` with the message on standard
+  input. Reading uses Claude Code's RemoteTrigger tool, which adds the token inside Claude
+  Code. pmr never reads, stores or forwards a Claude.ai credential.
+- Each read of the reply costs this local session one log page (about ten thousand tokens),
+  so `/cloud` reads at most `max_polls` times, `poll_interval_seconds` apart. Run it with no
+  message to read the reply again later.
+- The cloud session cannot reach this machine's files or programs.
+- `[cloud]` is read from `~/.claude/promari-model-router.toml` only: a project file may not
+  name the program pmr runs.
 
 ## Measured
 

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/graph"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/pkg/graph"
 )
 
 // RouteInput is everything one routing decision depends on. It is plain data,

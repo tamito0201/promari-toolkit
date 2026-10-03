@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/pkg/fp"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/pkg/fp"
 )
 
 // PhraseSet is the strong and weak cue phrases of one class.

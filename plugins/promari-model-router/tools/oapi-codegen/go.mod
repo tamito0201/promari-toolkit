@@ -1,4 +1,4 @@
-module github.com/tamito0201/promari-toolkit/plugins/promari-model-router/tools/oapi-codegen
+module promari-model-router/tools/oapi-codegen
 
 go 1.27
 

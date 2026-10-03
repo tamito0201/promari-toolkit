@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/service"
+	"promari-model-router/internal/domain/service"
 )
 
 // TraceView is the serialisable form of a routing trace (ledger detail and

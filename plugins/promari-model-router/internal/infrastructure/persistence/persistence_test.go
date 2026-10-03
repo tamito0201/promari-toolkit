@@ -13,8 +13,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"gorm.io/gorm"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/domain/model"
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/persistence"
+	"promari-model-router/internal/domain/model"
+	"promari-model-router/internal/infrastructure/persistence"
 )
 
 var t0 = time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)

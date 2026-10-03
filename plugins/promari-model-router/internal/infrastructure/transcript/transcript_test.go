@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/tamito0201/promari-toolkit/plugins/promari-model-router/internal/infrastructure/transcript"
+	"promari-model-router/internal/infrastructure/transcript"
 )
 
 func assistant(model string) string {
