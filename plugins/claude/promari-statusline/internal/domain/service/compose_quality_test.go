@@ -34,8 +34,8 @@ func TestComposeQuality(t *testing.T) {
 		{
 			"red tests for longer than most repairs take, and a change that admits debt",
 			View{Now: now, Facts: model.Facts{Transcript: model.Some(model.Transcript{Quality: red}), Git: model.Some(change)}},
-			"🧪 Quality: Tests ×5 ❌ (fail 50% · piped 1) red 30m · 14 calls | Build ×3 ✅ | Claim≠ ×1 | Untested 2 files | EditFail ×2 (streak 1) | Repeat ×2 | Spread 3f · 2d · 2s H0.92 | TestDiff 33% | Debt +3 -1 | Weaken skip +1 assert -2 | Mocks +2 | Deps +1 | Fix 2/5 today | AI 4/5 today",
-			[]string{"Tests ×5 ❌ (fail 50% · piped 1) red 30m · 14 calls"},
+			"🧪 Quality: Tests ×5 ❌ (fail 50% · piped 1) red 30m · 14 calls → ask | Build ×3 ✅ | Claim≠ ×1 | Untested 2 files | EditFail ×2 (streak 1) | Repeat ×2 | Spread 3f · 2d · 2s H0.92 | TestDiff 33% | Debt +3 -1 | Weaken skip +1 assert -2 | Mocks +2 | Deps +1 | Fix 2/5 today | AI 4/5 today",
+			[]string{"Tests ×5 ❌ (fail 50% · piped 1) red 30m · 14 calls → ask"},
 		},
 		{
 			"tests red for less long, a run of unknown outcome, debt paid back, no test in the change",

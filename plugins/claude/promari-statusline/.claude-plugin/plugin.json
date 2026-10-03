@@ -1,6 +1,6 @@
 {
   "name": "promari-statusline",
-  "version": "1.7.1",
+  "version": "1.8.1",
   "description": "A multi-line status line for Claude Code: context, rate limits with pace and forecast, cost, KPIs, quality of the work, git and pull request, tools and system at a glance, laid out to the width of your terminal.",
   "author": {
     "name": "Takaomi Murasaki"

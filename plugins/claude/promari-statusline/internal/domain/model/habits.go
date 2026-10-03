@@ -29,6 +29,10 @@ const (
 	// The commits per day of a standard pace.
 	CommitsPerDayLow  = 2
 	CommitsPerDayHigh = 5
+	// SelfSolveLimit is how long a newcomer works on a failure alone before
+	// asking: the course's manual says to try alone for about 15 minutes, its
+	// team exercise to ask after 30.
+	SelfSolveLimit = 15 * time.Minute
 	// SteadyStreak is the run of days with commits that marks a steady
 	// contribution.
 	SteadyStreak = 3

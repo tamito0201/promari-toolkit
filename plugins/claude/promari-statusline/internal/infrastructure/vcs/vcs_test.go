@@ -27,12 +27,22 @@ const todayLog = "\x1efeat: a\x1fClaude <claude@example.com>\x1f\n\n30\t10\ta.go
 // mergingDiff adds and removes a debt, weakens a test (a skip added, two
 // assertions removed, a mock added) and adds dependencies to two manifests,
 // with the package's own version left out.
-const mergingDiff = "1\t1\tm.go\n3\t2\tm_test.go\n2\t0\tgo.mod\n3\t0\tpackage.json\n" +
+const mergingDiff = "1\t1\tm.go\n3\t2\tm_test.go\n2\t0\tgo.mod\n3\t0\tpackage.json\n4\t0\tSvc.cs\n" +
 	"diff --git a/m.go b/m.go\n--- a/m.go\n+++ b/m.go\n@@ -1 +1 @@\n-// FIXME: old\n+// TODO: later\n" +
 	"diff --git a/m_test.go b/m_test.go\n--- a/m_test.go\n+++ b/m_test.go\n@@ -1,2 +1,3 @@\n" +
 	"-\tassert.Equal(t, 1, got)\n-\tt.Errorf(\"bad\")\n+\tt.Skip(\"later\")\n+\tstore := mocks.NewStore(t)\n+\t_ = store\n" +
 	"diff --git a/go.mod b/go.mod\n--- a/go.mod\n+++ b/go.mod\n@@ -3,0 +4,2 @@\n+\tgithub.com/x/y v1.2.3\n+// a comment\n" +
-	"diff --git a/package.json b/package.json\n--- a/package.json\n+++ b/package.json\n@@ -2,0 +3,3 @@\n+  \"version\": \"1.5.0\",\n+  \"left-pad\": \"^1.3.0\",\n+  \"@scope/pkg\": \"workspace:*\",\n"
+	"diff --git a/package.json b/package.json\n--- a/package.json\n+++ b/package.json\n@@ -2,0 +3,3 @@\n+  \"version\": \"1.5.0\",\n+  \"left-pad\": \"^1.3.0\",\n+  \"@scope/pkg\": \"workspace:*\",\n" +
+	"diff --git a/Svc.cs b/Svc.cs\n--- a/Svc.cs\n+++ b/Svc.cs\n@@ -9,0 +10,4 @@\n+    catch (IOException e)\n+    {\n+    }\n+    throw ex;\n"
+
+// broken returns the rules broken once each.
+func broken(rules ...model.Rule) model.Violations {
+	var v model.Violations
+	for _, r := range rules {
+		v[r]++
+	}
+	return v
+}
 
 func TestGit(t *testing.T) {
 	t.Parallel()
@@ -78,9 +88,10 @@ func TestGit(t *testing.T) {
 				"git --no-optional-locks -C /merging rev-parse --absolute-git-dir":                                                  {Out: "/merging/.git\n"},
 			},
 			model.Git{
-				Branch: "develop", Inserted: 9, Deleted: 3, Operation: "merge",
-				Changes:   []model.FileChange{{Path: "m.go", Added: 1, Deleted: 1}, {Path: "m_test.go", Added: 3, Deleted: 2}, {Path: "go.mod", Added: 2}, {Path: "package.json", Added: 3}},
+				Branch: "develop", Inserted: 13, Deleted: 3, Operation: "merge",
+				Changes:   []model.FileChange{{Path: "m.go", Added: 1, Deleted: 1}, {Path: "m_test.go", Added: 3, Deleted: 2}, {Path: "go.mod", Added: 2}, {Path: "package.json", Added: 3}, {Path: "Svc.cs", Added: 4}},
 				DebtAdded: 1, DebtRemoved: 1, MocksAdded: 1, SkipsAdded: 1, AssertsRemoved: 2, DepsAdded: 3,
+				Rules: broken(model.RuleEmptyCatch, model.RuleThrowEx),
 			},
 			nil,
 		},

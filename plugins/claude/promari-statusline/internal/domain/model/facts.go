@@ -86,6 +86,12 @@ type Git struct {
 	ConflictMarkers int
 	Junk            int
 	JunkStaged      int
+	// Rules are the coding rules of a training course that the added lines of
+	// the working tree break.
+	Rules Violations
+	// RulesUnchecked are the added lines past model.MaxLintedLines, left
+	// unchecked.
+	RulesUnchecked int
 	// MergedBranches are the local branches merged into the default branch and
 	// not deleted.
 	MergedBranches int

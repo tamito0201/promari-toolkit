@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.8.1 — 2026-10-03
+
+- The release of 1.8.0, which was stopped before it was published: a test wrote a token in a git
+  remote (`user:token@` followed by GitHub's host), which the check for private information reads
+  as an e-mail address. The test joins the URL from two strings now; the code is the same as
+  1.8.0.
+
+## 1.8.0 — 2026-10-03 (not published; use 1.8.1)
+
+A new `📏 Rules` category checks the lines the working tree adds against the coding rules a
+training course for new engineers teaches (C#, ASP.NET Core MVC, SQL Server, JavaScript and
+HTML), the most serious first. Only rules that one added line, or a catch block within one hunk,
+can decide are checked:
+
+- Red and blinking, for what lets data leak, be lost or be attacked: `SQL+str` (an SQL statement
+  interpolated, joined with `+` or formatted; a join beside `?`, `@name` or `$1` parameters joins
+  only names and is not counted), `No WHERE` (an UPDATE or DELETE that ends without WHERE),
+  `Cred in code` (a connection string, a password literal, a token in a git remote or a GitHub
+  token; placeholders and tests are not counted), `throw ex` (which loses the stack trace) and
+  `Empty catch` (a catch block with nothing in it; a comment or an exception named `ignored`
+  says the error is ignored on purpose and is not counted).
+- Yellow, for what hides a failure or breaks a stated rule: `Catch-all` (catching Exception, or
+  anything, without throwing it on, in the languages whose catch names its type), `No CSRF` (a
+  `[HttpPost]` without `[ValidateAntiForgeryToken]` outside an `[ApiController]`), `Html.Raw` of
+  a value, `Singleton DB` (a DbContext registered as a singleton), `= NULL` in SQL, `JS var`,
+  `<br><br>`, `Naming` (a type in lower case, an interface without `I`, an exception class without
+  the `Exception` suffix or derived from ApplicationException, a bool named `...Flg`, a local named
+  temp, data, info, str or buf) and `No {}` (an if, for or while without braces, in C#).
+- Grey: `>120 col` (a line longer than 120 columns, a wide character counting as two) and
+  `Tab indent` (C# is indented with four spaces).
+- Bundles, vendored libraries, EF Core migrations and designer files are not checked. At most
+  5,000 added lines are checked per render; the rest shows as `Unchecked N lines`, so that no
+  break shown is not read as none.
+
+`Tests … red` adds `→ ask` after 15 minutes: the course has a newcomer try alone for about 15
+minutes before asking (and its team exercise says to ask after 30).
+
 ## 1.7.1 — 2026-10-03
 
 - The release of 1.6.0 and 1.7.0, which were stopped before they were published: their tests

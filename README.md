@@ -10,7 +10,7 @@ The repository has no shared product version.
 |---|---|---|---|
 | [Promari SNS Share](plugins/wordpress/promari-sns-share/README.md) | Social sharing for Web Components and WordPress | `plugins/wordpress/promari-sns-share/` | `promari-sns-share-v4.2.1` |
 | [Promari Model Router](plugins/claude/promari-model-router/README.md) | Route Claude Code subagents to haiku/sonnet/opus by task difficulty (Japanese and English), keep safety-sensitive work on strong models, suggest Codex for bulk or second-opinion work, and log every decision | `plugins/claude/promari-model-router/` | `promari-model-router-v1.1.1` |
-| [Promari Statusline](plugins/claude/promari-statusline/README.md) | A multi-line status line for Claude Code: context, rate limits with pace and forecast, cost, KPIs, quality of the work, git and pull request, tools and system at a glance, laid out to the width of your terminal | `plugins/claude/promari-statusline/` | `promari-statusline-v1.7.1` |
+| [Promari Statusline](plugins/claude/promari-statusline/README.md) | A multi-line status line for Claude Code: context, rate limits with pace and forecast, cost, KPIs, quality of the work, git and pull request, tools and system at a glance, laid out to the width of your terminal | `plugins/claude/promari-statusline/` | `promari-statusline-v1.8.1` |
 
 Plugins live under `plugins/<kind>/` (`claude/` for Claude Code, `wordpress/` for WordPress). Standalone tools will live under `tools/`
 when they are added; plugin-specific build tools stay with their plugin.

@@ -40,6 +40,10 @@ func sessionQuality(now time.Time, q model.Quality) []model.Chip {
 		if !q.RedSince.IsZero() {
 			red := now.Sub(q.RedSince)
 			c = append(c, text(model.ToneDanger, " red "+span(red)+" · "+strconv.Itoa(q.RedCalls)+" calls"))
+			if red > model.SelfSolveLimit {
+				// Past the time to work on it alone: ask someone.
+				c = append(c, text(model.ToneCaution, " → ask"))
+			}
 			c = alarmIf(red > redTooLong, c)
 		}
 		chips = append(chips, c)

@@ -255,6 +255,11 @@ func countStatus(git *model.Git, porcelain string) {
 func readDiff(git *model.Git, out string) {
 	file := ""
 	inPatch := false
+	var lint model.Lint
+	defer func() {
+		lint.Done()
+		git.Rules, git.RulesUnchecked = lint.Found, lint.Skipped
+	}()
 	for line := range strings.Lines(out) {
 		line = strings.TrimRight(line, "\r\n")
 		switch {
@@ -268,6 +273,9 @@ func readDiff(git *model.Git, out string) {
 			}
 		case strings.HasPrefix(line, "+++ "):
 			file = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
+			lint.File(file)
+		case strings.HasPrefix(line, "@@"):
+			lint.Gap()
 		case strings.HasPrefix(line, "--- "):
 			// The old name of the file; the new one follows.
 		case strings.HasPrefix(line, "+"):
@@ -275,7 +283,9 @@ func readDiff(git *model.Git, out string) {
 				git.ConflictMarkers++
 			}
 			readAdded(git, file, line[1:])
+			lint.Added(line[1:])
 		case strings.HasPrefix(line, "-"):
+			lint.Gap()
 			readRemoved(git, file, line[1:])
 		}
 	}
