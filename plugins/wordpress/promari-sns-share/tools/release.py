@@ -31,8 +31,14 @@ VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 
+# toolkit moved its plugins under a category directory (plugins/wordpress/<name>/) after 4.2.1. A tag's
+# files never move, so a released version keeps the path it was published at.
+LAST_FLAT_LAYOUT = (4, 2, 1)
+
+
 def cdn_url(version: str) -> str:
-    return f"https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@{NAME}-v{version}/plugins/{NAME}/dist/{NAME}.min.js"
+    layout = "" if tuple(map(int, version.split("."))) <= LAST_FLAT_LAYOUT else "wordpress/"
+    return f"https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@{NAME}-v{version}/plugins/{layout}{NAME}/dist/{NAME}.min.js"
 
 
 def versions() -> dict[str, str]:

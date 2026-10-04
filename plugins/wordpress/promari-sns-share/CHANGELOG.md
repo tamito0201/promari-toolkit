@@ -2,6 +2,33 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 4.2.2
+
+### Changed
+
+- The bundle is published under the toolkit's category directory. From this version the CDN URL is
+  `…@promari-sns-share-v4.2.2/plugins/wordpress/promari-sns-share/dist/promari-sns-share.min.js`; pages pinned
+  to 4.2.1 or earlier keep their old `plugins/promari-sns-share/` URL, which does not move.
+
+### Fixed
+
+- A destination key the catalog does not have (a typo such as `facebok`, or a removed destination) in
+  `destinations` or `floating.destinations` no longer stops the whole bar from rendering. Unknown keys are
+  left out of both rows and reported once per render with `console.error`.
+- A `config` attribute that sets `labels` or `buttons` for a destination without a default entry (for
+  example `buttons.hatena.color`) is no longer dropped: the merge keeps keys only the override has.
+- `after="abc"`, `after=""` and negative values no longer make the floating bar never (or always) appear;
+  an invalid value keeps the configured one. `size`, `label-style`, `shape` and `heading-position` ignore
+  values outside their allowed set instead of passing them to the stylesheet.
+
+### Security
+
+- The WordPress plugin builds the fallback page URL (pages that are not singular) from `home_url()` and
+  the request path, not from the `Host` request header. A forged `Host` could otherwise be written into
+  the share links of a cached page.
+- A `share.json` that is not valid JSON reports the same "regenerate with `config.py --write`" error as a
+  document with the wrong shape, instead of an uncaught `JsonException`.
+
 ## 4.2.1
 
 The Web Component and the WordPress plugin behave exactly as in 4.2.0; this release changes how the

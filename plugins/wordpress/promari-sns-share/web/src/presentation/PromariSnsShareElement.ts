@@ -123,6 +123,7 @@ export class PromariSnsShareElement extends HTMLElement {
       placement,
       canNativeShare: this.#environment.canNativeShare(),
     });
+    if (vm.unknownDestinations.length) console.error('promari-sns-share: 未知の共有先を表示から外しました', vm.unknownDestinations);
     const circle = this.getAttribute('variant') === 'circle';
     root.innerHTML = circle
       ? CircularShareBarView.render(vm, config.tracking.attribute, this.getAttribute('caption') ?? '', this.hasAttribute('like'))

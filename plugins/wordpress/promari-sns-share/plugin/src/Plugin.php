@@ -93,7 +93,18 @@ final class Plugin
         if (is_string($permalink) && $permalink !== '') {
             return $permalink;
         }
-        $raw = (function_exists('is_ssl') && is_ssl() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/');
+        // The host comes from the site's configured home URL, never the request's Host header: a forged
+        // Host would otherwise be written into the share links and cached for every visitor.
+        $path = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+        if (!function_exists('home_url')) {
+            return $path;
+        }
+        // In a subdirectory install (home https://example.jp/blog) the request path already starts with /blog.
+        $base = rtrim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');
+        if ($base !== '' && ($path === $base || str_starts_with($path, $base . '/') || str_starts_with($path, $base . '?'))) {
+            $path = substr($path, strlen($base));
+        }
+        $raw = home_url($path);
         return function_exists('esc_url_raw') ? esc_url_raw($raw) : $raw;
     }
 

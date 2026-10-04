@@ -23,7 +23,9 @@ function is_admin(): bool { return false; }
 function is_feed(): bool { return false; }
 function is_ssl(): bool { return true; }
 function wp_get_document_title(): string { return 'Hello & World'; }
-$_SERVER['HTTP_HOST'] = 'example.jp';
+function home_url(string $path = ''): string { return 'https://example.jp' . ($GLOBALS['home_base'] ?? '') . '/' . ltrim($path, '/'); }
+// A forged Host header: the page URL must come from home_url, not from the request.
+$_SERVER['HTTP_HOST'] = 'attacker.example';
 $_SERVER['REQUEST_URI'] = '/post/?a=1';
 
 // Prepare and load generated configuration.
@@ -53,6 +55,15 @@ $html = promari_sns_share([], false);
 $assert(str_contains($html, '<promari-sns-share ') && str_contains($html, '</promari-sns-share>'), 'カスタム要素を出す');
 $assert(str_contains($html, 'placement="inline"'), '置き場所が属性に入る');
 $assert(str_contains($html, 'url="https://example.jp/post/?a=1"'), 'ページの URL が属性に入る');
+$assert(!str_contains($html, 'attacker.example'), 'ページの URL に要求の Host ヘッダーを使わない');
+// A subdirectory install: the request path already carries the home path, which must not be doubled.
+$GLOBALS['home_base'] = '/blog';
+$_SERVER['REQUEST_URI'] = '/blog/post/?a=1';
+$assert(str_contains(promari_sns_share([], false), 'url="https://example.jp/blog/post/?a=1"'), 'サブディレクトリ設置でもホームのパスを二重にしない');
+$_SERVER['REQUEST_URI'] = '/blog';
+$assert(str_contains(promari_sns_share([], false), 'url="https://example.jp/blog/"'), 'サブディレクトリのトップも二重にしない');
+unset($GLOBALS['home_base']);
+$_SERVER['REQUEST_URI'] = '/post/?a=1';
 $assert(str_contains($html, 'title="Hello &amp; World"'), '題名が属性に入り、エスケープされる');
 $assert(!str_contains($html, '<?') && !str_contains($html, '<script'), 'HTML に PHP タグやスクリプトが混ざらない');
 

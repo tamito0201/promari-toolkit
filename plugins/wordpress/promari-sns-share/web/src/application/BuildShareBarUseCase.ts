@@ -46,6 +46,8 @@ export interface ShareBarViewModel {
   readonly groupLabel: string;
   readonly primary: readonly ShareButtonViewModel[];
   readonly secondary: readonly ShareButtonViewModel[];
+  /** Configured destination keys that do not exist; the bar is built without them. */
+  readonly unknownDestinations: readonly string[];
 }
 
 export interface BuildShareBarInput {
@@ -87,6 +89,7 @@ export class BuildShareBarUseCase {
       groupLabel: config.messages.group_label,
       primary: this.#catalog.resolve(keys.primary).map((destination) => this.#button(config, request, 'primary', destination)),
       secondary: this.#catalog.resolve(keys.secondary).map((destination) => this.#button(config, request, 'secondary', destination)),
+      unknownDestinations: keys.unknown,
     });
   }
 

@@ -30,6 +30,13 @@ describe('BuildShareBarUseCase', () => {
     const partial = new ShareButtonCatalog(memoryRepository(SPECS), SPECS.filter((s) => s.key !== 'x'));
     assert.throws(() => partial.resolve(['x']), /表示情報がありません/);
   });
+  it('未知の共有先キーは描画を止めず、外したうえで報告する', () => {
+    const vm = buildShareBar.execute({ ...CONFIG, destinations: ['facebok', 'x'], secondary: ['copy', 'nope', 'facebok'] }, input);
+    assert.deepEqual(vm.primary.map((b) => b.key), ['x']);
+    assert.deepEqual(vm.secondary.map((b) => b.key), ['copy']);
+    assert.deepEqual(vm.unknownDestinations, ['facebok', 'nope']);
+    assert.deepEqual(buildShareBar.execute(CONFIG, input).unknownDestinations, []);
+  });
   it('主役と補助のビューモデルを作り、文言・色・UTM・popup を設定どおりに写す', () => {
     const vm = buildShareBar.execute(CONFIG, input);
     assert.equal(vm.heading, 'SHARE');
@@ -232,6 +239,24 @@ describe('ShareSettingsAttributeReader', () => {
     assert.equal(merged.appearance.size, 'large');
     assert.equal(merged.appearance.shape, 'official');
     assert.deepEqual(merged.destinations, ['x']);
+  });
+  it('deepMerge は base に無いキー（既定に無い共有先の labels・buttons）も残す', () => {
+    const merged = ShareSettingsAttributeReader.merge(
+      { ...CONFIG, labels: {}, buttons: {} },
+      { labels: { hatena: 'はてブ' }, buttons: { hatena: { color: '#00a4de' } } },
+    );
+    assert.deepEqual(merged.labels, { hatena: 'はてブ' });
+    assert.deepEqual(merged.buttons, { hatena: { color: '#00a4de' } });
+  });
+  it('after・列挙の属性は不正な値なら設定値を保つ', () => {
+    const read = (attrs: Record<string, string>) => new ShareSettingsAttributeReader(CONFIG).read(fakeElement(attrs));
+    for (const after of ['', 'abc', '-1', 'Infinity']) {
+      assert.equal(read({ after }).floating.after, CONFIG.floating.after, `after=${JSON.stringify(after)}`);
+    }
+    assert.equal(read({ after: '0' }).floating.after, 0);
+    assert.equal(read({ after: '250' }).floating.after, 250);
+    assert.deepEqual(read({ size: 'huge', shape: 'circle', 'label-style': 'x', 'heading-position': 'bottom' }).appearance, CONFIG.appearance);
+    assert.equal(read({ size: 'large' }).appearance.size, 'large');
   });
   it('個別属性 < config 属性 の優先順位で上書きする', () => {
     const config = new ShareSettingsAttributeReader(CONFIG).read(fakeElement({ destinations: 'x, facebook', size: 'large', utm: 'off', config: '{"appearance":{"size":"small"}}' }));

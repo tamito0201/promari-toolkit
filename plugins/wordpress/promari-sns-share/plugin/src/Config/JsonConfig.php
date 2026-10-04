@@ -21,7 +21,8 @@ final class JsonConfig implements ConfigInterface
         // Only CLI integration tests may override the configuration path.
         $path = PHP_SAPI === 'cli' && defined('PM_SHARE_TEST_CONFIG') ? (string) PM_SHARE_TEST_CONFIG : $path;
         $raw = is_readable($path) ? (string) file_get_contents($path) : '';
-        $document = $raw === '' ? null : json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        // Broken JSON reports the same regeneration hint as a wrong shape, not a bare JsonException.
+        $document = $raw === '' ? null : json_decode($raw, true);
         $share = is_array($document) && ($document['version'] ?? null) === 1 ? ($document['share'] ?? null) : null;
         $this->scriptUrl = is_array($document) && is_array($document['cdn'] ?? null) ? (string) ($document['cdn']['url'] ?? '') : '';
         $this->data = is_array($share)
