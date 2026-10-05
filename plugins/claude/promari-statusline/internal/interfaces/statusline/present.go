@@ -17,7 +17,6 @@ const (
 	band = "\x1b[48;5;196m\x1b[38;5;231m"
 
 	chipSeparator  = " │ "
-	groupSeparator = " ┃ "
 	tightSeparator = "│"
 )
 
@@ -66,8 +65,6 @@ func Present(lines []model.Line, at time.Time) string {
 			switch item.Sep {
 			case model.SepChip:
 				b.WriteString(colour(model.ToneMuted) + chipSeparator + reset)
-			case model.SepGroup:
-				b.WriteString(colour(model.ToneMuted) + groupSeparator + reset)
 			case model.SepTight:
 				b.WriteString(colour(model.ToneMuted) + tightSeparator + reset)
 			case model.SepNone:

@@ -3,7 +3,7 @@ package service
 import "promari-statusline/internal/domain/model"
 
 const (
-	// SeparatorCells is the width of " │ " between chips and " ┃ " between groups.
+	// SeparatorCells is the width of " │ " between chips.
 	SeparatorCells = 3
 	// TightSeparatorCells is the width of "│" between the chips of a packed group.
 	TightSeparatorCells = 1
@@ -26,8 +26,12 @@ func Budget(terminalCells int) int { return max(MinBudget, terminalCells-margin)
 
 // Layout packs the groups into lines no wider than budget cells.
 //
-// A group stays together. It joins the current line when it fits behind what
-// is already there; otherwise it starts a new line. A group a little wider than
+// Every group starts a line of its own, so each category keeps its place from
+// one render to the next: the order of the lines is the order of the groups,
+// whatever the width of their chips. (Groups used to share a line when they
+// fitted behind each other, which moved a category up and down as its
+// neighbours grew and shrank; fixed 2026-10-06 at the user's request.)
+// A group stays together. A group a little wider than
 // a whole line is packed: its chips stand closer ("│" for " │ "), which keeps
 // it on one line in a terminal a few cells too narrow. Only a group that does
 // not fit even then is broken, between its chips. Its continuation lines carry
@@ -60,19 +64,15 @@ func (l *layouter) place(g model.Group) {
 	}
 	width := unitCells(unit)
 	indent := indentOf(unit[0])
+	l.flush()
 	switch {
-	case len(l.cur.Items) > 0 && l.used+SeparatorCells+width <= l.budget:
-		l.add(model.SepGroup, model.SepChip, unit, SeparatorCells+width)
 	case indent+width <= l.budget:
-		l.flush()
 		l.cur.Indent = indent
 		l.add(model.SepNone, model.SepChip, unit, indent+width)
 	case indent+tightCells(unit) <= l.budget:
-		l.flush()
 		l.cur.Indent = indent
 		l.add(model.SepNone, model.SepTight, unit, indent+tightCells(unit))
 	default:
-		l.flush()
 		l.wrap(g)
 	}
 }

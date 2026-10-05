@@ -217,14 +217,14 @@ func TestPresent(t *testing.T) {
 	}{
 		{"no lines", nil, even, ""},
 		{
-			"colours, bold, plain text and both separators",
+			"colours, bold, plain text and the chip separator",
 			[]model.Line{
-				{Items: []model.Item{{Chip: header}, {Sep: model.SepChip, Chip: usage}, {Sep: model.SepGroup, Chip: model.Chip{{Text: "plain"}}}}},
+				{Items: []model.Item{{Chip: header}, {Sep: model.SepChip, Chip: usage}, {Sep: model.SepChip, Chip: model.Chip{{Text: "plain"}}}}},
 				{Indent: 3, Items: []model.Item{{Chip: model.Chip{{Text: "Test", Tone: model.ToneAccent}}}}},
 			},
 			even,
 			accent + bold + "🧠 Context" + reset + muted + " │ " + reset + good + "████" + reset + " " + good + "42%" + reset +
-				muted + " ┃ " + reset + "plain" + "\n" + "   " + accent + "Test" + reset,
+				muted + " │ " + reset + "plain" + "\n" + "   " + accent + "Test" + reset,
 		},
 		{
 			"the chips of a packed group stand closer",

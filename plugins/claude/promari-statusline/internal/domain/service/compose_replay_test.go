@@ -121,19 +121,19 @@ func TestComposeReplaysTheProductionScreen(t *testing.T) {
 		": 🤖 Codex 7d █████ 100% 🔄 済 💳 Bal $68 (10/1)",
 		"💰 Cost: Sess $4.41 | Today $375.33 | Blk $128.68 (残 1h53m) | Est $207",
 		"🔥 Burn: $41.54/h | ⏰ 5m (API 1m) | Active 1m | Streak 1m",
+		"🌿 Git: develop | 📝 9 Files | ❓ 9 New | 📅 Cmt 1h44m (×51 today)",
+		"🔧 Work: Turns ×1 | Tools ×9 Bash4/Read4/Skill1 | Hooks ×11",
+		"⏰ Due: Overdue ×39 (#85 617d) | Urgent >48h ×4 | Due 7d ×1 | Stale 14d+ ×101 | Undated 69/109 | WIP 1 PR | Lead p50 5m ×100+/14d | Abandoned ×1/14d",
+		"🔖 Session: Claideプラグインテストカバレッジ実装",
+		"👥 Sessions: Live ×2 | 6.3節までの図の改善 docs/forms-figure… Ctx 18% $45.96",
 		"📈 KPI: Focus 100% | Longest 1m | $/Turn 4.41",
 		"🚀 Perf: Parallel ×0.30 | Think time 1m | ErrRate 0.0%",
 		"📦 Cache: Hit 85% TTL 1h 残 59m | Save 76% | 🧊 Cold 187k | Write 162k",
 		"📊 Tokens: Σ In 868k / Out 5k (cached 82%) | Think share 70% | Req ×5 | Last new 2 wr 2k rd 185k → out 201",
-		"🔧 Work: Turns ×1 | Tools ×9 Bash4/Read4/Skill1 | Hooks ×11",
 		"🤝 Agent: Prompts ×1 | Auto ×9.0/prompt",
 		"🧪 Quality: Fix 6/51 today | AI 38/51 today",
 		"🧬 Trace: Obs ≈10k (5% ctx) max 6k",
 		"🎓 Habits: On develop directly | Switch ×2 today | 1827 L/cmt ×51/day max 69785 +/- 62.4 | Conv 38/51 | Streak 5d (max 5d)",
-		"🌿 Git: develop | 📝 9 Files | ❓ 9 New | 📅 Cmt 1h44m (×51 today)",
-		"⏰ Due: Overdue ×39 (#85 617d) | Urgent >48h ×4 | Due 7d ×1 | Stale 14d+ ×101 | Undated 69/109 | WIP 1 PR | Lead p50 5m ×100+/14d | Abandoned ×1/14d",
-		"🔖 Session: Claideプラグインテストカバレッジ実装",
-		"👥 Sessions: Live ×2 | 6.3節までの図の改善 docs/forms-figure… Ctx 18% $45.96",
 		"🧭 Env: Fable 5 | Mode high·think | 📂 example-portal | Style Explanatory | Perm auto",
 		"💻 System: 🕐 11:06 | CPU 24.5/10c | 🧮 Mem 5.4G | 💾 Disk 27G | 🔌 Bat 100%",
 		"🧾 Meta: ⛵ Proc ×9 | 👤 business.someone | v2.1.289",
@@ -246,7 +246,7 @@ func TestComposeReplayLayoutFitsTheHost(t *testing.T) {
 		width := line.Indent
 		for _, item := range line.Items {
 			switch item.Sep {
-			case model.SepChip, model.SepGroup:
+			case model.SepChip:
 				width += SeparatorCells
 			case model.SepTight:
 				width += TightSeparatorCells

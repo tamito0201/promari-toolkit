@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.12.0 — 2026-10-06
+
+The order of the status line is fixed, one category per line:
+
+- Every category starts a line of its own. Categories no longer share a line behind ` ┃ ` when
+  they happen to fit, which moved a category up or down as the chips of its neighbours grew and
+  shrank; the same category is now always in the same place. A category wider than the
+  terminal still wraps under its own first line.
+- The categories are ordered by priority and by how often they are looked at: alerts and
+  forecasts, then the limits (`🧠 Context`, `⚡ Claude`, `🤖 Codex`), the money (`💰 Cost`,
+  `🔥 Burn`), where the work stands (`🌿 Git`, `🔀 PR`, `🔧 Work`, `⏰ Due`, `🔖 Session`,
+  `👥 Sessions`), how well it goes (`📈 KPI` … `🎓 Habits`), and last the surroundings
+  (`🧭 Env`, `💻 System`, `🧾 Meta`, `🎵 Music`). `🌿 Git` and `⏰ Due` move up from below
+  the metrics.
+
 ## 1.11.0 — 2026-10-05
 
 Fixes found by a review of the layers (layered architecture with DDD, SOLID, dependency injection):

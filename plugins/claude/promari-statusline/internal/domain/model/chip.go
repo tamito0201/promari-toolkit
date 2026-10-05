@@ -70,7 +70,6 @@ type Separator uint8
 const (
 	SepNone  Separator = iota // the first item of a line
 	SepChip                   // between two chips of a group
-	SepGroup                  // between two groups
 	SepTight                  // between two chips of a group that only fits a line when packed
 )
 

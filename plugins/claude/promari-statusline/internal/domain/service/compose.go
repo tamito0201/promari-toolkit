@@ -58,33 +58,51 @@ type section struct {
 	chips func(*View) []model.Chip
 }
 
-// sections lists the categories in display order, the most urgent first:
-// outages and exhaustion, then what is left, what it costs, how the work
-// goes, and last the surroundings. A new category is one more entry here.
+// sections lists the categories in display order, one line each, from the
+// top: what needs action now, then what is glanced at most often, then the
+// details read only when something looks off. The order is fixed (2026-10-06):
+//
+//  1. Alerts — outages and exhaustion, shown only when they happen.
+//  2. Limits — context and the Claude and Codex windows: whether the session
+//     can go on at all.
+//  3. Money — what it costs and how fast it burns.
+//  4. Where the work stands — branch, pull request, the session's own work,
+//     what is due, and the session and its peers.
+//  5. How well it goes — KPI, performance, cache, tokens, agents, quality,
+//     rules, trace and habits.
+//  6. Surroundings — environment, machine, meta and music.
+//
+// A new category is one more entry here, in the band it belongs to.
 func sections() []section {
 	return []section{
+		// 1. Alerts
 		{"🚨 Alert", model.ToneDanger, alertChips},
 		{"📉 Forecast", model.ToneDanger, forecastChips},
+		// 2. Limits
 		{"🧠 Context", model.ToneAccent, contextChips},
 		{"", model.TonePlain, claudeChips}, // the chip carries its own ⚡ Claude header
 		{"", model.TonePlain, codexChips},  // the chip carries its own 🤖 Codex header
+		// 3. Money
 		{"💰 Cost", model.ToneMoney, costChips},
 		{"🔥 Burn", model.ToneDanger, burnChips},
+		// 4. Where the work stands
+		{"🌿 Git", model.ToneGood, gitChips},
+		{"🔀 PR", model.ToneInfo, pullChips},
+		{"🔧 Work", model.ToneNote, workChips},
+		{"⏰ Due", model.ToneCaution, dueChips},
+		{"🔖 Session", model.ToneNote, sessionChips},
+		{"👥 Sessions", model.ToneInfo, peerChips},
+		// 5. How well it goes
 		{"📈 KPI", model.ToneGood, kpiChips},
 		{"🚀 Perf", model.ToneNote, perfChips},
 		{"📦 Cache", model.ToneNote, cacheChips},
 		{"📊 Tokens", model.ToneInfo, tokenChips},
-		{"🔧 Work", model.ToneNote, workChips},
 		{"🤝 Agent", model.ToneAccent, agentChips},
 		{"🧪 Quality", model.ToneGood, qualityChips},
+		{"📏 Rules", model.ToneCaution, rulesChips},
 		{"🧬 Trace", model.ToneInfo, traceChips},
 		{"🎓 Habits", model.ToneGood, habitsChips},
-		{"📏 Rules", model.ToneCaution, rulesChips},
-		{"🌿 Git", model.ToneGood, gitChips},
-		{"🔀 PR", model.ToneInfo, pullChips},
-		{"⏰ Due", model.ToneCaution, dueChips},
-		{"🔖 Session", model.ToneNote, sessionChips},
-		{"👥 Sessions", model.ToneInfo, peerChips},
+		// 6. Surroundings
 		{"🧭 Env", model.ToneAccent, envChips},
 		{"💻 System", model.ToneInfo, systemChips},
 		{"🧾 Meta", model.ToneMuted, metaChips},

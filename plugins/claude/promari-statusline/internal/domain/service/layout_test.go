@@ -18,8 +18,6 @@ func draw(lines []model.Line) []string {
 			switch item.Sep {
 			case model.SepChip:
 				b.WriteString(" │ ")
-			case model.SepGroup:
-				b.WriteString(" ┃ ")
 			case model.SepTight:
 				b.WriteString("│")
 			case model.SepNone:
@@ -50,29 +48,17 @@ func TestLayout(t *testing.T) {
 		{"no groups", nil, 40, nil},
 		{"a group without chips is left out", []model.Group{group("🧠 A")}, 40, nil},
 		{
-			"groups that fit share a line",
+			"every group starts a line of its own, even when two would fit on one",
 			[]model.Group{group("🧠 A", "one"), group("💰 B", "two")},
-			40,
-			[]string{"🧠 A │ one ┃ 💰 B │ two"},
-		},
-		{
-			"a group that does not fit behind the line starts a new one",
-			[]model.Group{group("🧠 A", "0123456789"), group("💰 B", "0123456789")},
-			30,
-			[]string{"🧠 A │ 0123456789", "💰 B │ 0123456789"},
+			200,
+			[]string{"🧠 A │ one", "💰 B │ two"},
 		},
 		{
 			"a line may be exactly as wide as the budget",
-			// "🧠 A │ 01234" is 12 cells, the separator 3, "💰 B │ 01234" 12: 27.
-			[]model.Group{group("🧠 A", "01234"), group("💰 B", "01234")},
-			27,
-			[]string{"🧠 A │ 01234 ┃ 💰 B │ 01234"},
-		},
-		{
-			"one cell too many breaks the line",
-			[]model.Group{group("🧠 A", "01234"), group("💰 B", "01234")},
-			26,
-			[]string{"🧠 A │ 01234", "💰 B │ 01234"},
+			// "🧠 A │ 01234" is 12 cells.
+			[]model.Group{group("🧠 A", "01234")},
+			12,
+			[]string{"🧠 A │ 01234"},
 		},
 		{
 			"a group wider than a line wraps between its chips and hangs its continuation under them",
@@ -87,12 +73,12 @@ func TestLayout(t *testing.T) {
 			[]string{"🚀 Perf │ aaaa │ bbbb", "        │ cccc │ dddd"},
 		},
 		{
-			"the next group joins the last line of a wrapped group",
-			// "        │ bbbbbbbbbbbbbbb" is 25 cells, the separator 3, "🌿 G │ x" 8: 36.
+			"the next group does not join the last line of a wrapped group",
+			// "        │ bbbbbbbbbbbbbbb" is 25 cells: "🌿 G │ x" would fit behind it.
 			// (Packed, the first group would be 39.)
 			[]model.Group{group("🚀 Perf", "aaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbb"), group("🌿 G", "x")},
 			38,
-			[]string{"🚀 Perf │ aaaaaaaaaaaaaaa", "        │ bbbbbbbbbbbbbbb ┃ 🌿 G │ x"},
+			[]string{"🚀 Perf │ aaaaaaaaaaaaaaa", "        │ bbbbbbbbbbbbbbb", "🌿 G │ x"},
 		},
 		{
 			"a chip too wide to hang under the title starts at the label column",
@@ -133,7 +119,7 @@ func TestLayout(t *testing.T) {
 			[]string{"🚀 Perf │ aaaaaaaaaaaa", "        │ bbbbbbbbbbbb"},
 		},
 		{
-			"a packed group starts a line of its own, and the next group does not join a line that is full",
+			"a packed group starts a line of its own, and so does the next group",
 			[]model.Group{group("🧠 A", "one"), group("🚀 Perf", "aaaaaaaaaaaa", "bbbbbbbbbbbb"), group("🌿 G", "x")},
 			36,
 			[]string{"🧠 A │ one", "🚀 Perf│aaaaaaaaaaaa│bbbbbbbbbbbb", "🌿 G │ x"},
@@ -195,6 +181,24 @@ func TestLayout(t *testing.T) {
 	}
 }
 
+// The lines follow the groups in their order at every width, one group per
+// line block: a category never moves up or down because its neighbours grew.
+func TestLayoutKeepsTheOrderOfTheGroups(t *testing.T) {
+	t.Parallel()
+	titles := []string{"🧠 A", "💰 B", "🌿 C", "🔧 D"}
+	groups := make([]model.Group, 0, len(titles))
+	for _, title := range titles {
+		groups = append(groups, group(title, "x"))
+	}
+	for budget := MinBudget; budget <= 200; budget++ {
+		got := draw(Layout(groups, budget))
+		want := []string{"🧠 A │ x", "💰 B │ x", "🌿 C │ x", "🔧 D │ x"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("budget %d: Layout() = %q, want %q", budget, got, want)
+		}
+	}
+}
+
 // No line may be wider than the budget unless a single chip (with its header)
 // is: the terminal would cut it without a word.
 func TestLayoutNeverOverflows(t *testing.T) {
@@ -214,7 +218,7 @@ func TestLayoutNeverOverflows(t *testing.T) {
 			widest := 0
 			for _, item := range line.Items {
 				switch item.Sep {
-				case model.SepChip, model.SepGroup:
+				case model.SepChip:
 					width += SeparatorCells
 				case model.SepTight:
 					width += TightSeparatorCells

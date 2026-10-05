@@ -41,9 +41,9 @@ func TestComposeMetrics(t *testing.T) {
 			View{Facts: model.Facts{Transcript: model.Some(full)}},
 			[]string{
 				"🧠 Context: compact ×2 (40m ago)",
+				"🔧 Work: Tools ×30 Bash30 ❌ Err 1 | Edited 2 files | Hooks ×9 ❌ 1 | Diag ×3",
 				"🚀 Perf: Turn 45s (p50 45s · p90 10m) | Think time 2m | ErrRate 3.3%",
 				"📊 Tokens: Σ In 100k / Out 4k (cached 90%) | Think share 25% | Req ×40",
-				"🔧 Work: Tools ×30 Bash30 ❌ Err 1 | Edited 2 files | Hooks ×9 ❌ 1 | Diag ×3",
 				"🤝 Agent: Prompts ×4 | Auto ×7.5/prompt | Interv 50% (✋1 ⛔1) | Refuse ×1 | MaxTok ×2 | Queued ×2 | Web search 3 fetch 1 | Sub ×6 req | Models opus-5-5 75% · haiku-4-5-2… 25%",
 				"🧭 Env: ? | Perm auto", system,
 			},

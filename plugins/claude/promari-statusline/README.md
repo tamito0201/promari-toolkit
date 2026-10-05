@@ -8,10 +8,14 @@ rate limits is used and whether it will last until the reset, what the session c
 git and the pull request look like, and how the machine is doing.
 
 ```text
-🧠 Context │ ████░░░░░░ 42% 84k/200k 残 116k ⏳ ETA 1h56m │ ⚡ Claude 5h ░░░░░ 1% 🔄 4h40m 7d ████░ 73% 🔄 4d7h Pace ×1.9
-💰 Cost │ Sess $12.50 │ Today $45.67 │ Blk $8.90 (残 2h15m) │ 🔥 Burn │ ⏰ 10m (API 5m) │ Active 8m
-🌿 Git │ develop │ 📝 2 Files │ 🔽 16 Behind ┃ 🔀 PR │ #2996 CI ✅ 3 approved
-🧭 Env │ Opus 5.5 │ Mode high·think │ 📂 promari │ 💻 System │ 🕐 04:09 │ CPU 3.9/10c │ 🔌 Bat 100%
+🧠 Context │ ████░░░░░░ 42% 84k/200k 残 116k ⏳ ETA 1h56m
+⚡ Claude 5h ░░░░░ 1% 🔄 4h40m 7d ████░ 73% 🔄 4d7h Pace ×1.9
+💰 Cost │ Sess $12.50 │ Today $45.67 │ Blk $8.90 (残 2h15m)
+🔥 Burn │ $3.21/h │ ⏰ 10m (API 5m) │ Active 8m
+🌿 Git │ develop │ 📝 2 Files │ 🔽 16 Behind
+🔀 PR │ #2996 CI ✅ 3 approved
+🧭 Env │ Opus 5.5 │ Mode high·think │ 📂 promari
+💻 System │ 🕐 04:09 │ CPU 3.9/10c │ 🔌 Bat 100%
 ```
 
 It is one Go binary without a runtime to install. It reads the JSON Claude Code sends to a
@@ -199,7 +203,10 @@ Times are Unix seconds. A window that is not known is left out.
 
 A terminal cuts a line that is too long without saying so, so the layout is planned in
 display cells (an emoji or a CJK character takes two) for the width in `COLUMNS`, which
-Claude Code sets for a status line. Sections are put onto lines in a fixed order. A section
+Claude Code sets for a status line. Sections are put onto lines in a fixed order, by priority
+and by how often they are looked at (alerts, limits, money, where the work stands, metrics,
+surroundings), and every section starts a line of its own, so a section stays in its place
+whatever the width of its neighbours. A section
 a few cells too wide for a line is packed (its chips stand closer, `│` for ` │ `); one that
 does not fit even then is wrapped at a chip. Its continuation lines carry no title: they
 hang under the chips of its first line, so every section is named once.

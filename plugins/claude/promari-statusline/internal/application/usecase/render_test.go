@@ -539,7 +539,9 @@ func TestRenderFitsTheTerminal(t *testing.T) {
 	narrow.cells = 50
 	wideLines := render(w, wide, t0, session()).Lines
 	narrowLines := render(&world{git: w.git, machine: w.machine}, narrow, t0, session()).Lines
-	if len(narrowLines) <= len(wideLines) {
+	// Every category has a line of its own at any width, so a wide terminal
+	// saves no lines; a narrow one may need more, to wrap a long category.
+	if len(narrowLines) < len(wideLines) {
 		t.Errorf("a terminal of 50 cells took %d lines, one of 200 cells %d", len(narrowLines), len(wideLines))
 	}
 	if narrow.width != "test "+strings.Repeat("#", 47) {

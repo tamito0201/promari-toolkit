@@ -149,9 +149,9 @@ func TestCompose(t *testing.T) {
 			[]string{
 				"💰 Cost: Sess $12.50 | Today $45.67 | Blk $8.90 (残 2h15m) | Est $16",
 				"🔥 Burn: $3.21/h | ⏰ 2h00m (API 3h00m) | Active 1h00m | Streak 20m | Idle 20m",
+				"🔧 Work: Turns ×25",
 				"📈 KPI: Lines +1200-30 | Net +1,170 | Focus 75% | Lines/h 1,200 | Longest 20m | $/Line 0.010 | $/Turn 0.50",
 				"🚀 Perf: Parallel ×1.50",
-				"🔧 Work: Turns ×25",
 				env, system,
 			},
 		},
@@ -199,7 +199,7 @@ func TestCompose(t *testing.T) {
 				Todos:      model.Some(model.Todos{Done: 3, Total: 7, Doing: "Write the tests for the layout engine"}),
 				Transcript: model.Some(model.Transcript{Tools: model.ToolStats{Total: 200, Errors: 5, Top: []model.ToolCount{{Name: "Bash", Count: 120}, {Name: "Read", Count: 50}, {Name: "Edit", Count: 30}}}}),
 			}},
-			[]string{"🚀 Perf: ErrRate 2.5%", "🔧 Work: ✅ Todo 3/7 (Write the tests for…) | Tools ×200 Bash120/Read50/Edit30 ❌ Err 5", env, system},
+			[]string{"🔧 Work: ✅ Todo 3/7 (Write the tests for…) | Tools ×200 Bash120/Read50/Edit30 ❌ Err 5", "🚀 Perf: ErrRate 2.5%", env, system},
 		},
 		{
 			"work: to-dos without one in progress, tools without errors",
@@ -207,7 +207,7 @@ func TestCompose(t *testing.T) {
 				Todos:      model.Some(model.Todos{Done: 2, Total: 2}),
 				Transcript: model.Some(model.Transcript{Tools: model.ToolStats{Total: 3, Top: []model.ToolCount{{Name: "Read", Count: 3}}}}),
 			}},
-			[]string{"🚀 Perf: ErrRate 0.0%", "🔧 Work: ✅ Todo 2/2 | Tools ×3 Read3", env, system},
+			[]string{"🔧 Work: ✅ Todo 2/2 | Tools ×3 Read3", "🚀 Perf: ErrRate 0.0%", env, system},
 		},
 		{
 			"git with a failing pull request",
