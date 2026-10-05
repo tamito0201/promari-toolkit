@@ -57,7 +57,7 @@ func (p Projects) Projects() ([]string, error) {
 }
 
 // Shared implements repository.ProjectStore.
-func (p Projects) Shared(dir string) repository.SettingsStore {
+func (p Projects) Shared(dir string) repository.SettingsReader {
 	return Settings{Sys: p.Sys, File: filepath.Join(dir, ".claude", sharedSettingsFile)}
 }
 
@@ -68,8 +68,7 @@ func (p Projects) Local(dir string) repository.SettingsStore {
 
 // KeepOutOfGit implements repository.ProjectStore. git runs without optional
 // locks: the status line must never leave an index.lock behind.
-func (p Projects) KeepOutOfGit(dir string) (bool, error) {
-	ctx := context.Background()
+func (p Projects) KeepOutOfGit(ctx context.Context, dir string) (bool, error) {
 	git := func(args ...string) (string, error) {
 		out, err := p.Sys.Run(ctx, platform.Cmd{Name: "git", Args: append([]string{"--no-optional-locks", "-C", dir}, args...)})
 		return strings.TrimSpace(out), err

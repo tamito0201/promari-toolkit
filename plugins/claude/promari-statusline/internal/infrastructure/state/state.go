@@ -20,6 +20,7 @@ const (
 	historyFile     = "rate-history.json"
 	lastInputFile   = "last-input.json"
 	widthFile       = "width.txt"
+	sourcesFile     = "sources.json"
 	blinkDemoFile   = "blink-demo"
 	emptyJSONObject = "{}"
 )
@@ -32,9 +33,18 @@ type Activities struct {
 
 var _ repository.ActivityStore = Activities{}
 
-// Load implements repository.ActivityStore.
+// sessionsKept is how long the activity of a session that no longer renders is
+// kept: a file is written per session, and without this the directory would
+// grow by one file for every session ever started.
+const sessionsKept = 7 * 24 * time.Hour
+
+// Load implements repository.ActivityStore. A session seen for the first time
+// prunes the activities of the sessions that stopped.
 func (a Activities) Load(sessionKey string) model.Activity {
-	activity, _ := filecache.Load[model.Activity](a.Store, sessionsDir, sessionKey+".json")
+	activity, ok := filecache.Load[model.Activity](a.Store, sessionsDir, sessionKey+".json")
+	if !ok {
+		a.Store.Prune(sessionsDir, sessionsKept)
+	}
 	return activity
 }
 
@@ -119,6 +129,31 @@ func (r Recorder) Input(raw []byte) {
 // Width implements repository.Recorder.
 func (r Recorder) Width(source string, budget int) {
 	_ = r.Store.WriteRaw(widthFile, []byte(source+" "+strconv.Itoa(budget)+"\n"))
+}
+
+// sourceRun is a run as it is written for a person to read. The duration is
+// written as text: encoding/json/v2 has no form for a time.Duration and refuses
+// to write one, which a recorder that drops its errors would never show.
+type sourceRun struct {
+	Source  string `json:"source"`
+	Took    string `json:"took"`
+	Outcome string `json:"outcome"`
+}
+
+// outcomes are the names of model.SourceOutcome, in its order.
+var outcomes = [...]string{"answered", "none", "failed", "panicked"}
+
+// Sources implements repository.Recorder.
+func (r Recorder) Sources(runs []model.SourceRun) {
+	written := make([]sourceRun, len(runs))
+	for i, run := range runs {
+		outcome := "unknown"
+		if int(run.Outcome) < len(outcomes) {
+			outcome = outcomes[run.Outcome]
+		}
+		written[i] = sourceRun{Source: run.Source, Took: run.Took.String(), Outcome: outcome}
+	}
+	_ = filecache.Save(r.Store, written, sourcesFile)
 }
 
 // Switches reads the user's on/off choices, each a file in the cache directory.

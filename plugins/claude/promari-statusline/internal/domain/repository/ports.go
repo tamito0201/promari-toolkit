@@ -14,7 +14,10 @@ import (
 )
 
 // ErrNone is returned by a reader that looked and found nothing to report: no
-// pull request, no song, no incident. It is an answer, not a failure.
+// pull request, no song, no incident. It is an answer, not a failure: a reader
+// that could not look returns its own error, wrapped. The one reader that
+// returns a value along with ErrNone is TranscriptReader, whose value is where
+// the next read continues.
 var ErrNone = errors.New("nothing to report")
 
 // Clock tells the time.
@@ -151,6 +154,8 @@ type Terminal interface {
 type Recorder interface {
 	Input(raw []byte)
 	Width(source string, budget int)
+	// Sources keeps how each question of the render went.
+	Sources(runs []model.SourceRun)
 }
 
 // Switches are the user's on/off choices outside the settings file.
@@ -159,11 +164,16 @@ type Switches interface {
 	BlinkDemo() bool
 }
 
-// SettingsStore reads and edits Claude Code's user settings.
-type SettingsStore interface {
+// SettingsReader reads a Claude Code settings file.
+type SettingsReader interface {
 	Path() string
 	// StatusLine returns the current entry. It returns ErrNone when there is none.
 	StatusLine() (model.StatusLineSetting, error)
+}
+
+// SettingsStore reads and edits a Claude Code settings file.
+type SettingsStore interface {
+	SettingsReader
 	// SetStatusLine writes the entry and returns the path of the backup it
 	// made of the previous file, or "" when there was nothing to back up.
 	SetStatusLine(s model.StatusLineSetting) (backup string, err error)
@@ -178,27 +188,34 @@ type ProjectStore interface {
 	// that still exist, the user's home (whose settings are the user's) left out.
 	Projects() ([]string, error)
 	// Shared is the project's settings file shared through the repository
-	// (.claude/settings.json); it is read, never written.
-	Shared(dir string) SettingsStore
+	// (.claude/settings.json). It belongs to the repository and its other
+	// users, so it can be read and never written.
+	Shared(dir string) SettingsReader
 	// Local is the project's personal settings file (.claude/settings.local.json),
 	// which takes precedence over the shared one.
 	Local(dir string) SettingsStore
 	// KeepOutOfGit makes sure the personal settings file is not picked up by
 	// git: it is ignored already, or it is added to the repository's own
 	// exclude list (.git/info/exclude, never shared). added is false when
-	// nothing had to change, and for a directory outside a repository.
-	KeepOutOfGit(dir string) (added bool, err error)
+	// nothing had to change, and for a directory outside a repository. It runs
+	// git, which ctx stops.
+	KeepOutOfGit(ctx context.Context, dir string) (added bool, err error)
 }
 
-// BinaryStore keeps a copy of the running binary at a path that does not
-// change between plugin versions, which is what the settings point at.
-type BinaryStore interface {
+// BinaryInspector looks at the copy of the running binary kept at a path that
+// does not change between plugin versions, which is what the settings point at.
+type BinaryInspector interface {
 	// Command returns the command line that runs the installed copy.
 	Command() string
 	Path() string
 	// InSync reports whether the installed copy is the running binary. It
 	// returns ErrNone when no copy is installed.
 	InSync() (bool, error)
+}
+
+// BinaryStore keeps the copy of the running binary.
+type BinaryStore interface {
+	BinaryInspector
 	Install() error
 	Remove() error
 }

@@ -148,3 +148,62 @@ func TestActivityDeepWork(t *testing.T) {
 		t.Errorf("Longest = %v; the current streak counts", got)
 	}
 }
+
+// TestTranscriptRecordsCallsAndResults covers the rules a transcript's calls
+// and results are recorded by, apart from how a transcript is written.
+func TestTranscriptRecordsCallsAndResults(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)
+	var tr model.Transcript
+
+	tr.Called(model.ToolCall{ID: "e1", Kind: model.CallEdit, Signature: "a", File: "main.go"})
+	tr.Called(model.ToolCall{ID: "e2", Kind: model.CallEdit, Signature: "b", File: "main.go"})
+	if tr.Quality.Edits != 2 || tr.Quality.ReEdits != 1 || !slices.Equal(tr.Files, []string{"main.go"}) {
+		t.Errorf("after two edits of one file: %+v, files %v", tr.Quality, tr.Files)
+	}
+	tr.Resulted(model.ToolResult{ID: "e2", Failed: true})
+	if tr.Quality.EditFailures != 1 {
+		t.Errorf("a failed edit was not counted: %+v", tr.Quality)
+	}
+
+	// A test run whose exit code says success while its output says failure is masked.
+	tr.Called(model.ToolCall{ID: "t1", Kind: model.CallOther, Signature: "c", Command: "go test ./..."})
+	tr.Resulted(model.ToolResult{ID: "t1", Output: "--- FAIL: TestX\nFAIL", At: at})
+	if tr.Quality.Tests.Masked != 1 || tr.Quality.RedSince != at {
+		t.Errorf("a failure behind a zero exit code: %+v", tr.Quality)
+	}
+	// Calls while the tests are red are counted, a subagent's are not.
+	tr.Called(model.ToolCall{ID: "r1", Kind: model.CallRead, Signature: "d"})
+	tr.Called(model.ToolCall{ID: "r2", Kind: model.CallRead, Signature: "e", Side: true})
+	if tr.Quality.RedCalls != 1 {
+		t.Errorf("red calls = %d, want 1", tr.Quality.RedCalls)
+	}
+	// A refused or interrupted check decides nothing.
+	tr.Called(model.ToolCall{ID: "t2", Kind: model.CallOther, Signature: "f", Command: "go test ./..."})
+	tr.Resulted(model.ToolResult{ID: "t2", Skipped: true, Output: "ok"})
+	waiting := slices.ContainsFunc(tr.Quality.Pending, func(p model.PendingCall) bool { return p.ID == "t2" })
+	if tr.Quality.RedSince != at || tr.Quality.Tests.Runs != 1 || waiting {
+		t.Errorf("a skipped check changed the state: %+v", tr.Quality)
+	}
+	// A result nobody waited for is left alone.
+	tr.Resulted(model.ToolResult{ID: "unknown", Failed: true})
+	if tr.Quality.EditFailures != 1 {
+		t.Errorf("an unknown result was counted: %+v", tr.Quality)
+	}
+}
+
+func TestTranscriptCompactionsAndHooks(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)
+	var tr model.Transcript
+	tr.Compacted(at)
+	tr.Compacted(time.Time{}) // a compaction without a readable time keeps the last one known
+	if tr.Compactions != 2 || tr.LastCompaction != at {
+		t.Errorf("compactions = %d, last %v", tr.Compactions, tr.LastCompaction)
+	}
+	tr.HookRan(false)
+	tr.HookRan(true)
+	if tr.Hooks != 2 || tr.HookErrors != 1 {
+		t.Errorf("hooks = %d, errors %d", tr.Hooks, tr.HookErrors)
+	}
+}

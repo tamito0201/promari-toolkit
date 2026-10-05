@@ -22,8 +22,12 @@ type Facts struct {
 	Machine Machine
 }
 
-// Git is the state of the working tree.
+// Git is the state of the working tree, with the History of its branch
+// embedded: what the commits say is read less often than the working tree, and
+// is kept with it as one value rather than copied into it field by field.
 type Git struct {
+	History
+
 	Branch  string
 	Changed int
 	Ahead   int
@@ -40,12 +44,6 @@ type Git struct {
 	// Operation is the operation in progress (rebase, merge, cherry-pick,
 	// revert, bisect), or "".
 	Operation string
-	// CommitsToday are the commits on HEAD made since midnight; FixesToday
-	// those that fix or revert.
-	CommitsToday int
-	FixesToday   int
-	// AICommitsToday are the commits of today that an AI co-authored.
-	AICommitsToday int
 	// Changes are the files changed against HEAD with their lines, and
 	// DebtAdded the lines added to source files that mark a debt (TODO, FIXME,
 	// HACK, XXX), DebtRemoved those deleted.
@@ -61,26 +59,6 @@ type Git struct {
 	SkipsAdded     int
 	AssertsAdded   int
 	AssertsRemoved int
-	// DefaultBranch is the branch origin's HEAD points at, or "" when unknown.
-	DefaultBranch string
-	// BranchStart is when the first commit of the branch that the default
-	// branch does not have was made, and OldestUnpushed when the oldest commit
-	// not pushed yet was made; zero when there is none.
-	BranchStart    time.Time
-	OldestUnpushed time.Time
-	// TodayAdded and TodayDeleted are the lines today's commits changed, and
-	// VagueToday the commits whose subject says nothing about the change.
-	TodayAdded   int
-	TodayDeleted int
-	VagueToday   int
-	// LargestToday is the most lines one commit of today changed, and
-	// ConventionalToday the commits of today whose subject starts with a
-	// Conventional Commits type.
-	LargestToday      int
-	ConventionalToday int
-	// BehindDefault are the commits of the default branch the branch does not
-	// have yet.
-	BehindDefault int
 	// ConflictMarkers are conflict markers added to files; Junk are changed or
 	// untracked paths that do not belong in a repository, JunkStaged those of
 	// them staged.
@@ -93,21 +71,6 @@ type Git struct {
 	// RulesUnchecked are the added lines past model.MaxLintedLines, left
 	// unchecked.
 	RulesUnchecked int
-	// MergedBranches are the local branches merged into the default branch and
-	// not deleted.
-	MergedBranches int
-	// Streak is the run of days with the user's commits up to today, and
-	// LongestStreak the longest in the last 60 days.
-	Streak        int
-	LongestStreak int
-	// RevertsToday are today's commits that revert another; OldBranches the
-	// local branches without a commit for OldBranchAfter; SwitchesToday the
-	// times the working tree changed branch today; FetchedAt when the remote
-	// was last fetched, zero when never or unknown.
-	RevertsToday  int
-	OldBranches   int
-	SwitchesToday int
-	FetchedAt     time.Time
 	// LastCommit is zero when the branch has no commit.
 	LastCommit time.Time
 }

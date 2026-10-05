@@ -105,11 +105,8 @@ func readEntry(t *model.Transcript, line []byte) {
 				t.AddTurn(time.Duration(ms * float64(time.Millisecond)))
 			}
 		case compactBoundary:
-			t.Compactions++
-			t.Trace.Compacted()
-			if at, err := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp")); err == nil {
-				t.LastCompaction = at
-			}
+			at, _ := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp"))
+			t.Compacted(at)
 		}
 	}
 }
@@ -120,10 +117,9 @@ func readEntry(t *model.Transcript, line []byte) {
 func readAttachment(t *model.Transcript, kind string) {
 	switch kind {
 	case "hook_success":
-		t.Hooks++
+		t.HookRan(false)
 	case "hook_non_blocking_error", "hook_blocking_error", "hook_cancelled":
-		t.Hooks++
-		t.HookErrors++
+		t.HookRan(true)
 	case "queued_command":
 		t.Queued++
 	case "diagnostics":
@@ -181,38 +177,19 @@ func readResponse(t *model.Transcript, entry jsonx.Object) {
 	t.WebFetches += int(jsonx.Or[float64](server, "web_fetch_requests"))
 }
 
-// readCall adds a tool call: the file an edit changes, the check a shell
-// command runs, and whether the call repeats the one before. A subagent's calls
-// are not compared with the main conversation's: the two interleave.
+// readCall reads a tool call into the model's terms: its kind, the file an
+// edit names and the command a shell call runs. What the call means is the
+// model's to record.
 func readCall(t *model.Transcript, block jsonx.Object, side bool) {
 	name := jsonx.Or[string](block, "name")
 	input := jsonx.Child(block, "input")
-	id := jsonx.Or[string](block, "id")
-	q := &t.Quality
-	sig := signature(name, block["input"])
-	if !side {
-		q.Call(sig)
-		t.Trace.Called(callKind(name), sig)
-		if !q.RedSince.IsZero() {
-			q.RedCalls++
-		}
-	}
+	call := model.ToolCall{ID: jsonx.Or[string](block, "id"), Kind: callKind(name), Signature: signature(name, block["input"]), Side: side}
 	if member, ok := editTools[name]; ok {
-		file := jsonx.Or[string](input, member)
-		q.Edits++
-		if slices.Contains(t.Files, file) {
-			q.ReEdits++
-		}
-		t.AddFile(file)
-		q.Await(model.PendingCall{ID: id, File: file})
-		return
+		call.File = jsonx.Or[string](input, member)
+	} else if name == bashTool {
+		call.Command = jsonx.Or[string](input, "command")
 	}
-	if name == bashTool {
-		command := jsonx.Or[string](input, "command")
-		if kind := model.ClassifyCommand(command); kind != model.CheckNone {
-			q.Await(model.PendingCall{ID: id, Check: kind, Command: command})
-		}
-	}
+	t.Called(call)
 }
 
 // searchTools are the tools that search the files.
@@ -244,9 +221,8 @@ func signature(name string, input []byte) string {
 	return strconv.FormatUint(h.Sum64(), 36)
 }
 
-// readResults adds the results of the calls that were waited for: how a check
-// ended, and whether an edit was made. A refused or interrupted call did not
-// run and decides nothing.
+// readResults reads the results of tool calls into the model's terms. A
+// refused or interrupted call did not run; the model leaves it undecided.
 func readResults(t *model.Transcript, entry jsonx.Object) {
 	if !jsonx.Or[bool](entry, "isSidechain") {
 		for _, block := range jsonx.Or[[]jsonx.Object](jsonx.Child(entry, "message"), "content") {
@@ -255,37 +231,25 @@ func readResults(t *model.Transcript, entry jsonx.Object) {
 			}
 		}
 	}
-	q := &t.Quality
-	if len(q.Pending) == 0 {
+	if len(t.Quality.Pending) == 0 {
 		return
 	}
-	refused := jsonx.Or[string](entry, "toolDenialKind") != ""
 	result := jsonx.Child(entry, "toolUseResult")
-	interrupted := jsonx.Or[bool](result, "interrupted")
+	skipped := jsonx.Or[string](entry, "toolDenialKind") != "" || jsonx.Or[bool](result, "interrupted")
+	_, structured := jsonx.Get[jsonx.Object](entry, "toolUseResult")
+	at, _ := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp"))
 	for _, block := range jsonx.Or[[]jsonx.Object](jsonx.Child(entry, "message"), "content") {
 		if jsonx.Or[string](block, "type") != "tool_result" {
 			continue
 		}
-		call, ok := q.Resolve(jsonx.Or[string](block, "tool_use_id"))
-		if !ok || refused || interrupted {
-			continue
-		}
-		failed := jsonx.Or[bool](block, "is_error")
-		if call.Check == model.CheckNone {
-			if failed {
-				q.EditFailed()
-			} else {
-				q.Edited(call.File)
-			}
-			continue
-		}
 		output := jsonx.Or[string](result, "stdout") + "\n" + jsonx.Or[string](result, "stderr")
-		if _, structured := jsonx.Get[jsonx.Object](entry, "toolUseResult"); !structured {
+		if !structured {
 			output = resultText(block)
 		}
-		outcome := model.JudgeCheck(call.Check, call.Command, failed, output)
-		at, _ := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp"))
-		q.Checked(call.Check, outcome, outcome == model.OutcomeFail && !failed, at)
+		t.Resulted(model.ToolResult{
+			ID: jsonx.Or[string](block, "tool_use_id"), Skipped: skipped, Failed: jsonx.Or[bool](block, "is_error"),
+			Output: output, At: at,
+		})
 	}
 }
 

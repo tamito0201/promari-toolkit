@@ -94,7 +94,7 @@ func TestKeepOutOfGit(t *testing.T) {
 		sys := platformtest.New(t0)
 		inRepo(sys)
 		sys.Files["/w/repo/.git/info/exclude"] = []byte("# git ls-files --others --exclude-from=.git/info/exclude\n*.swp")
-		added, err := claude.Projects{Sys: sys}.KeepOutOfGit("/w/repo/app")
+		added, err := claude.Projects{Sys: sys}.KeepOutOfGit(t.Context(), "/w/repo/app")
 		data, _ := sys.File("/w/repo/.git/info/exclude")
 		if !added || err != nil || !strings.HasPrefix(data, "# git ls-files") || !strings.Contains(data, "*.swp\n") || !strings.HasSuffix(data, line) {
 			t.Errorf("added = %v, %v; exclude =\n%s", added, err, data)
@@ -107,7 +107,7 @@ func TestKeepOutOfGit(t *testing.T) {
 		t.Parallel()
 		sys := platformtest.New(t0)
 		inRepo(sys)
-		if added, err := (claude.Projects{Sys: sys}).KeepOutOfGit("/w/repo/app"); !added || err != nil {
+		if added, err := (claude.Projects{Sys: sys}).KeepOutOfGit(t.Context(), "/w/repo/app"); !added || err != nil {
 			t.Fatalf("added = %v, %v", added, err)
 		}
 		if data, _ := sys.File("/w/repo/.git/info/exclude"); !strings.HasSuffix(data, line) || strings.HasPrefix(data, "\n") {
@@ -119,7 +119,7 @@ func TestKeepOutOfGit(t *testing.T) {
 		sys := platformtest.New(t0)
 		inRepo(sys)
 		sys.Cmds[gitPrefix+"check-ignore -q .claude/settings.local.json"] = platformtest.Result{}
-		if added, err := (claude.Projects{Sys: sys}).KeepOutOfGit("/w/repo/app"); added || err != nil {
+		if added, err := (claude.Projects{Sys: sys}).KeepOutOfGit(t.Context(), "/w/repo/app"); added || err != nil {
 			t.Errorf("added = %v, %v", added, err)
 		}
 		if _, ok := sys.File("/w/repo/.git/info/exclude"); ok {
@@ -128,7 +128,7 @@ func TestKeepOutOfGit(t *testing.T) {
 	})
 	t.Run("not a repository", func(t *testing.T) {
 		t.Parallel()
-		if added, err := (claude.Projects{Sys: platformtest.New(t0)}).KeepOutOfGit("/w/repo/app"); added || err != nil {
+		if added, err := (claude.Projects{Sys: platformtest.New(t0)}).KeepOutOfGit(t.Context(), "/w/repo/app"); added || err != nil {
 			t.Errorf("added = %v, %v", added, err)
 		}
 	})
@@ -152,7 +152,7 @@ func TestKeepOutOfGit(t *testing.T) {
 			sys := platformtest.New(t0)
 			inRepo(sys)
 			c.breakIt(sys)
-			if _, err := (claude.Projects{Sys: sys}).KeepOutOfGit("/w/repo/app"); err == nil {
+			if _, err := (claude.Projects{Sys: sys}).KeepOutOfGit(t.Context(), "/w/repo/app"); err == nil {
 				t.Error("no error")
 			}
 		})

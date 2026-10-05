@@ -3,6 +3,7 @@ package state
 import (
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"promari-statusline/internal/domain/model"
@@ -68,7 +69,16 @@ func (p Peers) Roster() model.Roster {
 	// is ever removed; a key read from a file never makes a path.
 	var paths []string
 	byOwner := map[int]int{}
-	for _, path := range p.Sys.Glob(p.Store.Path(peersDir, "*.json")) {
+	for _, path := range p.Sys.Glob(p.Store.Path(peersDir, "*.json*")) {
+		if !strings.HasSuffix(path, ".json") {
+			// The temporary file of a write: one a killed render left behind
+			// (a dead session's key is never written again, so no write would
+			// sweep it), or one of a write in flight, told apart by age.
+			if at, err := p.Sys.ModTime(path); err == nil && now.Sub(at) >= peerQuiet {
+				p.drop(path)
+			}
+			continue
+		}
 		peer, ok := filecache.Load[model.Peer](p.Store, peersDir, filepath.Base(path))
 		if !ok || !p.running(peer, now) {
 			p.drop(path)

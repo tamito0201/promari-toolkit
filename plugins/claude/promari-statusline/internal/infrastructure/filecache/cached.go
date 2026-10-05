@@ -45,7 +45,7 @@ type PullRequests struct {
 
 // PullRequest implements repository.PullRequestReader.
 func (c PullRequests) PullRequest(ctx context.Context, dir, branch string) (model.PullRequest, error) {
-	return Memo(c.Store, "pull-request.json", dir+":"+branch, pullTTL, func() (model.PullRequest, error) {
+	return Memo(ctx, c.Store, "pull-request", dir+":"+branch, pullTTL, func() (model.PullRequest, error) {
 		return c.Next.PullRequest(ctx, dir, branch)
 	})
 }
@@ -63,7 +63,7 @@ type Histories struct {
 
 // History implements repository.HistoryReader.
 func (c Histories) History(ctx context.Context, dir, branch string) (model.History, error) {
-	return Memo(c.Store, "history.json", dir+":"+branch, historyTTL, func() (model.History, error) {
+	return Memo(ctx, c.Store, "history", dir+":"+branch, historyTTL, func() (model.History, error) {
 		return c.Next.History(ctx, dir, branch)
 	})
 }
@@ -76,7 +76,7 @@ type ReviewQueues struct {
 
 // ReviewQueue implements repository.ReviewQueueReader.
 func (c ReviewQueues) ReviewQueue(ctx context.Context, dir string) (model.ReviewQueue, error) {
-	return Memo(c.Store, "review-queue.json", dir, pullTTL, func() (model.ReviewQueue, error) {
+	return Memo(ctx, c.Store, "review-queue", dir, pullTTL, func() (model.ReviewQueue, error) {
 		return c.Next.ReviewQueue(ctx, dir)
 	})
 }
@@ -91,7 +91,7 @@ type Workloads struct {
 
 // Workload implements repository.WorkloadReader.
 func (c Workloads) Workload(ctx context.Context, dir string) (model.Workload, error) {
-	return Memo(c.Store, "workload.json", dir, pullTTL, func() (model.Workload, error) {
+	return Memo(ctx, c.Store, "workload", dir, pullTTL, func() (model.Workload, error) {
 		return c.Next.Workload(ctx, dir)
 	})
 }
@@ -104,7 +104,7 @@ type Tracks struct {
 
 // Track implements repository.TrackReader.
 func (c Tracks) Track(ctx context.Context) (model.Track, error) {
-	return Memo(c.Store, "track.json", "", trackTTL, func() (model.Track, error) { return c.Next.Track(ctx) })
+	return Memo(ctx, c.Store, "track", "", trackTTL, func() (model.Track, error) { return c.Next.Track(ctx) })
 }
 
 // Transcripts remembers what each transcript recorded and where its reading
@@ -133,10 +133,11 @@ func (c Transcripts) Transcript(ctx context.Context, path string, since model.Tr
 	if known {
 		since = last.Value
 	} else {
-		c.Store.prune(transcriptDir, transcriptsKept)
+		c.Store.Prune(transcriptDir, transcriptsKept)
 	}
 	read, err := c.Next.Transcript(ctx, path, since)
-	if err != nil && !errors.Is(err, repository.ErrNone) {
+	// A read cut short by the end of the render is not where the next one continues.
+	if err != nil && !errors.Is(err, repository.ErrNone) || ctx.Err() != nil {
 		return read, err
 	}
 	// A cache that cannot be written costs reading the transcript from the start next time.
@@ -158,7 +159,7 @@ type Incidents struct {
 
 // Incident implements repository.IncidentReader.
 func (c Incidents) Incident(ctx context.Context) (model.Incident, error) {
-	return Memo(c.Store, "incident.json", "", incidentTTL, func() (model.Incident, error) { return c.Next.Incident(ctx) })
+	return Memo(ctx, c.Store, "incident", "", incidentTTL, func() (model.Incident, error) { return c.Next.Incident(ctx) })
 }
 
 // Releases remembers the newest released version.
@@ -169,7 +170,7 @@ type Releases struct {
 
 // Latest implements repository.ReleaseReader.
 func (c Releases) Latest(ctx context.Context) (string, error) {
-	return Memo(c.Store, "latest.json", "", releaseTTL, func() (string, error) { return c.Next.Latest(ctx) })
+	return Memo(ctx, c.Store, "latest", "", releaseTTL, func() (string, error) { return c.Next.Latest(ctx) })
 }
 
 // Codex remembers the usage windows Codex last reported.
@@ -180,7 +181,7 @@ type Codex struct {
 
 // Codex implements repository.CodexReader.
 func (c Codex) Codex(ctx context.Context) (model.CodexLimits, error) {
-	return Memo(c.Store, "codex.json", "", codexTTL, func() (model.CodexLimits, error) { return c.Next.Codex(ctx) })
+	return Memo(ctx, c.Store, "codex", "", codexTTL, func() (model.CodexLimits, error) { return c.Next.Codex(ctx) })
 }
 
 // AccountFile is an account reader that names the file it reads.
@@ -205,5 +206,5 @@ func (c Accounts) Account(ctx context.Context) (string, error) {
 	if at, err := c.Store.sys.ModTime(file); err == nil {
 		key += "@" + at.UTC().Format(time.RFC3339Nano)
 	}
-	return Memo(c.Store, "account.json", key, accountTTL, func() (string, error) { return c.Next.Account(ctx) })
+	return Memo(ctx, c.Store, "account", key, accountTTL, func() (string, error) { return c.Next.Account(ctx) })
 }

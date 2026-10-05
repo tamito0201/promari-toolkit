@@ -6,6 +6,9 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,8 +55,11 @@ type RenderStatusLine struct {
 	deps RenderDeps
 }
 
-// NewRenderStatusLine returns the use case.
+// NewRenderStatusLine returns the use case. It panics when a dependency is
+// missing: a wiring mistake is found when the program starts, not as a chip
+// that never shows.
 func NewRenderStatusLine(deps RenderDeps) *RenderStatusLine {
+	mustBeWired("RenderDeps", deps)
 	return &RenderStatusLine{deps: deps}
 }
 
@@ -83,7 +89,9 @@ func (u *RenderStatusLine) Execute(ctx context.Context, req RenderRequest) Rende
 		view.Usage = model.Some(usage)
 		view.Activity = u.observe(&req.Session, usage.Used, now)
 	}
-	view.Facts = u.gather(ctx, req)
+	facts, runs := u.gather(ctx, req)
+	view.Facts = facts
+	d.Recorder.Sources(runs)
 	// The account the limits, the forecasts and the other sessions belong to.
 	account := view.Facts.Account.Or("")
 	view.Limits, view.LimitsSeen, view.Forecasts = u.limits(account, req.Session.Limits, now)
@@ -163,59 +171,124 @@ func branchOf(facts model.Facts) string {
 	return ""
 }
 
-// gather asks every source at once. Each question runs in its own goroutine,
-// which ends when its reader returns; every reader is bounded by the timeout
-// of the command or request behind it. The number of goroutines is the number
-// of sources, fixed in this function. Each writes one field of its own.
-func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) model.Facts {
+// gather asks every source at once (fan-out) and waits for all (fan-in). Each
+// question runs in its own goroutine, which ends when its reader returns;
+// every reader is bounded by the timeout of the command or request behind it.
+// The number of goroutines is the number of sources, fixed in this function.
+// Each writes one field of its own. It returns the facts and how each question
+// went.
+func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) (model.Facts, []model.SourceRun) {
 	src := u.deps.Sources
 	s := &req.Session
+	r := &runs{clock: u.deps.Clock}
 	var facts model.Facts
 	var wg sync.WaitGroup
-	wg.Go(func() { facts.Git, facts.Pull = u.gitAndPull(ctx, s.WorkDir()) })
+	wg.Go(func() { facts.Git, facts.Pull = u.gitAndPull(ctx, r, s.WorkDir()) })
 	wg.Go(func() {
-		facts.Reviews = read(func() (model.ReviewQueue, error) { return src.Reviews.ReviewQueue(ctx, s.WorkDir()) })
+		facts.Reviews = read(r, "reviews", func() (model.ReviewQueue, error) { return src.Reviews.ReviewQueue(ctx, s.WorkDir()) })
 	})
 	wg.Go(func() {
-		facts.Workload = read(func() (model.Workload, error) { return src.Workload.Workload(ctx, s.WorkDir()) })
+		facts.Workload = read(r, "workload", func() (model.Workload, error) { return src.Workload.Workload(ctx, s.WorkDir()) })
 	})
-	wg.Go(func() { facts.Spend = read(func() (model.Spend, error) { return src.Spend.Spend(ctx, req.Raw) }) })
-	wg.Go(func() { facts.Codex = read(func() (model.CodexLimits, error) { return src.Codex.Codex(ctx) }) })
-	wg.Go(func() { facts.Track = read(func() (model.Track, error) { return src.Track.Track(ctx) }) })
-	wg.Go(func() { facts.Incident = read(func() (model.Incident, error) { return src.Incident.Incident(ctx) }) })
-	wg.Go(func() { facts.Latest = read(func() (string, error) { return src.Release.Latest(ctx) }) })
-	wg.Go(func() { facts.Account = read(func() (string, error) { return src.Account.Account(ctx) }) })
-	wg.Go(func() { facts.Machine = src.Machine.Machine(ctx, s.WorkDir()) })
+	wg.Go(func() {
+		facts.Spend = read(r, "spend", func() (model.Spend, error) { return src.Spend.Spend(ctx, req.Raw) })
+	})
+	wg.Go(func() {
+		facts.Codex = read(r, "codex", func() (model.CodexLimits, error) { return src.Codex.Codex(ctx) })
+	})
+	wg.Go(func() { facts.Track = read(r, "track", func() (model.Track, error) { return src.Track.Track(ctx) }) })
+	wg.Go(func() {
+		facts.Incident = read(r, "incident", func() (model.Incident, error) { return src.Incident.Incident(ctx) })
+	})
+	wg.Go(func() { facts.Latest = read(r, "release", func() (string, error) { return src.Release.Latest(ctx) }) })
+	wg.Go(func() { facts.Account = read(r, "account", func() (string, error) { return src.Account.Account(ctx) }) })
+	wg.Go(func() {
+		// The machine is always answered, with what could be measured.
+		machine := read(r, "machine", func() (model.Machine, error) { return src.Machine.Machine(ctx, s.WorkDir()), nil })
+		facts.Machine = machine.Or(model.Machine{})
+	})
 	if s.TranscriptPath != "" {
 		wg.Go(func() {
-			facts.Transcript = read(func() (model.Transcript, error) {
+			facts.Transcript = read(r, "transcript", func() (model.Transcript, error) {
 				return src.Transcript.Transcript(ctx, s.TranscriptPath, model.Transcript{})
 			})
 		})
 	}
 	if key, ok := s.Key(); ok {
-		wg.Go(func() { facts.Todos = read(func() (model.Todos, error) { return src.Todos.Todos(ctx, key) }) })
+		wg.Go(func() {
+			facts.Todos = read(r, "todos", func() (model.Todos, error) { return src.Todos.Todos(ctx, key) })
+		})
 	}
 	wg.Wait()
-	return facts
+	return facts, r.sorted()
 }
 
 // gitAndPull reads the working tree and then the pull request of its branch.
-func (u *RenderStatusLine) gitAndPull(ctx context.Context, dir string) (model.Optional[model.Git], model.Optional[model.PullRequest]) {
-	git, err := u.deps.Sources.Git.Git(ctx, dir)
-	if err != nil || git.Branch == "" {
+func (u *RenderStatusLine) gitAndPull(ctx context.Context, r *runs, dir string) (model.Optional[model.Git], model.Optional[model.PullRequest]) {
+	git := read(r, "git", func() (model.Git, error) { return u.deps.Sources.Git.Git(ctx, dir) })
+	g, ok := git.Get()
+	if !ok || g.Branch == "" {
 		return model.Optional[model.Git]{}, model.Optional[model.PullRequest]{}
 	}
-	pull := read(func() (model.PullRequest, error) { return u.deps.Sources.Pulls.PullRequest(ctx, dir, git.Branch) })
-	return model.Some(git), pull
+	pull := read(r, "pull", func() (model.PullRequest, error) { return u.deps.Sources.Pulls.PullRequest(ctx, dir, g.Branch) })
+	return git, pull
 }
 
-// read turns a reader's answer into an optional fact: any error, a failure as
-// much as "nothing to report", leaves the fact absent.
-func read[T any](ask func() (T, error)) model.Optional[T] {
-	v, err := ask()
+// runs collects how the questions of one render went. The goroutines of a
+// render add to it at once.
+type runs struct {
+	clock repository.Clock
+	mu    sync.Mutex
+	list  []model.SourceRun
+}
+
+func (r *runs) add(run model.SourceRun) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.list = append(r.list, run)
+}
+
+// sorted returns the runs in the order of their sources' names, so that two
+// renders are compared line by line.
+func (r *runs) sorted() []model.SourceRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.SortedFunc(slices.Values(r.list), func(a, b model.SourceRun) int { return strings.Compare(a.Source, b.Source) })
+}
+
+// errPanicked is the answer of a reader that panicked.
+var errPanicked = errors.New("the reader panicked")
+
+// read asks one source and turns its answer into an optional fact: any error,
+// a failure as much as "nothing to report", leaves the fact absent. Each
+// question is a bulkhead: a reader that panics loses its own fact, not the
+// render, and the panic is kept with the question's time for diagnosis.
+func read[T any](r *runs, source string, ask func() (T, error)) model.Optional[T] {
+	start := r.clock.Now()
+	v, err := guarded(ask)
+	run := model.SourceRun{Source: source, Took: r.clock.Now().Sub(start)}
+	switch {
+	case errors.Is(err, errPanicked):
+		run.Outcome = model.SourcePanicked
+	case errors.Is(err, repository.ErrNone):
+		run.Outcome = model.SourceNone
+	case err != nil:
+		run.Outcome = model.SourceFailed
+	}
+	r.add(run)
 	if err != nil {
 		return model.Optional[T]{}
 	}
 	return model.Some(v)
+}
+
+// guarded runs ask, turning a panic into errPanicked.
+func guarded[T any](ask func() (T, error)) (v T, err error) {
+	defer func() {
+		if recover() != nil {
+			var zero T
+			v, err = zero, errPanicked
+		}
+	}()
+	return ask()
 }

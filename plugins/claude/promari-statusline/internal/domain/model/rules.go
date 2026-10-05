@@ -46,11 +46,13 @@ const (
 	RuleNoDoc                   // a public C# member without an XML doc comment
 	RuleLongLine                // a line longer than 120 columns
 	RuleTabIndent               // a tab used to indent C#
-	ruleCount
+	// RuleCount is the number of rules: a table indexed by Rule has this length,
+	// so a rule added without its entry is caught by the table's test.
+	RuleCount
 )
 
 // Violations counts the broken rules of the added lines.
-type Violations [ruleCount]int
+type Violations [RuleCount]int
 
 // Total returns the number of broken rules.
 func (v Violations) Total() int {

@@ -39,6 +39,12 @@ func TestActivities(t *testing.T) {
 	if _, ok := sys.File(cache + "sessions/s1.json"); !ok {
 		t.Errorf("the activity is not in a file named after the session: %v", sys.Glob(cache+"*/*"))
 	}
+	// A session that stopped is pruned when a new one starts, a week later.
+	sys.T = sys.T.Add(8 * 24 * time.Hour)
+	_ = activities.Load("s3")
+	if _, ok := sys.File(cache + "sessions/s1.json"); ok {
+		t.Error("the activity of a session that stopped a week ago is kept")
+	}
 }
 
 func TestLimits(t *testing.T) {
@@ -108,6 +114,19 @@ func TestRecorder(t *testing.T) {
 			}
 		})
 	}
+	t.Run("the runs of the last render", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		recorder := state.Recorder{Store: filecache.NewStore(sys)}
+		recorder.Sources([]model.SourceRun{
+			{Source: "git", Took: 1500 * time.Microsecond, Outcome: model.SourcePanicked},
+			{Source: "pull", Outcome: model.SourceOutcome(9)},
+		})
+		got, _ := sys.File(cache + "sources.json")
+		if got != `[{"source":"git","took":"1.5ms","outcome":"panicked"},{"source":"pull","took":"0s","outcome":"unknown"}]` {
+			t.Errorf("sources = %s", got)
+		}
+	})
 	t.Run("a cache that cannot be written does not stop a render", func(t *testing.T) {
 		t.Parallel()
 		sys := platformtest.New(t0)
@@ -165,5 +184,23 @@ func TestLimitsAreKeptApartForEachAccount(t *testing.T) {
 	}
 	if n := len(sys.Glob(cache + "accounts/*/rate-limits.json")); n != 2 {
 		t.Errorf("%d account files, want 2", n)
+	}
+}
+
+// A temporary file a killed render left in the sessions directory names a
+// session that may never render again, so nothing rewrites its target; the
+// prune that removes stopped sessions removes their leftovers as well.
+func TestActivitiesPruneSweepsStaleTemporaries(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	activities := state.Activities{Store: filecache.NewStore(sys)}
+	stale := cache + "sessions/dead.json.tmp42"
+	if err := sys.WriteFile(stale, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sys.T = sys.T.Add(8 * 24 * time.Hour)
+	_ = activities.Load("s3")
+	if _, ok := sys.File(stale); ok {
+		t.Error("the stale temporary file survived the prune")
 	}
 }

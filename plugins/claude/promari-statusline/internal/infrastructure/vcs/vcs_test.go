@@ -131,7 +131,7 @@ func TestGit(t *testing.T) {
 			for cmd := range tt.cmds {
 				dir, _, _ = strings.Cut(strings.TrimPrefix(cmd, "git --no-optional-locks -C "), " ")
 			}
-			got, err := vcs.Git{Sys: sys}.Git(context.Background(), dir)
+			got, err := vcs.Git{Sys: sys, History: vcs.History{Sys: sys}}.Git(context.Background(), dir)
 			if !reflect.DeepEqual(got, tt.want) || !errors.Is(err, tt.err) {
 				t.Errorf("Git() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}
@@ -201,7 +201,7 @@ func TestGitHabits(t *testing.T) {
 			t.Parallel()
 			sys := platformtest.New(t0)
 			sys.Cmds = tt.cmds
-			got, err := vcs.Git{Sys: sys}.Git(context.Background(), "/work")
+			got, err := vcs.Git{Sys: sys, History: vcs.History{Sys: sys}}.Git(context.Background(), "/work")
 			if err != nil || !tt.want(got) {
 				t.Errorf("Git() = %+v, %v", got, err)
 			}
@@ -229,7 +229,7 @@ func TestGitHistoryExtras(t *testing.T) {
 	}
 	sys.Files["/work/.git/FETCH_HEAD"] = nil
 	sys.Times["/work/.git/FETCH_HEAD"] = t0.Add(-2 * day)
-	got, err := vcs.Git{Sys: sys}.Git(context.Background(), "/work")
+	got, err := vcs.Git{Sys: sys, History: vcs.History{Sys: sys}}.Git(context.Background(), "/work")
 	// The branches of 15 and 20 days; the current and the default are left out.
 	if err != nil || got.OldBranches != 2 || got.SwitchesToday != 2 || !got.FetchedAt.Equal(t0.Add(-2*day)) || got.BehindDefault != 12 || got.Operation != "" {
 		t.Errorf("Git() = old %d, switches %d, fetched %v, behind %d, operation %q, %v", got.OldBranches, got.SwitchesToday, got.FetchedAt, got.BehindDefault, got.Operation, err)
@@ -241,7 +241,7 @@ func TestGitHistoryExtras(t *testing.T) {
 		at + "branch --show-current":      {Out: "main\n"},
 		at + "rev-parse --git-common-dir": {Out: "/work/.git\n"},
 	}
-	if got, _ := (vcs.Git{Sys: never}).Git(context.Background(), "/work"); !got.FetchedAt.IsZero() {
+	if got, _ := (vcs.Git{Sys: never, History: vcs.History{Sys: never}}).Git(context.Background(), "/work"); !got.FetchedAt.IsZero() {
 		t.Errorf("FetchedAt = %v, want zero", got.FetchedAt)
 	}
 }
@@ -257,7 +257,7 @@ func TestGitDiffEdges(t *testing.T) {
 		at + "branch --show-current": {Out: "feature/x\n"},
 		at + "diff HEAD --numstat --patch --unified=0 --no-color --no-ext-diff --no-renames": {Out: diff},
 	}
-	got, _ := vcs.Git{Sys: sys}.Git(context.Background(), "/work")
+	got, _ := vcs.Git{Sys: sys, History: vcs.History{Sys: sys}}.Git(context.Background(), "/work")
 	// An assertion added to a test counts; a numstat line that is not numbers
 	// and a debt removed from a document do not.
 	if got.AssertsAdded != 1 || len(got.Changes) != 2 || got.DebtRemoved != 0 {
@@ -379,7 +379,7 @@ func TestGitNeverTakesTheIndexLock(t *testing.T) {
 	t.Parallel()
 	sys := platformtest.New(t0)
 	sys.Cmds["git --no-optional-locks -C /work branch --show-current"] = platformtest.Result{Out: "develop\n"}
-	if _, err := (vcs.Git{Sys: sys}).Git(t.Context(), "/work"); err != nil {
+	if _, err := (vcs.Git{Sys: sys, History: vcs.History{Sys: sys}}).Git(t.Context(), "/work"); err != nil {
 		t.Fatal(err)
 	}
 	calls := sys.Calls()

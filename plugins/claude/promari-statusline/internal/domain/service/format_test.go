@@ -255,3 +255,19 @@ func TestRate(t *testing.T) {
 		}
 	}
 }
+
+func TestPeriod(t *testing.T) {
+	t.Parallel()
+	for d, want := range map[time.Duration]string{
+		14 * 24 * time.Hour: "14d",
+		48 * time.Hour:      "48h",
+		3 * 24 * time.Hour:  "3d",
+		36 * time.Hour:      "36h",
+		90 * time.Minute:    "1h30m",
+		0:                   "0m",
+	} {
+		if got := period(d); got != want {
+			t.Errorf("period(%v) = %q, want %q", d, got, want)
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,6 +85,52 @@ func TestLoadAndSave(t *testing.T) {
 	}
 }
 
+// TestEveryRememberedFactSurvivesTheRoundTrip saves each fact the cache keeps
+// with every field set, and reads it back. A field the JSON encoder cannot
+// write (a time.Duration has no form in encoding/json/v2) fails the whole
+// save, and a cache that drops its errors then asks the slow source on every
+// render without a word.
+func TestEveryRememberedFactSurvivesTheRoundTrip(t *testing.T) {
+	t.Parallel()
+	facts := map[string]any{
+		"pull request": model.PullRequest{Number: 7, CIDuration: 90 * time.Second},
+		"workload":     model.Workload{Merged: 3, LeadP50: 26 * time.Hour},
+		"quality":      model.Quality{LastRepair: 4 * time.Minute},
+	}
+	for name, fact := range facts {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := filecache.NewStore(platformtest.New(t0))
+			if err := filecache.Save(store, fact, "fact.json"); err != nil {
+				t.Fatalf("Save: %v", err)
+			}
+		})
+	}
+	t.Run("read back", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store := filecache.NewStore(sys)
+		want := model.PullRequest{Number: 7, CIDuration: 90 * time.Second}
+		if err := filecache.Save(store, want, "pull.json"); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := sys.File(store.Path("pull.json")); !strings.Contains(got, `"ci_duration":"1m30s"`) {
+			t.Errorf("the duration is written as %s", got)
+		}
+		if got, ok := filecache.Load[model.PullRequest](store, "pull.json"); !ok || got.CIDuration != want.CIDuration {
+			t.Errorf("Load = %+v, %v", got, ok)
+		}
+		sys.Files[store.Path("bad.json")] = []byte(`{"ci_duration":"soon"}`)
+		if _, ok := filecache.Load[model.PullRequest](store, "bad.json"); ok {
+			t.Error("a duration that is not one was read")
+		}
+		sys.Files[store.Path("number.json")] = []byte(`{"ci_duration":5}`)
+		if _, ok := filecache.Load[model.PullRequest](store, "number.json"); ok {
+			t.Error("a duration that is not text was read")
+		}
+	})
+}
+
 func TestMemo(t *testing.T) {
 	t.Parallel()
 	const ttl = time.Minute
@@ -107,6 +154,9 @@ func TestMemo(t *testing.T) {
 		{"a failure is remembered as nothing", []call{{0, "k", "", errBroken}, {time.Second, "k", "b", nil}}, 1, "", repository.ErrNone},
 		{"the failure itself is returned to the first caller", []call{{0, "k", "", errBroken}}, 1, "", errBroken},
 		{"an answer from the future is not trusted", []call{{0, "k", "a", nil}, {-time.Hour, "k", "b", nil}}, 2, "b", nil},
+		// Sessions side by side on other branches ask in turn; each keeps its own answer.
+		{"keys asked in turn keep their own answers", []call{{0, "k", "a", nil}, {time.Second, "other", "b", nil}, {time.Second, "k", "c", nil}, {time.Second, "other", "d", nil}}, 2, "b", nil},
+		{"the answer without a key is remembered too", []call{{0, "", "a", nil}, {time.Second, "", "b", nil}}, 1, "a", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,7 +168,7 @@ func TestMemo(t *testing.T) {
 			var err error
 			for _, c := range tt.calls {
 				sys.T = sys.T.Add(c.after)
-				got, err = filecache.Memo(store, "memo.json", c.key, ttl, func() (string, error) {
+				got, err = filecache.Memo(t.Context(), store, "memo", c.key, ttl, func() (string, error) {
 					asked++
 					return c.value, c.err
 				})
@@ -128,6 +178,34 @@ func TestMemo(t *testing.T) {
 			}
 		})
 	}
+	t.Run("an answer cut short by the end of the render is not remembered", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store := filecache.NewStore(sys)
+		ctx, cancel := context.WithCancel(t.Context())
+		asked := 0
+		// The render is stopped while the source is asked: its empty answer is no answer.
+		got, err := filecache.Memo(ctx, store, "memo", "k", ttl, func() (string, error) { asked++; cancel(); return "", errBroken })
+		if got != "" || !errors.Is(err, errBroken) {
+			t.Fatalf("Memo = %q, %v; want the failure returned", got, err)
+		}
+		got, err = filecache.Memo(t.Context(), store, "memo", "k", ttl, func() (string, error) { asked++; return "a", nil })
+		if got != "a" || err != nil || asked != 2 {
+			t.Errorf("after a cut-short answer Memo = %q, %v, asked %d times; want %q, nil, 2", got, err, asked, "a")
+		}
+	})
+	t.Run("the answers of keys no longer asked about are removed", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		store := filecache.NewStore(sys)
+		ask := func() (string, error) { return "a", nil }
+		_, _ = filecache.Memo(t.Context(), store, "memo", "gone", ttl, ask)
+		sys.T = sys.T.Add(8 * 24 * time.Hour)
+		_, _ = filecache.Memo(t.Context(), store, "memo", "new", ttl, ask)
+		if n := len(sys.Glob(store.Path("memo", "*.json"))); n != 1 {
+			t.Errorf("%d files kept for the kind, want 1 (the old key's removed)", n)
+		}
+	})
 	t.Run("a cache that cannot be written asks every time and still answers", func(t *testing.T) {
 		t.Parallel()
 		sys := platformtest.New(t0)
@@ -135,7 +213,7 @@ func TestMemo(t *testing.T) {
 		store := filecache.NewStore(sys)
 		asked := 0
 		for range 2 {
-			got, err := filecache.Memo(store, "memo.json", "k", ttl, func() (string, error) { asked++; return "a", nil })
+			got, err := filecache.Memo(t.Context(), store, "memo", "k", ttl, func() (string, error) { asked++; return "a", nil })
 			if got != "a" || err != nil {
 				t.Fatalf("Memo = %q, %v", got, err)
 			}
@@ -428,6 +506,95 @@ func TestTranscriptsContinueWhereTheyStopped(t *testing.T) {
 		}
 		if _, ok := sys.File(old); ok {
 			t.Error("the record of a transcript unread for eight days was kept")
+		}
+	})
+}
+
+// spender is a source that fails while broken, counting the questions.
+type spender struct {
+	broken bool
+	none   bool
+	asked  int
+}
+
+func (s *spender) Spend(context.Context, []byte) (model.Spend, error) {
+	s.asked++
+	switch {
+	case s.broken:
+		return model.Spend{}, errBroken
+	case s.none:
+		return model.Spend{}, repository.ErrNone
+	}
+	return model.Spend{BurnPerHour: model.Some(model.Amount{Text: "1", Value: 1})}, nil
+}
+
+func TestBreaker(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	src := &spender{broken: true}
+	c := filecache.Spends{Store: filecache.NewStore(sys), Next: src}
+	ask := func() error { _, err := c.Spend(t.Context(), nil); return err }
+
+	// Closed: failures are passed on until the breaker trips.
+	for range 2 {
+		if err := ask(); !errors.Is(err, errBroken) {
+			t.Fatalf("err = %v, want the failure", err)
+		}
+	}
+	// Open: the source is not asked while the wait lasts.
+	sys.T = sys.T.Add(29 * time.Second)
+	if err := ask(); !errors.Is(err, filecache.ErrOpen) || src.asked != 2 {
+		t.Fatalf("open breaker: err = %v, asked %d times; want ErrOpen, 2", err, src.asked)
+	}
+	// Half-open: once the wait has passed it is asked once; a failure doubles the wait.
+	sys.T = sys.T.Add(time.Second)
+	if err := ask(); !errors.Is(err, errBroken) || src.asked != 3 {
+		t.Fatalf("half-open: err = %v, asked %d", err, src.asked)
+	}
+	sys.T = sys.T.Add(45 * time.Second)
+	if err := ask(); !errors.Is(err, filecache.ErrOpen) {
+		t.Fatalf("the wait did not double: err = %v", err)
+	}
+	// A success closes it.
+	src.broken = false
+	sys.T = sys.T.Add(time.Minute)
+	if err := ask(); err != nil {
+		t.Fatalf("half-open success: err = %v", err)
+	}
+	src.broken = true
+	if err := ask(); !errors.Is(err, errBroken) {
+		t.Fatalf("closed again: err = %v, want the source asked", err)
+	}
+
+	t.Run("nothing to report is an answer, and a stopped render counts nothing", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		src := &spender{none: true}
+		c := filecache.Spends{Store: filecache.NewStore(sys), Next: src}
+		for range 3 {
+			_, _ = c.Spend(t.Context(), nil)
+		}
+		src.none, src.broken = false, true
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		for range 3 {
+			_, _ = c.Spend(ctx, nil)
+		}
+		if src.asked != 6 {
+			t.Errorf("asked %d times, want 6 (the breaker never opened)", src.asked)
+		}
+	})
+	t.Run("the wait stops growing", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		src := &spender{broken: true}
+		c := filecache.Spends{Store: filecache.NewStore(sys), Next: src}
+		for range 12 {
+			_, _ = c.Spend(t.Context(), nil)
+			sys.T = sys.T.Add(11 * time.Minute)
+		}
+		if src.asked != 12 {
+			t.Errorf("asked %d times, want 12: no wait is longer than ten minutes", src.asked)
 		}
 	})
 }

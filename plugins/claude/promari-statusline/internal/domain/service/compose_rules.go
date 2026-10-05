@@ -9,7 +9,11 @@ import (
 // ruleLabels name the rules on the status line, with the tone of a break: a
 // danger for what lets data leak, be lost or be attacked, a caution for what
 // hides a failure or breaks a rule the course states, muted for layout.
-var ruleLabels = [...]struct {
+//
+// The table has one entry per rule. Its length is fixed to model.RuleCount, not
+// taken from the entries: a rule added to the model without an entry here
+// would otherwise index past the end and stop the whole status line.
+var ruleLabels = [model.RuleCount]struct {
 	label string
 	tone  model.Tone
 }{

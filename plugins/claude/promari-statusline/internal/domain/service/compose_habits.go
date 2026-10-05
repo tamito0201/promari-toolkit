@@ -65,7 +65,7 @@ func branchHabits(now time.Time, git model.Git) []model.Chip {
 	}
 	if git.OldBranches > 0 {
 		// Candidates to abandon: no commit for two weeks.
-		chips = append(chips, chip(model.ToneMuted, "Old ×"+strconv.Itoa(git.OldBranches)+" 14d+"))
+		chips = append(chips, chip(model.ToneMuted, "Old ×"+strconv.Itoa(git.OldBranches)+" "+period(model.OldBranchAfter)+"+"))
 	}
 	if git.SwitchesToday > 0 {
 		chips = append(chips, chip(model.ToneMuted, "Switch ×"+strconv.Itoa(git.SwitchesToday)+" today"))

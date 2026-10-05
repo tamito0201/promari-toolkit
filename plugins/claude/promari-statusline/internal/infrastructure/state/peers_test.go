@@ -160,3 +160,32 @@ func TestPeersPostFailsOnAReadOnlyCache(t *testing.T) {
 		t.Error("a read-only cache took the post")
 	}
 }
+
+// A render killed between creating and renaming a peer's temporary file
+// leaves it in the peers directory, where nothing rewrites a dead session's
+// key again. The roster sweeps a temporary file once it is old enough to
+// belong to no write in flight, and leaves a young one alone.
+func TestPeersRosterSweepsStaleTemporaries(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	sys.Running = map[int]bool{11: true}
+	post(t, sys, 11, model.Peer{Key: "running", At: t0})
+	stale := cache + "peers/dead.json.tmp42"
+	young := cache + "peers/live.json.tmp43"
+	for name, at := range map[string]time.Time{stale: t0.Add(-time.Hour), young: t0.Add(-time.Second)} {
+		if err := sys.WriteFile(name, []byte("{"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sys.Times[name] = at
+	}
+
+	if got, want := keys(peers(sys).Roster()), []string{"running"}; !slices.Equal(got, want) {
+		t.Errorf("roster = %v, want %v", got, want)
+	}
+	if _, ok := sys.File(stale); ok {
+		t.Error("the stale temporary file was kept")
+	}
+	if _, ok := sys.File(young); !ok {
+		t.Error("the temporary file of a write in flight was swept")
+	}
+}

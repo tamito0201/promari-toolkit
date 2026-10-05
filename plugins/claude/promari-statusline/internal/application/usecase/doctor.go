@@ -1,19 +1,18 @@
 package usecase
 
 import (
+	"context"
 	"errors"
-	"strconv"
-	"strings"
 
-	"promari-statusline/internal/domain/model"
 	"promari-statusline/internal/domain/repository"
 	"promari-statusline/internal/domain/service"
 )
 
-// DiagnoseDeps is what Diagnose depends on.
+// DiagnoseDeps is what Diagnose depends on. Diagnosing only looks: the
+// settings and the binary are reached through their reading side.
 type DiagnoseDeps struct {
-	Settings repository.SettingsStore
-	Binary   repository.BinaryStore
+	Settings repository.SettingsReader
+	Binary   repository.BinaryInspector
 	Tools    repository.ToolFinder
 	Terminal repository.Terminal
 	Launcher repository.LauncherLog
@@ -22,123 +21,160 @@ type DiagnoseDeps struct {
 
 // Diagnose checks the installation: whether the settings point at the status
 // line, whether the installed copy is current, which optional tools are there,
-// and how wide the terminal is.
+// and how wide the terminal is. It says what it found; how that is worded and
+// what to run about it is the command line's to say.
 type Diagnose struct {
 	deps DiagnoseDeps
 }
 
 // NewDiagnose returns the use case.
-func NewDiagnose(deps DiagnoseDeps) *Diagnose { return &Diagnose{deps: deps} }
-
-// optionalTool is a tool whose absence only hides chips.
-type optionalTool struct {
-	name  string
-	chips string
-	// install says how to get the tool: a command, or where to find one.
-	install string
+func NewDiagnose(deps DiagnoseDeps) *Diagnose {
+	mustBeWired("DiagnoseDeps", deps)
+	return &Diagnose{deps: deps}
 }
 
-// optionalTools lists the tools the status line uses when they are there.
-func optionalTools() []optionalTool {
-	return []optionalTool{
-		{"git", "🌿 Git", "https://git-scm.com/downloads"},
-		{"gh", "🔀 PR", "https://cli.github.com"},
-		{"ccusage", "Today, Blk, $/h and Est", "npm install -g ccusage"},
-		{"nowplaying-cli", "🎵 Music", "brew install nowplaying-cli (macOS)"},
-	}
+// CheckLevel says how a check went.
+type CheckLevel uint8
+
+// The levels of a check.
+const (
+	CheckOK CheckLevel = iota
+	CheckWarn
+	CheckFail
+)
+
+// Finding is what a check found.
+type Finding uint8
+
+// The findings, by check.
+const (
+	SettingsRunsThis   Finding = iota // the settings run this status line
+	SettingsMissing                   // the settings have no statusLine
+	SettingsUnreadable                // the settings cannot be read
+	SettingsRunOther                  // the settings run another command
+	SettingsNoRefresh                 // the settings run this one without a refresh interval
+	ProjectsShowThis                  // every project shows this status line
+	ProjectsShowOther                 // some projects show another one
+	ProjectsUnlisted                  // the projects cannot be listed
+	BinaryInSync                      // the installed copy is the running binary
+	BinaryMissing                     // no copy is installed
+	BinaryUnreadable                  // the copy cannot be compared
+	BinaryStale                       // the copy differs from the running binary
+	LauncherFailed                    // the launcher recorded a failure
+	LauncherUnreadable                // the launcher's record cannot be read
+	ToolFound                         // an optional tool is on PATH
+	ToolMissing                       // an optional tool is not
+	TerminalMeasured                  // the terminal's width
+)
+
+// Check is one finding of a diagnosis, with what it was found about.
+type Check struct {
+	Level   CheckLevel
+	Finding Finding
+	// Subject is what was checked: a file, a tool's name.
+	Subject string
+	// Command is the statusLine command the settings run.
+	Command string
+	// Detail is a path found, or the launcher's record.
+	Detail string
+	// Err is why the subject could not be read.
+	Err error
+	// Projects counts the projects, and Others are those that show another
+	// status line.
+	Projects int
+	Others   []string
+	// Cells, Source and Budget describe the terminal.
+	Cells  int
+	Source string
+	Budget int
 }
 
-// Execute returns the checks, in the order they should be read.
-func (u *Diagnose) Execute() []model.Check {
-	checks := []model.Check{u.settings(), u.projects(), u.binary()}
-	if failure, err := u.deps.Launcher.LastError(); err == nil {
-		checks = append(checks, model.Check{Level: model.CheckWarn, Name: "launcher", Detail: failure})
+// OptionalTools returns the tools the status line uses when they are there;
+// their absence only hides chips.
+func OptionalTools() []string { return []string{"git", "gh", "ccusage", "nowplaying-cli"} }
+
+// Execute returns the checks, in the order they should be read. A stop (ctx)
+// leaves out the checks not made yet.
+func (u *Diagnose) Execute(ctx context.Context) []Check {
+	checks := []Check{u.settings(), u.projects(ctx), u.binary()}
+	switch failure, err := u.deps.Launcher.LastError(); {
+	case err == nil:
+		checks = append(checks, Check{Level: CheckWarn, Finding: LauncherFailed, Subject: "launcher", Detail: failure})
+	case !errors.Is(err, repository.ErrNone):
+		checks = append(checks, Check{Level: CheckWarn, Finding: LauncherUnreadable, Subject: "launcher", Err: err})
 	}
-	for _, tool := range optionalTools() {
-		path, ok := u.deps.Tools.Find(tool.name)
-		if ok {
-			checks = append(checks, model.Check{Level: model.CheckOK, Name: tool.name, Detail: path})
-			continue
+	for _, tool := range OptionalTools() {
+		if path, ok := u.deps.Tools.Find(tool); ok {
+			checks = append(checks, Check{Level: CheckOK, Finding: ToolFound, Subject: tool, Detail: path})
+		} else {
+			checks = append(checks, Check{Level: CheckWarn, Finding: ToolMissing, Subject: tool})
 		}
-		checks = append(checks, model.Check{Level: model.CheckWarn, Name: tool.name, Detail: "not found; " + tool.chips + " will not be shown (install: " + tool.install + ")"})
 	}
 	cells, source := u.deps.Terminal.Width()
-	return append(checks, model.Check{
-		Level:  model.CheckOK,
-		Name:   "terminal width",
-		Detail: strconv.Itoa(cells) + " cells (" + source + "), " + strconv.Itoa(service.Budget(cells)) + " used per line",
-	})
+	return append(checks, Check{Level: CheckOK, Finding: TerminalMeasured, Subject: "terminal width", Cells: cells, Source: source, Budget: service.Budget(cells)})
 }
-
-// projectsShown is how many projects that show another status line are named
-// in the check; the rest are counted.
-const projectsShown = 5
 
 // projects checks that no project hides this status line behind one of its
 // own: a project's settings take precedence over the user's.
-func (u *Diagnose) projects() model.Check {
-	check := model.Check{Name: "projects"}
+func (u *Diagnose) projects(ctx context.Context) Check {
+	check := Check{Subject: "projects"}
 	dirs, err := u.deps.Projects.Projects()
 	if err != nil {
-		check.Level, check.Detail = model.CheckWarn, "cannot be listed: "+err.Error()
+		check.Level, check.Finding, check.Err = CheckWarn, ProjectsUnlisted, err
 		return check
 	}
 	want := wanted(u.deps.Binary.Command())
-	var others []string
 	for _, dir := range dirs {
+		if ctx.Err() != nil {
+			break
+		}
 		shown, err := shownIn(u.deps.Projects, dir)
 		if s, ok := shown.Get(); err != nil || (ok && s != want) {
-			others = append(others, dir)
+			check.Others = append(check.Others, dir)
 		}
 	}
-	if len(others) == 0 {
-		check.Detail = strconv.Itoa(len(dirs)) + " projects show this status line"
+	check.Projects = len(dirs)
+	if len(check.Others) == 0 {
+		check.Finding = ProjectsShowThis
 		return check
 	}
-	named := others[:min(len(others), projectsShown)]
-	more := ""
-	if len(others) > len(named) {
-		more = " and " + strconv.Itoa(len(others)-len(named)) + " more"
-	}
-	check.Level = model.CheckWarn
-	check.Detail = strconv.Itoa(len(others)) + " of " + strconv.Itoa(len(dirs)) + " projects show another status line (" +
-		strings.Join(named, ", ") + more + "); run `psl setup --global`"
+	check.Level, check.Finding = CheckWarn, ProjectsShowOther
 	return check
 }
 
-func (u *Diagnose) settings() model.Check {
+func (u *Diagnose) settings() Check {
 	d := u.deps
-	check := model.Check{Name: "settings " + d.Settings.Path()}
+	check := Check{Subject: d.Settings.Path()}
 	current, err := d.Settings.StatusLine()
+	check.Command = current.Command
 	switch {
 	case errors.Is(err, repository.ErrNone):
-		check.Level, check.Detail = model.CheckFail, "no statusLine; run `psl setup`"
+		check.Level, check.Finding = CheckFail, SettingsMissing
 	case err != nil:
-		check.Level, check.Detail = model.CheckFail, "cannot be read: "+err.Error()
+		check.Level, check.Finding, check.Err = CheckFail, SettingsUnreadable, err
 	case current.Command != d.Binary.Command():
-		check.Level, check.Detail = model.CheckWarn, "statusLine runs another command: "+current.Command+"; run `psl setup` to use this plugin"
+		check.Level, check.Finding = CheckWarn, SettingsRunOther
 	case current.RefreshInterval <= 0:
-		check.Level, check.Detail = model.CheckWarn, "statusLine runs "+current.Command+
-			" but has no refreshInterval: an idle session will not follow the other sessions; run `psl setup`"
+		check.Level, check.Finding = CheckWarn, SettingsNoRefresh
 	default:
-		check.Detail = "statusLine runs " + current.Command
+		check.Finding = SettingsRunsThis
 	}
 	return check
 }
 
-func (u *Diagnose) binary() model.Check {
+func (u *Diagnose) binary() Check {
 	d := u.deps
-	check := model.Check{Name: "installed binary " + d.Binary.Path()}
+	check := Check{Subject: d.Binary.Path()}
 	same, err := d.Binary.InSync()
 	switch {
 	case errors.Is(err, repository.ErrNone):
-		check.Level, check.Detail = model.CheckFail, "not installed; run `psl setup`"
+		check.Level, check.Finding = CheckFail, BinaryMissing
 	case err != nil:
-		check.Level, check.Detail = model.CheckFail, "cannot be compared: "+err.Error()
+		check.Level, check.Finding, check.Err = CheckFail, BinaryUnreadable, err
 	case !same:
-		check.Level, check.Detail = model.CheckWarn, "differs from the running binary; the next session start refreshes it, or run `psl setup`"
+		check.Level, check.Finding = CheckWarn, BinaryStale
 	default:
-		check.Detail = "is the running binary"
+		check.Finding = BinaryInSync
 	}
 	return check
 }

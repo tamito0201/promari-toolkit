@@ -10,7 +10,6 @@ import (
 	"io"
 
 	"promari-statusline/internal/application/usecase"
-	"promari-statusline/internal/domain/model"
 )
 
 // Version is the plugin's version, set at build time by the release build.
@@ -35,27 +34,27 @@ type Renderer interface {
 
 // Installer is the setup use case.
 type Installer interface {
-	Execute(dryRun bool) (usecase.InstallReport, error)
+	Execute(ctx context.Context, dryRun bool) (usecase.InstallReport, error)
 }
 
 // GlobalInstaller is the setup use case for every project.
 type GlobalInstaller interface {
-	Execute(dryRun bool) (usecase.GlobalReport, error)
+	Execute(ctx context.Context, dryRun bool) (usecase.GlobalReport, error)
 }
 
 // Uninstaller is the uninstall use case.
 type Uninstaller interface {
-	Execute() (usecase.UninstallReport, error)
+	Execute(ctx context.Context) (usecase.UninstallReport, error)
 }
 
 // Refresher is the use case behind the session-start hook.
 type Refresher interface {
-	Execute() (replaced bool, err error)
+	Execute(ctx context.Context) (replaced bool, err error)
 }
 
 // Diagnoser is the doctor use case.
 type Diagnoser interface {
-	Execute() []model.Check
+	Execute(ctx context.Context) []usecase.Check
 }
 
 // App is the command line with the use cases it calls.
@@ -82,13 +81,13 @@ func (a *App) Run(ctx context.Context, args []string) int {
 	case "render":
 		return a.report(a.Render.Handle(ctx, a.In, a.Out))
 	case "setup":
-		return a.setup(rest)
+		return a.setup(ctx, rest)
 	case "uninstall":
-		return a.uninstall()
+		return a.uninstall(ctx)
 	case "doctor":
-		return a.doctor()
+		return a.doctor(ctx)
 	case "hook":
-		return a.hook()
+		return a.hook(ctx)
 	case "version", "--version", "-v":
 		fmt.Fprintln(a.Out, "psl "+Version)
 		return exitOK
@@ -110,7 +109,7 @@ func (a *App) report(err error) int {
 	return exitOK
 }
 
-func (a *App) setup(args []string) int {
+func (a *App) setup(ctx context.Context, args []string) int {
 	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
 	flags.SetOutput(a.Err)
 	dryRun := flags.Bool("dry-run", false, "show what would change without writing anything")
@@ -119,9 +118,9 @@ func (a *App) setup(args []string) int {
 		return exitUsage
 	}
 	if *global {
-		return a.setupGlobal(*dryRun)
+		return a.setupGlobal(ctx, *dryRun)
 	}
-	r, err := a.Install.Execute(*dryRun)
+	r, err := a.Install.Execute(ctx, *dryRun)
 	if err != nil {
 		return a.report(err)
 	}
@@ -133,8 +132,8 @@ func (a *App) setup(args []string) int {
 }
 
 // setupGlobal installs the status line for the user and for every project.
-func (a *App) setupGlobal(dryRun bool) int {
-	r, err := a.Global.Execute(dryRun)
+func (a *App) setupGlobal(ctx context.Context, dryRun bool) int {
+	r, err := a.Global.Execute(ctx, dryRun)
 	a.printInstall(r.User)
 	if err != nil {
 		return a.report(err)
@@ -190,9 +189,11 @@ func (a *App) printInstall(r usecase.InstallReport) {
 	}
 }
 
-func (a *App) uninstall() int {
-	r, err := a.Uninstall.Execute()
-	if err != nil {
+// uninstall prints what was done before the error, if any: the user's settings
+// may be changed already, and their backup is worth knowing about.
+func (a *App) uninstall(ctx context.Context) int {
+	r, err := a.Uninstall.Execute(ctx)
+	if !r.Read {
 		return a.report(err)
 	}
 	switch {
@@ -209,25 +210,32 @@ func (a *App) uninstall() int {
 	for _, path := range r.Projects {
 		fmt.Fprintf(a.Out, "✅ removed statusLine from %s\n", path)
 	}
+	if err != nil {
+		fmt.Fprintln(a.Out, "the installed binary is kept")
+		return a.report(err)
+	}
 	fmt.Fprintln(a.Out, "✅ removed the installed binary")
 	return exitOK
 }
 
 // doctor prints the checks. It fails when a check failed, so a script can
 // tell a working installation from a broken one.
-func (a *App) doctor() int {
+func (a *App) doctor(ctx context.Context) int {
 	fmt.Fprintln(a.Out, "psl "+Version)
 	code := exitOK
-	for _, check := range a.Diagnose.Execute() {
+	checks := a.Diagnose.Execute(ctx)
+	for i := range checks {
+		check := &checks[i]
 		mark := "✅"
 		switch check.Level {
-		case model.CheckWarn:
+		case usecase.CheckWarn:
 			mark = "⚠️ "
-		case model.CheckFail:
+		case usecase.CheckFail:
 			mark, code = "❌", exitError
-		case model.CheckOK:
+		case usecase.CheckOK:
 		}
-		fmt.Fprintf(a.Out, "%s %s: %s\n", mark, check.Name, check.Detail)
+		name, detail := describe(check)
+		fmt.Fprintf(a.Out, "%s %s: %s\n", mark, name, detail)
 	}
 	return code
 }
@@ -236,7 +244,7 @@ func (a *App) doctor() int {
 // installed copy up to this binary. A hook must never stand in Claude Code's
 // way, so it prints nothing and always succeeds; what went wrong shows in
 // `psl doctor` as a copy that differs from the running binary.
-func (a *App) hook() int {
-	_, _ = a.Refresh.Execute()
+func (a *App) hook(ctx context.Context) int {
+	_, _ = a.Refresh.Execute(ctx)
 	return exitOK
 }

@@ -33,9 +33,15 @@ func TestNew(t *testing.T) {
 			[]string{"🧠 Context", "42%", "Opus", "develop", "👤 someone", "\x1b[38;5;141m"},
 			func(t *testing.T, sys *platformtest.Fake) {
 				t.Helper()
-				for _, file := range []string{"last-input.json", "width.txt", "sessions/s1.json", "account.json", "pull-request.json"} {
+				for _, file := range []string{"last-input.json", "width.txt", "sessions/s1.json"} {
 					if _, ok := sys.File("/h/.cache/promari-statusline/" + file); !ok {
 						t.Errorf("the render did not write %s", file)
+					}
+				}
+				// The remembered answers are kept per key, a file each.
+				for _, kind := range []string{"account", "pull-request"} {
+					if len(sys.Glob("/h/.cache/promari-statusline/"+kind+"/*.json")) != 1 {
+						t.Errorf("the render did not remember its %s", kind)
 					}
 				}
 				const board = `{"ts":1791000540,"rl":{"five_hour":{"used_percentage":29,"resets_at":1790985000}}}`

@@ -55,3 +55,21 @@ func TestComposeRules(t *testing.T) {
 		t.Error("a change that breaks no rule shows no rules")
 	}
 }
+
+// TestRuleLabelsCoverEveryRule keeps the label table in step with the model: a
+// rule without a label would show an empty chip, and every rule broken at once
+// must still compose.
+func TestRuleLabelsCoverEveryRule(t *testing.T) {
+	t.Parallel()
+	var every model.Violations
+	for rule := range model.RuleCount {
+		if ruleLabels[rule].label == "" {
+			t.Errorf("rule %d has no label", rule)
+		}
+		every[rule] = 1
+	}
+	v := &View{Facts: model.Facts{Git: model.Some(model.Git{Branch: "main", Rules: every})}}
+	if got := len(rulesChips(v)); got != int(model.RuleCount) {
+		t.Errorf("%d chips for %d broken rules", got, model.RuleCount)
+	}
+}

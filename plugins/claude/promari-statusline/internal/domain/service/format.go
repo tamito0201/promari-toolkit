@@ -112,6 +112,21 @@ func span(d time.Duration) string {
 	return strconv.Itoa(hours) + "h" + pad + strconv.Itoa(minutes) + "m"
 }
 
+// period formats a span the model defines (a window, a threshold) in whole
+// days past longSpanHours, or else in whole hours, where it has them: 14d,
+// 48h. A label made from the model's constant cannot go on saying 14d after the
+// window changes.
+func period(d time.Duration) string {
+	day := hoursPerDay * time.Hour
+	switch {
+	case d > longSpanHours*time.Hour && d%day == 0:
+		return strconv.Itoa(int(d/day)) + "d"
+	case d > 0 && d%time.Hour == 0:
+		return strconv.Itoa(int(d/time.Hour)) + "h"
+	}
+	return span(d)
+}
+
 // seconds converts seconds to a Duration, rounded to the nanosecond.
 func seconds(s float64) time.Duration { return time.Duration(math.Round(s * float64(time.Second))) }
 

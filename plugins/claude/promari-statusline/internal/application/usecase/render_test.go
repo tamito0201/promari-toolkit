@@ -3,6 +3,7 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -111,6 +112,7 @@ type memory struct {
 	history    model.RateHistory
 	input      []byte
 	width      string
+	runs       []model.SourceRun
 	demo       bool
 	claude     []model.RateLimits
 	codex      []model.CodexLimits
@@ -212,6 +214,7 @@ type recorder struct{ m *memory }
 
 func (r recorder) Input(raw []byte)                { r.m.Input(raw) }
 func (r recorder) Width(source string, budget int) { r.m.recordWidth(source, budget) }
+func (r recorder) Sources(runs []model.SourceRun)  { r.m.runs = runs }
 
 func newMemory() *memory {
 	return &memory{activities: map[string]model.Activity{}, cells: 200}
@@ -292,9 +295,73 @@ func TestRenderGathersEveryFact(t *testing.T) {
 	if len(m.codex) != 1 || m.codex[0] != w.codex || len(m.claude) != 0 {
 		t.Errorf("posted Codex %+v and Claude %+v; want the Codex usage that was read and, without rate limits, nothing for Claude", m.codex, m.claude)
 	}
-	if string(m.input) != `{"raw":true}` || m.width != "test "+strings.Repeat("#", 198) {
+	if string(m.input) != `{"raw":true}` || m.width != "test "+strings.Repeat("#", 197) {
 		t.Errorf("recorded input %q and width %q", m.input, m.width)
 	}
+	// Every question is recorded once, in the order of the sources' names.
+	sources := make([]string, 0, len(m.runs))
+	for _, run := range m.runs {
+		sources = append(sources, run.Source)
+		if run.Outcome != model.SourceAnswered {
+			t.Errorf("%s ended %d, want answered", run.Source, run.Outcome)
+		}
+	}
+	wantSources := []string{"account", "codex", "git", "incident", "machine", "pull", "release", "reviews", "spend", "todos", "track", "transcript", "workload"}
+	if !slices.Equal(sources, wantSources) {
+		t.Errorf("recorded runs of %q, want %q", sources, wantSources)
+	}
+}
+
+// panickingTrack is a world whose track reader panics.
+type panickingTrack struct{ *world }
+
+func (panickingTrack) Track(context.Context) (model.Track, error) { panic("broken reader") }
+
+func TestRenderOutlivesAReaderThatPanics(t *testing.T) {
+	t.Parallel()
+	w := &world{git: model.Git{Branch: "develop"}, track: model.Track{Title: "Take Five"}}
+	sources := w.sources()
+	sources.Track = panickingTrack{w}
+	m := newMemory()
+	u := usecase.NewRenderStatusLine(usecase.RenderDeps{
+		Clock: clock(t0), Sources: sources, Activities: m, Limits: m, Board: m, Terminal: m, Recorder: recorder{m}, Switches: m, Peers: m,
+	})
+	lines := text(u.Execute(t.Context(), usecase.RenderRequest{Session: session()}))
+	if !contains(lines, "develop") || contains(lines, "Take Five") {
+		t.Errorf("a panicking reader should lose its own fact only:\n  %s", strings.Join(lines, "\n  "))
+	}
+	i := slices.IndexFunc(m.runs, func(r model.SourceRun) bool { return r.Source == "track" })
+	if i < 0 || m.runs[i].Outcome != model.SourcePanicked {
+		t.Errorf("the panic was not recorded: %+v", m.runs)
+	}
+}
+
+func TestRenderRecordsFailuresAndNothing(t *testing.T) {
+	t.Parallel()
+	w := &world{err: errBroken}
+	m := newMemory()
+	render(w, m, t0, session())
+	for _, run := range m.runs {
+		if run.Source == "git" && run.Outcome != model.SourceFailed {
+			t.Errorf("git ended %d, want failed", run.Outcome)
+		}
+	}
+}
+
+func TestAMissingDependencyStopsTheProgramAtOnce(t *testing.T) {
+	t.Parallel()
+	w := &world{}
+	m := newMemory()
+	sources := w.sources()
+	sources.Git = nil
+	defer func() {
+		if got := fmt.Sprint(recover()); !strings.Contains(got, "RenderDeps.Sources.Git is not wired") {
+			t.Errorf("panic = %q, want the missing field named", got)
+		}
+	}()
+	usecase.NewRenderStatusLine(usecase.RenderDeps{
+		Clock: clock(t0), Sources: sources, Activities: m, Limits: m, Board: m, Terminal: m, Recorder: recorder{m}, Switches: m, Peers: m,
+	})
 }
 
 func TestRenderWithoutFacts(t *testing.T) {
@@ -475,8 +542,8 @@ func TestRenderFitsTheTerminal(t *testing.T) {
 	if len(narrowLines) <= len(wideLines) {
 		t.Errorf("a terminal of 50 cells took %d lines, one of 200 cells %d", len(narrowLines), len(wideLines))
 	}
-	if narrow.width != "test "+strings.Repeat("#", 48) {
-		t.Errorf("recorded width %q, want a budget of 48", narrow.width)
+	if narrow.width != "test "+strings.Repeat("#", 47) {
+		t.Errorf("recorded width %q, want a budget of 47", narrow.width)
 	}
 }
 

@@ -17,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"promari-statusline/internal/domain/service"
 )
 
 // binary is the psl built for this test run.
@@ -50,7 +52,11 @@ func run(m *testing.M) int {
 type home struct {
 	t   *testing.T
 	dir string
+	// columns is the terminal width psl is told; zero means the default.
+	columns int
 }
+
+const defaultColumns = 100
 
 func newHome(t *testing.T) home {
 	t.Helper()
@@ -89,10 +95,14 @@ func (h home) psl(stdin string, args ...string) (code int, stdout, stderr string
 	cmd := exec.CommandContext(h.t.Context(), binary, args...)
 	cmd.Dir = h.dir
 	cmd.Stdin = strings.NewReader(stdin)
+	columns := h.columns
+	if columns == 0 {
+		columns = defaultColumns
+	}
 	cmd.Env = []string{
 		"HOME=" + h.dir,
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
-		"COLUMNS=100",
+		fmt.Sprintf("COLUMNS=%d", columns),
 	}
 	if dir := os.Getenv("PSL_E2E_COVERDIR"); dir != "" {
 		cmd.Env = append(cmd.Env, "GOCOVERDIR="+dir)
@@ -138,7 +148,7 @@ func TestRender(t *testing.T) {
 	if got := h.read(".cache/promari-statusline/last-input.json"); got != report {
 		t.Errorf("the recorded input differs from what was sent: %q", got)
 	}
-	if got := h.read(".cache/promari-statusline/width.txt"); got != "COLUMNS 98\n" {
+	if got := h.read(".cache/promari-statusline/width.txt"); got != "COLUMNS 97\n" {
 		t.Errorf("recorded width %q", got)
 	}
 	// What another tool reads (see internal/infrastructure/usage/board.go).
@@ -284,5 +294,50 @@ func TestCommandLine(t *testing.T) {
 		if code != tt.code || !strings.Contains(stdout, tt.stdout) || !strings.Contains(stderr, tt.stderr) {
 			t.Errorf("psl %v: exit %d, stdout %q, stderr %q", tt.args, code, stdout, stderr)
 		}
+	}
+}
+
+// The screen of 2026-10-05: at 66 columns Claude Code draws the status line
+// two cells indented and cuts a line that would touch the last column, so it
+// showed 63 cells and cut a 64-cell packed line to "Est $2…". A report shaped
+// like that session must render with every line inside what the host shows.
+func TestRenderFitsTheHostAtNarrowWidth(t *testing.T) {
+	t.Parallel()
+	h := newHome(t)
+	h.columns = 66
+	at := func(d time.Duration) float64 { return float64(time.Now().Add(d).Unix()) }
+	report := fmt.Sprintf(`{"session_id":"replay","prompt_id":"p1","version":"2.1.289",
+"model":{"display_name":"Fable 5"},"effort":{"level":"high"},"thinking":{"enabled":true},
+"context_window":{"context_window_size":1000000,"used_percentage":18.7,"total_output_tokens":201,
+"current_usage":{"input_tokens":2,"cache_creation_input_tokens":2000,"cache_read_input_tokens":185000}},
+"cost":{"total_cost_usd":4.41,"total_duration_ms":300000,"total_api_duration_ms":90000},
+"prompt_cache":{"hit_ratio":0.85,"ttl":"1h","expires_at":%.0f,"recache_tokens_if_cold":187000,"cache_write_tokens":162000,"warm":true,"caching_observed":true},
+"rate_limits":{"five_hour":{"used_percentage":8,"resets_at":%.0f},"seven_day":{"used_percentage":88,"resets_at":%.0f}}}`,
+		at(59*time.Minute+30*time.Second), at(4*time.Hour+23*time.Minute+30*time.Second), at(68*time.Hour+20*time.Minute))
+
+	code, stdout, stderr := h.psl(report, "render")
+	if code != 0 || stderr != "" {
+		t.Fatalf("exit %d, stderr %q", code, stderr)
+	}
+	plain := sgr.ReplaceAllString(stdout, "")
+	for _, want := range []string{
+		"██░░░░░░░░ 19% 187k/1.00M 残 813k",
+		"⚡ Claude 5h ░░░░░ 8%", "7d ████░ 88%", "Pace ×1.5",
+		"Sess $4.41", "Parallel ×0.30",
+		"📦 Cache│Hit 85% TTL 1h 残 59m│Save 76%│🧊 Cold 187k│Write 162k",
+		"Last new 2 wr 2k rd 185k → out 201",
+	} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("the status line lacks %q:\n%s", want, plain)
+		}
+	}
+	const display = 66 - 3 // what the host shows before cutting, measured 2026-10-05
+	for line := range strings.Lines(plain) {
+		if cells := service.Cells(strings.TrimSuffix(line, "\n")); cells > display {
+			t.Errorf("a line of %d cells would be cut by the host: %q", cells, line)
+		}
+	}
+	if got := h.read(".cache/promari-statusline/width.txt"); got != "COLUMNS 63\n" {
+		t.Errorf("recorded width %q", got)
 	}
 }

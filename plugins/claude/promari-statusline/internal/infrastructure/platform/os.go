@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/term"
@@ -183,7 +184,29 @@ func (*OS) WriteFile(path string, data []byte, mode fs.FileMode) (err error) {
 	if err := os.Rename(tmp.Name(), path); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
+	sweepTemporaries(dir, filepath.Base(path))
 	return nil
+}
+
+// staleTempAge is the age from which a leftover temporary file is swept. A
+// younger one may belong to a write running in another session right now.
+const staleTempAge = time.Hour
+
+// sweepTemporaries removes the old temporary files of the target base in dir:
+// a render Claude Code kills between creating and renaming its temporary file
+// cannot clean up after itself, and the leftovers piled up beside their
+// targets (41 in one cache directory, 2026-10-05). A file that cannot be
+// listed, read or removed is left for the next write.
+func sweepTemporaries(dir, base string) {
+	entries, _ := os.ReadDir(dir)
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), base+".tmp") {
+			continue
+		}
+		if info, err := entry.Info(); err == nil && time.Since(info.ModTime()) >= staleTempAge {
+			_ = os.Remove(filepath.Join(dir, entry.Name()))
+		}
+	}
 }
 
 // Remove deletes a file; a file that does not exist is not an error.

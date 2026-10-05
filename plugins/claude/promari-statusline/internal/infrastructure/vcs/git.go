@@ -17,7 +17,7 @@ import (
 )
 
 // Git reads the working tree by running git. History reads what the commits
-// say; it is nil in tests, where the history is read uncached.
+// of its branch say; the composition root hands it in, remembered.
 type Git struct {
 	Sys     platform.System
 	History repository.HistoryReader
@@ -144,16 +144,12 @@ func (g Git) Git(ctx context.Context, dir string) (model.Git, error) {
 	})
 	var history model.History
 	wg.Go(func() {
-		var reader repository.HistoryReader = History{Sys: g.Sys}
-		if g.History != nil {
-			reader = g.History
-		}
 		// A history that cannot be read leaves its counts at zero, as a git
 		// that cannot count does.
-		history, _ = reader.History(ctx, dir, branch)
+		history, _ = g.History.History(ctx, dir, branch)
 	})
 	wg.Wait()
-	history.Apply(&git)
+	git.History = history
 	return git, nil
 }
 

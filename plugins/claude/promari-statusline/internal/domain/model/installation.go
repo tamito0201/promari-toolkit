@@ -17,20 +17,3 @@ const CommandType = "command"
 // so that it follows the other sessions: without it a status line is drawn
 // only when its own session does something.
 const RefreshSeconds = 5
-
-// Check is one line of a diagnosis.
-type Check struct {
-	Level  CheckLevel
-	Name   string
-	Detail string
-}
-
-// CheckLevel says how a check went.
-type CheckLevel uint8
-
-// The outcomes of a check.
-const (
-	CheckOK CheckLevel = iota
-	CheckWarn
-	CheckFail
-)

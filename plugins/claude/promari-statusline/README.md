@@ -153,6 +153,7 @@ such a shell.
 | `~/.cache/promari-statusline/peers/` | Each running session's summary, posted on every render for the other status lines; a session whose Claude Code has exited is removed |
 | `~/.cache/promari-statusline/accounts/` | The rate limits last seen and their history, apart for each account (named after a digest, not the address) |
 | `~/.cache/promari-statusline/last-input.json`, `width.txt` | What the last render received and the width it planned for; the first things to look at when a chip is missing or a line is cut |
+| `~/.cache/promari-statusline/sources.json` | How long each source of the last render took, and whether it answered, had nothing, failed or panicked: the source that holds a render up, or the reason a chip is missing |
 | `~/.cache/claude-rate-limits.json`, `~/.cache/codex-rate-statusline.json` | The plan usage, for other tools (see below) |
 
 ## All sessions, in step

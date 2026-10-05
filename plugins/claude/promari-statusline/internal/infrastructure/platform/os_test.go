@@ -341,3 +341,43 @@ func TestOSReadFrom(t *testing.T) {
 		t.Error("a directory was read")
 	}
 }
+
+// A render Claude Code kills between creating and renaming its temporary file
+// cannot clean up after itself, and the leftovers pile up beside the target
+// (41 were found in one cache directory, 2026-10-05). The next write of the
+// same target sweeps the stale ones. A young one is left alone: it may belong
+// to a write running in another session right now, and another target's
+// leftover belongs to that target's next write.
+func TestOSWriteFileSweepsStaleTemporaries(t *testing.T) {
+	t.Parallel()
+	sys := New()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "width.txt")
+	stale := path + ".tmp123"
+	young := path + ".tmp456"
+	other := filepath.Join(dir, "codex.json.tmp789")
+	for _, name := range []string{stale, young, other} {
+		if err := os.WriteFile(name, nil, Private); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	for _, name := range []string{stale, other} {
+		if err := os.Chtimes(name, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := sys.WriteFile(path, []byte("COLUMNS 97\n"), Private); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(stale); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the stale temporary of the target is still there: %v", err)
+	}
+	for _, kept := range []string{young, other, path} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Errorf("%s was swept: %v", filepath.Base(kept), err)
+		}
+	}
+}

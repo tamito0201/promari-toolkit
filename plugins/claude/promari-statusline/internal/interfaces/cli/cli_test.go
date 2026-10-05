@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"promari-statusline/internal/application/usecase"
-	"promari-statusline/internal/domain/model"
 	"promari-statusline/internal/interfaces/cli"
 )
 
@@ -21,7 +20,7 @@ type fakes struct {
 	install  usecase.InstallReport
 	global   usecase.GlobalReport
 	remove   usecase.UninstallReport
-	checks   []model.Check
+	checks   []usecase.Check
 	dryRun   bool
 	refreshs int
 }
@@ -36,7 +35,7 @@ func (f *fakes) Handle(_ context.Context, in io.Reader, out io.Writer) error {
 
 type installer struct{ *fakes }
 
-func (i installer) Execute(dryRun bool) (usecase.InstallReport, error) {
+func (i installer) Execute(_ context.Context, dryRun bool) (usecase.InstallReport, error) {
 	i.dryRun = dryRun
 	report := i.install
 	report.DryRun = dryRun
@@ -45,7 +44,7 @@ func (i installer) Execute(dryRun bool) (usecase.InstallReport, error) {
 
 type globalInstaller struct{ *fakes }
 
-func (g globalInstaller) Execute(dryRun bool) (usecase.GlobalReport, error) {
+func (g globalInstaller) Execute(_ context.Context, dryRun bool) (usecase.GlobalReport, error) {
 	g.dryRun = dryRun
 	report := g.global
 	report.User.DryRun = dryRun
@@ -54,18 +53,20 @@ func (g globalInstaller) Execute(dryRun bool) (usecase.GlobalReport, error) {
 
 type uninstaller struct{ *fakes }
 
-func (u uninstaller) Execute() (usecase.UninstallReport, error) { return u.remove, u.err }
+func (u uninstaller) Execute(context.Context) (usecase.UninstallReport, error) {
+	return u.remove, u.err
+}
 
 type refresher struct{ *fakes }
 
-func (r refresher) Execute() (bool, error) {
+func (r refresher) Execute(context.Context) (bool, error) {
 	r.refreshs++
 	return false, r.err
 }
 
 type diagnoser struct{ *fakes }
 
-func (d diagnoser) Execute() []model.Check { return d.checks }
+func (d diagnoser) Execute(context.Context) []usecase.Check { return d.checks }
 
 func run(f *fakes, stdin string, args ...string) (code int, stdout, stderr string) {
 	var out, errOut bytes.Buffer
@@ -127,27 +128,39 @@ func TestRun(t *testing.T) {
 		{"setup that fails", fakes{err: errBroken}, "", []string{"setup"}, 1, nil, []string{"❌ broken"}},
 		{"setup with an unknown flag", fakes{}, "", []string{"setup", "--force"}, 2, nil, []string{"flag provided but not defined"}},
 
-		{"uninstall that removed the status line", fakes{remove: usecase.UninstallReport{Settings: settings, Removed: true, Backup: settings + ".bak"}}, "", []string{"uninstall"}, 0, []string{"✅ removed statusLine from " + settings, "backup: ", "✅ removed the installed binary"}, nil},
-		{"uninstall leaves another status line alone", fakes{remove: usecase.UninstallReport{Settings: settings, Other: "other.sh"}}, "", []string{"uninstall"}, 0, []string{"left alone", "other.sh"}, nil},
-		{"uninstall without a status line", fakes{remove: usecase.UninstallReport{Settings: settings}}, "", []string{"uninstall"}, 0, []string{"no statusLine in " + settings}, nil},
-		{"uninstall that fails", fakes{err: errBroken}, "", []string{"uninstall"}, 1, nil, []string{"❌ broken"}},
+		{"uninstall that removed the status line", fakes{remove: usecase.UninstallReport{Settings: settings, Read: true, Removed: true, Backup: settings + ".bak"}}, "", []string{"uninstall"}, 0, []string{"✅ removed statusLine from " + settings, "backup: ", "✅ removed the installed binary"}, nil},
+		{"uninstall leaves another status line alone", fakes{remove: usecase.UninstallReport{Settings: settings, Read: true, Other: "other.sh"}}, "", []string{"uninstall"}, 0, []string{"left alone", "other.sh"}, nil},
+		{"uninstall without a status line", fakes{remove: usecase.UninstallReport{Settings: settings, Read: true}}, "", []string{"uninstall"}, 0, []string{"no statusLine in " + settings}, nil},
+		{"uninstall that fails before changing anything", fakes{err: errBroken}, "", []string{"uninstall"}, 1, nil, []string{"❌ broken"}},
+		{
+			"uninstall that fails part way says what it did and keeps the binary",
+			fakes{err: errBroken, remove: usecase.UninstallReport{Settings: settings, Read: true, Removed: true, Backup: settings + ".bak"}},
+			"",
+			[]string{"uninstall"},
+			1,
+			[]string{"✅ removed statusLine from " + settings, "backup: " + settings + ".bak", "the installed binary is kept"},
+			[]string{"❌ broken"},
+		},
 
 		{
 			"doctor with warnings succeeds",
-			fakes{checks: []model.Check{{Level: model.CheckOK, Name: "settings", Detail: "fine"}, {Level: model.CheckWarn, Name: "ccusage", Detail: "not found"}}},
+			fakes{checks: []usecase.Check{
+				{Level: usecase.CheckOK, Finding: usecase.SettingsRunsThis, Subject: settings, Command: command},
+				{Level: usecase.CheckWarn, Finding: usecase.ToolMissing, Subject: "ccusage"},
+			}},
 			"",
 			[]string{"doctor"},
 			0,
-			[]string{"psl dev", "✅ settings: fine", "⚠️  ccusage: not found"},
+			[]string{"psl dev", "✅ settings " + settings + ": statusLine runs " + command, "⚠️  ccusage: not found"},
 			nil,
 		},
 		{
 			"doctor with a failed check fails",
-			fakes{checks: []model.Check{{Level: model.CheckFail, Name: "settings", Detail: "no statusLine"}}},
+			fakes{checks: []usecase.Check{{Level: usecase.CheckFail, Finding: usecase.SettingsMissing, Subject: settings}}},
 			"",
 			[]string{"doctor"},
 			1,
-			[]string{"❌ settings: no statusLine"},
+			[]string{"❌ settings " + settings + ": no statusLine"},
 			nil,
 		},
 
@@ -262,8 +275,56 @@ func TestSetupGlobal(t *testing.T) {
 
 func TestUninstallReportsTheProjects(t *testing.T) {
 	t.Parallel()
-	f := &fakes{remove: usecase.UninstallReport{Settings: settings, Removed: true, Projects: []string{"/w/a/.claude/settings.local.json"}}}
+	f := &fakes{remove: usecase.UninstallReport{Settings: settings, Read: true, Removed: true, Projects: []string{"/w/a/.claude/settings.local.json"}}}
 	if _, out, _ := run(f, "", "uninstall"); !strings.Contains(out, "✅ removed statusLine from /w/a/.claude/settings.local.json") {
 		t.Errorf("out:\n%s", out)
+	}
+}
+
+// TestDoctorWords covers the wording of every finding: what the use case found
+// is said here, with what to run about it.
+func TestDoctorWords(t *testing.T) {
+	t.Parallel()
+	others := []string{"/w/a", "/w/b", "/w/c", "/w/d", "/w/e", "/w/f", "/w/g"}
+	for _, c := range []struct {
+		check usecase.Check
+		want  string
+	}{
+		{usecase.Check{Finding: usecase.SettingsRunsThis, Subject: settings, Command: command}, "settings " + settings + ": statusLine runs " + command},
+		{usecase.Check{Finding: usecase.SettingsMissing, Subject: settings}, "settings " + settings + ": no statusLine; run `psl setup`"},
+		{usecase.Check{Finding: usecase.SettingsUnreadable, Subject: settings, Err: errBroken}, "settings " + settings + ": cannot be read: broken"},
+		{usecase.Check{Finding: usecase.SettingsRunOther, Subject: settings, Command: "~/.claude/statusline.sh"}, "statusLine runs another command: ~/.claude/statusline.sh; run `psl setup` to use this plugin"},
+		{usecase.Check{Finding: usecase.SettingsNoRefresh, Subject: settings, Command: command}, "statusLine runs " + command + " but has no refreshInterval: an idle session will not follow the other sessions; run `psl setup`"},
+		{usecase.Check{Finding: usecase.ProjectsShowThis, Subject: "projects", Projects: 2}, "projects: 2 projects show this status line"},
+		{usecase.Check{Finding: usecase.ProjectsShowOther, Subject: "projects", Projects: 7, Others: others}, "projects: 7 of 7 projects show another status line (/w/a, /w/b, /w/c, /w/d, /w/e and 2 more); run `psl setup --global`"},
+		{usecase.Check{Finding: usecase.ProjectsUnlisted, Subject: "projects", Err: errBroken}, "projects: cannot be listed: broken"},
+		{usecase.Check{Finding: usecase.BinaryInSync, Subject: binary}, "installed binary " + binary + ": is the running binary"},
+		{usecase.Check{Finding: usecase.BinaryMissing, Subject: binary}, "installed binary " + binary + ": not installed; run `psl setup`"},
+		{usecase.Check{Finding: usecase.BinaryUnreadable, Subject: binary, Err: errBroken}, "installed binary " + binary + ": cannot be compared: broken"},
+		{usecase.Check{Finding: usecase.BinaryStale, Subject: binary}, "differs from the running binary; the next session start refreshes it, or run `psl setup`"},
+		{usecase.Check{Finding: usecase.LauncherFailed, Subject: "launcher", Detail: "2026-10-03T00:00:00Z download failed"}, "launcher: 2026-10-03T00:00:00Z download failed"},
+		{usecase.Check{Finding: usecase.LauncherUnreadable, Subject: "launcher", Err: errBroken}, "launcher: its record cannot be read: broken"},
+		{usecase.Check{Finding: usecase.ToolFound, Subject: "git", Detail: "/usr/bin/git"}, "git: /usr/bin/git"},
+		{usecase.Check{Finding: usecase.ToolMissing, Subject: "ccusage"}, "ccusage: not found; Today, Blk, $/h and Est will not be shown (install: npm install -g ccusage)"},
+		{usecase.Check{Finding: usecase.TerminalMeasured, Subject: "terminal width", Cells: 120, Source: "test", Budget: 118}, "terminal width: 120 cells (test), 118 used per line"},
+	} {
+		_, out, _ := run(&fakes{checks: []usecase.Check{c.check}}, "", "doctor")
+		if !strings.Contains(out, c.want) {
+			t.Errorf("finding %d: lacks %q in:\n%s", c.check.Finding, c.want, out)
+		}
+	}
+	// A tool or a finding the words do not know is still named.
+	if _, out, _ := run(&fakes{checks: []usecase.Check{{Finding: usecase.ToolMissing, Subject: "jq"}}}, "", "doctor"); !strings.Contains(out, "jq: not found") {
+		t.Errorf("an unknown tool:\n%s", out)
+	}
+	if _, out, _ := run(&fakes{checks: []usecase.Check{{Finding: usecase.Finding(255), Subject: "something"}}}, "", "doctor"); !strings.Contains(out, "something: ") {
+		t.Errorf("an unknown finding:\n%s", out)
+	}
+	// Every optional tool the use case looks for has its words.
+	for _, tool := range usecase.OptionalTools() {
+		_, out, _ := run(&fakes{checks: []usecase.Check{{Finding: usecase.ToolMissing, Subject: tool}}}, "", "doctor")
+		if !strings.Contains(out, "will not be shown (install: ") {
+			t.Errorf("no words for the missing tool %s:\n%s", tool, out)
+		}
 	}
 }

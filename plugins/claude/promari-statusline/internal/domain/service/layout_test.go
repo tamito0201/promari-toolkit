@@ -234,7 +234,11 @@ func TestLayoutNeverOverflows(t *testing.T) {
 
 func TestBudget(t *testing.T) {
 	t.Parallel()
-	for cells, want := range map[int]int{100: 98, 87: 85, 42: 40, 41: 40, 0: 40} {
+	// Claude Code draws the status line two cells indented and cuts a line that
+	// would touch the last column, replacing its tail with an ellipsis. Measured
+	// 2026-10-05: at 66 columns a 64-cell line was shown as 62 cells plus "…",
+	// while a 63-cell line survived, so only COLUMNS-3 cells are safe.
+	for cells, want := range map[int]int{100: 97, 87: 84, 66: 63, 44: 41, 43: 40, 0: 40} {
 		if got := Budget(cells); got != want {
 			t.Errorf("Budget(%d) = %d, want %d", cells, got, want)
 		}

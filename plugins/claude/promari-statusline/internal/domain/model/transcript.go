@@ -241,3 +241,104 @@ func (t *Transcript) Interventions() (float64, bool) {
 	}
 	return float64(t.Interrupts+t.Denials) / float64(t.Prompts) * percent, true
 }
+
+// Compacted records a compaction of the context: counted, closing the trace's
+// span, and stamped when the time is known. The three move together, so they
+// are moved here and nowhere else.
+func (t *Transcript) Compacted(at time.Time) {
+	t.Compactions++
+	t.Trace.Compacted()
+	if !at.IsZero() {
+		t.LastCompaction = at
+	}
+}
+
+// HookRan records a hook that ran, and whether it failed or was cancelled.
+func (t *Transcript) HookRan(failed bool) {
+	t.Hooks++
+	if failed {
+		t.HookErrors++
+	}
+}
+
+// ToolCall is a tool call as the transcript wrote it, told apart by kind.
+type ToolCall struct {
+	// ID pairs the call with its result.
+	ID string
+	// Kind is CallRead, CallSearch, CallEdit or CallOther.
+	Kind int
+	// Signature names the call by its tool and input, to tell a repeat.
+	Signature string
+	// File is the file an edit changes; Command the command a shell call runs.
+	File    string
+	Command string
+	// Side is true for a subagent's call, which interleaves with the main
+	// conversation's and is not compared with it.
+	Side bool
+}
+
+// Called records a tool call: the repeat and the trace of the main
+// conversation, the calls made while a check stays red, the file an edit
+// changes and whether it was edited before, and the check a shell command runs.
+// The calls that wait for their result to decide something are awaited.
+func (t *Transcript) Called(c ToolCall) {
+	q := &t.Quality
+	if !c.Side {
+		q.Call(c.Signature)
+		t.Trace.Called(c.Kind, c.Signature)
+		if !q.RedSince.IsZero() {
+			q.RedCalls++
+		}
+	}
+	if c.Kind == CallEdit {
+		q.Edits++
+		if slices.Contains(t.Files, c.File) {
+			q.ReEdits++
+		}
+		t.AddFile(c.File)
+		q.Await(PendingCall{ID: c.ID, File: c.File})
+		return
+	}
+	if c.Command != "" {
+		if kind := ClassifyCommand(c.Command); kind != CheckNone {
+			q.Await(PendingCall{ID: c.ID, Check: kind, Command: c.Command})
+		}
+	}
+}
+
+// ToolResult is the result of a tool call as the transcript wrote it.
+type ToolResult struct {
+	// ID is the call's.
+	ID string
+	// Skipped is true for a call that was refused or interrupted: it did not
+	// run and decides nothing.
+	Skipped bool
+	// Failed is true when the call reported an error (for a command, a
+	// failing exit code).
+	Failed bool
+	// Output is what a command printed.
+	Output string
+	At     time.Time
+}
+
+// Resulted records the result of a call that was awaited: whether an edit was
+// made, and how a check ended. A check judged failed by its output while its
+// exit code said success is counted as masked. A result nobody waited for is
+// left alone.
+func (t *Transcript) Resulted(r ToolResult) {
+	q := &t.Quality
+	call, ok := q.Resolve(r.ID)
+	if !ok || r.Skipped {
+		return
+	}
+	if call.Check == CheckNone {
+		if r.Failed {
+			q.EditFailed()
+		} else {
+			q.Edited(call.File)
+		}
+		return
+	}
+	outcome := JudgeCheck(call.Check, call.Command, r.Failed, r.Output)
+	q.Checked(call.Check, outcome, outcome == OutcomeFail && !r.Failed, r.At)
+}

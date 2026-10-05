@@ -13,8 +13,12 @@ const (
 	labelColumn = 3
 	// MinBudget is the narrowest line the layout plans for.
 	MinBudget = 40
-	// margin is kept free at the right edge of the terminal.
-	margin = 2
+	// margin is kept free at the right edge of the terminal: Claude Code draws
+	// the status line two cells indented and cuts a line that would touch the
+	// last column, replacing its tail with an ellipsis. Measured 2026-10-05 at
+	// 66 columns: a 64-cell packed line was shown as "…Est $2…" (62 cells and
+	// an ellipsis) while a 63-cell line survived, so a line may use COLUMNS-3.
+	margin = 3
 )
 
 // Budget returns the cells a line may use in a terminal of the given width.

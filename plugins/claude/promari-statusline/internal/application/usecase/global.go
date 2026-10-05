@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -45,14 +46,15 @@ type InstallGlobal struct {
 }
 
 // NewInstallGlobal returns the use case.
-func NewInstallGlobal(deps InstallDeps) *InstallGlobal {
-	return &InstallGlobal{install: NewInstall(deps), projects: deps.Projects, command: deps.Binary.Command}
+func NewInstallGlobal(deps InstallDeps, projects repository.ProjectStore) *InstallGlobal {
+	mustBeWired("InstallGlobal", struct{ Projects repository.ProjectStore }{projects})
+	return &InstallGlobal{install: NewInstall(deps), projects: projects, command: deps.Binary.Command}
 }
 
 // Execute installs the status line everywhere. With dryRun it only reports
-// what it would do.
-func (u *InstallGlobal) Execute(dryRun bool) (GlobalReport, error) {
-	user, err := u.install.Execute(dryRun)
+// what it would do. A stop (ctx) between two projects returns what was done.
+func (u *InstallGlobal) Execute(ctx context.Context, dryRun bool) (GlobalReport, error) {
+	user, err := u.install.Execute(ctx, dryRun)
 	report := GlobalReport{User: user}
 	if err != nil {
 		return report, err
@@ -64,6 +66,9 @@ func (u *InstallGlobal) Execute(dryRun bool) (GlobalReport, error) {
 	want := wanted(u.command())
 	report.Checked = len(dirs)
 	for _, dir := range dirs {
+		if err := ctx.Err(); err != nil {
+			return report, fmt.Errorf("stopped before %s: %w", dir, err)
+		}
 		shown, err := shownIn(u.projects, dir)
 		if err != nil {
 			report.Fixes = append(report.Fixes, ProjectFix{Dir: dir, Err: err.Error()})
@@ -76,17 +81,23 @@ func (u *InstallGlobal) Execute(dryRun bool) (GlobalReport, error) {
 		}
 		fix := ProjectFix{Dir: dir, Previous: s.Command, Settings: u.projects.Local(dir).Path()}
 		if !dryRun {
-			u.apply(dir, want, &fix)
+			u.apply(ctx, dir, want, &fix)
 		}
 		report.Fixes = append(report.Fixes, fix)
 	}
 	return report, nil
 }
 
+// projectSettings is what shownIn reads of the projects.
+type projectSettings interface {
+	Local(dir string) repository.SettingsStore
+	Shared(dir string) repository.SettingsReader
+}
+
 // shownIn returns the status line a project's own settings set: the personal
 // file's, or else the shared file's; absent when neither sets one.
-func shownIn(projects repository.ProjectStore, dir string) (model.Optional[model.StatusLineSetting], error) {
-	for _, store := range []repository.SettingsStore{projects.Local(dir), projects.Shared(dir)} {
+func shownIn(projects projectSettings, dir string) (model.Optional[model.StatusLineSetting], error) {
+	for _, store := range []repository.SettingsReader{projects.Local(dir), projects.Shared(dir)} {
 		s, err := store.StatusLine()
 		switch {
 		case err == nil:
@@ -100,8 +111,8 @@ func shownIn(projects repository.ProjectStore, dir string) (model.Optional[model
 
 // apply writes the status line into a project's personal settings, after
 // making sure git will not pick that file up.
-func (u *InstallGlobal) apply(dir string, want model.StatusLineSetting, fix *ProjectFix) {
-	excluded, err := u.projects.KeepOutOfGit(dir)
+func (u *InstallGlobal) apply(ctx context.Context, dir string, want model.StatusLineSetting, fix *ProjectFix) {
+	excluded, err := u.projects.KeepOutOfGit(ctx, dir)
 	if err != nil {
 		fix.Err = err.Error()
 		return

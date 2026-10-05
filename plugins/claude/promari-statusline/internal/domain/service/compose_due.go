@@ -25,7 +25,7 @@ func dueChips(v *View) []model.Chip {
 		chips = append(chips, c)
 	}
 	if w.Urgent > 0 {
-		chips = append(chips, chip(model.ToneDanger, "Urgent >48h ×"+strconv.Itoa(w.Urgent)))
+		chips = append(chips, chip(model.ToneDanger, "Urgent >"+period(model.UrgentAfter)+" ×"+strconv.Itoa(w.Urgent)))
 	}
 	if !w.RedSince.IsZero() {
 		red := v.Now.Sub(w.RedSince)
@@ -45,7 +45,7 @@ func dueChips(v *View) []model.Chip {
 		chips = append(chips, chip(model.ToneCaution, "My turn ×"+strconv.Itoa(w.MyTurn)))
 	}
 	if w.Stale > 0 {
-		chips = append(chips, chip(model.ToneCaution, "Stale 14d+ ×"+strconv.Itoa(w.Stale)))
+		chips = append(chips, chip(model.ToneCaution, "Stale "+period(model.StaleAfter)+"+ ×"+strconv.Itoa(w.Stale)))
 	}
 	if w.Undated > 0 {
 		chips = append(chips, chip(model.ToneMuted, "Undated "+strconv.Itoa(w.Undated)+"/"+atLeast(w.Issues, w.IssuesCapped)))
@@ -78,7 +78,7 @@ func atLeast(n int, capped bool) string {
 func deliveryChips(w model.Workload) []model.Chip {
 	var chips []model.Chip
 	if w.Merged > 0 {
-		chips = append(chips, chip(model.ToneMuted, "Lead p50 "+span(w.LeadP50)+" ×"+atLeast(w.Merged, w.MergedCapped)+"/14d"))
+		chips = append(chips, chip(model.ToneMuted, "Lead p50 "+span(w.LeadP50)+" ×"+atLeast(w.Merged, w.MergedCapped)+"/"+period(model.FlowWindow)))
 	}
 	if w.Reviewed > 0 {
 		tone := model.ToneMuted
@@ -88,7 +88,7 @@ func deliveryChips(w model.Workload) []model.Chip {
 		chips = append(chips, chip(tone, "1st-pass "+strconv.Itoa(w.FirstPass)+"/"+strconv.Itoa(w.Reviewed)))
 	}
 	if w.Abandoned > 0 {
-		chips = append(chips, chip(model.ToneMuted, "Abandoned ×"+strconv.Itoa(w.Abandoned)+"/14d"))
+		chips = append(chips, chip(model.ToneMuted, "Abandoned ×"+strconv.Itoa(w.Abandoned)+"/"+period(model.FlowWindow)))
 	}
 	return chips
 }

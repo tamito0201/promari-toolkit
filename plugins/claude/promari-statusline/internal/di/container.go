@@ -33,7 +33,7 @@ func New(sys platform.System, streams Streams) *cli.App {
 	settings := claude.Settings{Sys: sys}
 	binary := claude.Binary{Sys: sys, Suffix: executableSuffix(runtime.GOOS)}
 	projects := claude.Projects{Sys: sys}
-	install := usecase.InstallDeps{Settings: settings, Binary: binary, Projects: projects}
+	install := usecase.InstallDeps{Settings: settings, Binary: binary}
 
 	render := usecase.NewRenderStatusLine(usecase.RenderDeps{
 		Clock:      host.Clock{Sys: sys},
@@ -50,8 +50,8 @@ func New(sys platform.System, streams Streams) *cli.App {
 	return &cli.App{
 		Render:    statusline.Handler{Render: render},
 		Install:   usecase.NewInstall(install),
-		Global:    usecase.NewInstallGlobal(install),
-		Uninstall: usecase.NewUninstall(install),
+		Global:    usecase.NewInstallGlobal(install, projects),
+		Uninstall: usecase.NewUninstall(install, projects),
 		Refresh:   usecase.NewRefresh(binary),
 		Diagnose: usecase.NewDiagnose(usecase.DiagnoseDeps{
 			Settings: settings,
@@ -76,7 +76,7 @@ func sources(sys platform.System, store *filecache.Store) usecase.Sources {
 		Pulls:      filecache.PullRequests{Store: store, Next: vcs.GitHub{Sys: sys}},
 		Reviews:    filecache.ReviewQueues{Store: store, Next: vcs.GitHub{Sys: sys}},
 		Workload:   filecache.Workloads{Store: store, Next: vcs.GitHub{Sys: sys}},
-		Spend:      usage.CCUsage{Sys: sys},
+		Spend:      filecache.Spends{Store: store, Next: usage.CCUsage{Sys: sys}},
 		Codex:      filecache.Codex{Store: store, Next: usage.Codex{Sys: sys}},
 		Transcript: filecache.Transcripts{Store: store, Next: claude.Transcript{Sys: sys}},
 		Todos:      claude.Todos{Sys: sys},

@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.11.0 — 2026-10-05
+
+Fixes found by a review of the layers (layered architecture with DDD, SOLID, dependency injection):
+
+- Sessions side by side in other repositories or on other branches no longer make every render
+  ask GitHub and git again: the remembered pull request, history, review queue, workload and
+  account are kept per key, a file each, instead of one file that each session overwrote.
+- An answer cut short when Claude Code stops a render is no longer remembered as "nothing": the
+  `🔀 PR` chip stayed hidden for five minutes and today's commits read 0 for a minute.
+- `psl uninstall` stops before removing the binary when a project's personal settings cannot be
+  read, instead of skipping it and leaving that project running a binary that is gone; it prints
+  what it changed and the backup even when it fails. `psl setup --global` and `psl uninstall`
+  stop between projects on Ctrl-C.
+- A rule added without its label can no longer stop the status line: the label table has one
+  entry per rule, checked by a test. The `⏰ Due` and `🎓 Habits` labels are made from the
+  windows they count (`/14d`, `>48h`), so they cannot go on naming an old window.
+- A pull request whose checks report their times, a workload with merged pull requests, and a
+  session whose tests went from red to green again are remembered again: each held a duration,
+  which `encoding/json/v2` refuses to write, so the cache was never saved and every render asked
+  `gh` again or read the transcript from its start (since 1.10.0). Durations are now written as
+  text (`"1m30s"`).
+- `ccusage` that is missing or hangs no longer holds every render up to its timeout: after two
+  failures in a row it is not asked for 30 seconds, then for twice as long after each failure
+  that follows, up to 10 minutes (a circuit breaker, its state in `breakers/spend.json`).
+- A reader that panics loses its own chips only; the rest of the status line is shown.
+- The last render's sources are written to `sources.json`: how long each took and whether it
+  answered, had nothing, failed or panicked.
+- The activity files of sessions that stopped (`sessions/<id>.json`) are removed after a week,
+  when a new session starts.
+- A use case built with a dependency missing stops at once and names it, instead of panicking at
+  the first render that asks that source.
+- A line as wide as the whole budget was cut by Claude Code, which draws the status line two
+  cells indented and cuts a line that would touch the last column: at 66 columns a 64-cell
+  packed line was shown as `Est $2…` (measured 2026-10-05). The margin is now three cells —
+  the host's indent and the column it keeps free — so no planned line reaches the cut.
+- A render Claude Code kills between creating and renaming a temporary file could never clean
+  it up, and the leftovers piled up in the cache (41 `*.tmp*` files on one machine). The next
+  write of the same target now sweeps its leftovers older than an hour, the roster sweeps those
+  of dead sessions in `peers/`, and the prunes sweep those of keys never written again.
+- The production screen of 2026-10-05 (26 lines, 21 categories, from `⏳ ETA 44m` to
+  `+/- 62.4`) is replayed as a test: the view is the screen read backwards, the identities it
+  satisfied (the last request's tokens sum to the context, the issue counts sum to their
+  total) are asserted, and an end-to-end render at 66 columns keeps every line inside the 63
+  cells the host showed.
+- Inside: `psl doctor`'s words live in the command line, the use case reports what it found;
+  the ports read and write apart (the doctor and a project's shared settings get the reading
+  side only); the rules of a transcript (compactions, re-edits, masked failures) live in the
+  model, the adapter only reads the file; a working tree embeds its branch's history instead of
+  copying it field by field.
+
 ## 1.10.0 — 2026-10-03
 
 More measures after the KPI books of 1.9.0, each beside the measures it belongs with:

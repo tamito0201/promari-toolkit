@@ -183,36 +183,46 @@ type ReviewQueue struct {
 // only when commits are made or fetched, so it is read less often than the
 // working tree.
 type History struct {
-	CommitsToday      int `json:"commits_today,omitzero"`
-	FixesToday        int `json:"fixes_today,omitzero"`
-	AICommitsToday    int `json:"ai_commits_today,omitzero"`
+	// CommitsToday are the commits on HEAD made since midnight; FixesToday
+	// those that fix or revert; AICommitsToday those an AI co-authored.
+	CommitsToday   int `json:"commits_today,omitzero"`
+	FixesToday     int `json:"fixes_today,omitzero"`
+	AICommitsToday int `json:"ai_commits_today,omitzero"`
+	// VagueToday are the commits of today whose subject says nothing about the
+	// change; ConventionalToday those whose subject starts with a Conventional
+	// Commits type.
 	VagueToday        int `json:"vague_today,omitzero"`
 	ConventionalToday int `json:"conventional_today,omitzero"`
-	TodayAdded        int `json:"today_added,omitzero"`
-	TodayDeleted      int `json:"today_deleted,omitzero"`
-	LargestToday      int `json:"largest_today,omitzero"`
+	// TodayAdded and TodayDeleted are the lines today's commits changed, and
+	// LargestToday the most lines one commit of today changed.
+	TodayAdded   int `json:"today_added,omitzero"`
+	TodayDeleted int `json:"today_deleted,omitzero"`
+	LargestToday int `json:"largest_today,omitzero"`
 
-	DefaultBranch  string    `json:"default_branch,omitzero"`
+	// DefaultBranch is the branch origin's HEAD points at, or "" when unknown.
+	DefaultBranch string `json:"default_branch,omitzero"`
+	// BranchStart is when the first commit of the branch that the default
+	// branch does not have was made, and OldestUnpushed when the oldest commit
+	// not pushed yet was made; zero when there is none.
 	BranchStart    time.Time `json:"branch_start,omitzero"`
 	OldestUnpushed time.Time `json:"oldest_unpushed,omitzero"`
-	BehindDefault  int       `json:"behind_default,omitzero"`
-	MergedBranches int       `json:"merged_branches,omitzero"`
-	Streak         int       `json:"streak,omitzero"`
-	LongestStreak  int       `json:"longest_streak,omitzero"`
+	// BehindDefault are the commits of the default branch the branch does not
+	// have yet.
+	BehindDefault int `json:"behind_default,omitzero"`
+	// MergedBranches are the local branches merged into the default branch and
+	// not deleted.
+	MergedBranches int `json:"merged_branches,omitzero"`
+	// Streak is the run of days with the user's commits up to today, and
+	// LongestStreak the longest in the last 60 days.
+	Streak        int `json:"streak,omitzero"`
+	LongestStreak int `json:"longest_streak,omitzero"`
 
+	// RevertsToday are today's commits that revert another; OldBranches the
+	// local branches without a commit for OldBranchAfter; SwitchesToday the
+	// times the working tree changed branch today; FetchedAt when the remote
+	// was last fetched, zero when never or unknown.
 	RevertsToday  int       `json:"reverts_today,omitzero"`
 	OldBranches   int       `json:"old_branches,omitzero"`
 	SwitchesToday int       `json:"switches_today,omitzero"`
 	FetchedAt     time.Time `json:"fetched_at,omitzero"`
-}
-
-// Apply copies the history into the state of the working tree.
-func (h History) Apply(g *Git) {
-	g.CommitsToday, g.FixesToday, g.AICommitsToday = h.CommitsToday, h.FixesToday, h.AICommitsToday
-	g.VagueToday, g.ConventionalToday = h.VagueToday, h.ConventionalToday
-	g.TodayAdded, g.TodayDeleted, g.LargestToday = h.TodayAdded, h.TodayDeleted, h.LargestToday
-	g.DefaultBranch, g.BranchStart, g.OldestUnpushed = h.DefaultBranch, h.BranchStart, h.OldestUnpushed
-	g.BehindDefault, g.MergedBranches = h.BehindDefault, h.MergedBranches
-	g.Streak, g.LongestStreak = h.Streak, h.LongestStreak
-	g.RevertsToday, g.OldBranches, g.SwitchesToday, g.FetchedAt = h.RevertsToday, h.OldBranches, h.SwitchesToday, h.FetchedAt
 }
