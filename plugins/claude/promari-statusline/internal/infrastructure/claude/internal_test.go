@@ -41,3 +41,22 @@ func TestEditRefusesMembersThatCannotBeEncoded(t *testing.T) {
 		t.Error("nothing is written")
 	}
 }
+
+func TestStructuredToolObservationsSurviveIncrementalEntries(t *testing.T) {
+	t.Parallel()
+	var tr model.Transcript
+	for _, line := range []string{
+		`{"type":"assistant","timestamp":"2026-10-06T01:00:00Z","message":{"id":"m","usage":{"input_tokens":10,"output_tokens":5},"content":[{"type":"tool_use","id":"a","name":"Read","input":{}},{"type":"tool_use","id":"b","name":"Bash","input":{}}]}}`,
+		`{"type":"assistant","timestamp":"2026-10-06T01:00:00Z","message":{"id":"m","usage":{"input_tokens":10,"output_tokens":5},"content":[{"type":"tool_use","id":"a","name":"Read","input":{}}]}}`,
+		`{"type":"assistant","isSidechain":true,"message":{"id":"side","content":[{"type":"tool_use","id":"side","name":"Read","input":{}}]}}`,
+		`{"type":"user","isSidechain":true,"message":{"content":[{"type":"tool_result","tool_use_id":"side","is_error":true}]}}`,
+		`{"type":"user","timestamp":"2026-10-06T01:00:02Z","message":{"content":[{"type":"tool_result","tool_use_id":"b","is_error":true},{"type":"tool_result","tool_use_id":"a","content":"ok"}]}}`,
+		`{"type":"user","timestamp":"2026-10-06T01:00:03Z","message":{"content":[{"type":"tool_result","tool_use_id":"a","content":"duplicate"}]}}`,
+	} {
+		readEntry(&tr, []byte(line))
+	}
+	o := tr.Observations.View()
+	if tr.UsageRequests != 1 || tr.Tokens.Input != 10 || o.Calls != 2 || o.Completed != 2 || o.Failed != 1 || o.Unpaired != 0 || len(o.Seconds) != 2 || o.Seconds[0] != 2 {
+		t.Fatalf("構造化イベントの対応: %+v / usage=%d", o, tr.UsageRequests)
+	}
+}

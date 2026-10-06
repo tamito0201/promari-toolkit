@@ -1,0 +1,6 @@
+{"type":"user","timestamp":"2026-10-06T00:00:00Z","message":{"role":"user","content":"ファイルを読んで直して"}}
+{"type":"assistant","timestamp":"2026-10-06T00:00:01Z","message":{"id":"m1","usage":{"input_tokens":100,"output_tokens":20},"content":[{"type":"tool_use","id":"a","name":"Read","input":{}},{"type":"tool_use","id":"b","name":"Bash","input":{}}]}}
+{"type":"user","timestamp":"2026-10-06T00:00:03Z","message":{"content":[{"type":"tool_result","tool_use_id":"a","content":"ok"}]}}
+{"type":"user","timestamp":"2026-10-06T00:00:05Z","message":{"content":[{"type":"tool_result","tool_use_id":"b","is_error":true,"content":"exit 1"}]}}
+{"type":"assistant","timestamp":"2026-10-06T00:00:06Z","message":{"id":"m2","usage":{"input_tokens":200,"output_tokens":40},"content":[{"type":"tool_use","id":"c","name":"Read","input":{}},{"type":"tool_use","id":"d","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-10-06T00:00:07Z","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"ok"}]}}

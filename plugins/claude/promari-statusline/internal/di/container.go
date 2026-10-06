@@ -16,6 +16,7 @@ import (
 	"promari-statusline/internal/infrastructure/usage"
 	"promari-statusline/internal/infrastructure/vcs"
 	"promari-statusline/internal/interfaces/cli"
+	"promari-statusline/internal/interfaces/dashboard"
 	"promari-statusline/internal/interfaces/statusline"
 )
 
@@ -35,9 +36,10 @@ func New(sys platform.System, streams Streams) *cli.App {
 	projects := claude.Projects{Sys: sys}
 	install := usecase.InstallDeps{Settings: settings, Binary: binary}
 
+	clock, src := host.Clock{Sys: sys}, sources(sys, store)
 	render := usecase.NewRenderStatusLine(usecase.RenderDeps{
-		Clock:      host.Clock{Sys: sys},
-		Sources:    sources(sys, store),
+		Clock:      clock,
+		Sources:    src,
 		Activities: state.Activities{Store: store},
 		Limits:     state.Limits{Store: store},
 		Board:      usage.Board{Sys: sys},
@@ -45,6 +47,17 @@ func New(sys platform.System, streams Streams) *cli.App {
 		Recorder:   state.Recorder{Store: store},
 		Switches:   state.Switches{Store: store},
 		Peers:      state.Peers{Store: store, Sys: sys},
+	})
+
+	snapshot := usecase.NewTakeSnapshot(usecase.SnapshotDeps{
+		Clock:      clock,
+		Sources:    src,
+		Inputs:     state.Recorder{Store: store},
+		Activities: state.Activities{Store: store},
+		Limits:     state.Limits{Store: store},
+		Peers:      state.Peers{Store: store, Sys: sys},
+		Switches:   state.Switches{Store: store},
+		Decode:     statusline.Decode,
 	})
 
 	return &cli.App{
@@ -61,9 +74,11 @@ func New(sys platform.System, streams Streams) *cli.App {
 			Launcher: claude.Launcher{Sys: sys},
 			Projects: projects,
 		}),
-		In:  streams.In,
-		Out: streams.Out,
-		Err: streams.Err,
+		// The page tells the version it was served by; it is set at build time.
+		Dashboard: dashboard.Server{Snapshot: snapshot, Version: cli.Version},
+		In:        streams.In,
+		Out:       streams.Out,
+		Err:       streams.Err,
 	}
 }
 

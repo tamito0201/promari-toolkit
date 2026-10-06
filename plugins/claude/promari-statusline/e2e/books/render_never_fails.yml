@@ -1,0 +1,19 @@
+desc: どんな入力でも描画は終了コード0で、システム行を必ず出す（テーブル駆動）
+vars:
+  cases:
+  # 各行: ケース名 / testdata/inputs/ の入力ファイル
+    - { name: "入力なし",         input: "empty.txt" }
+    - { name: "空のオブジェクト", input: "object.txt" }
+    - { name: "JSON でない",      input: "html.txt" }
+    - { name: "配列",             input: "list.txt" }
+steps:
+  render:
+    desc: 各入力で描画して結果を集める（判定は次のステップで全行まとめて行う）
+    loop:
+      count: len(vars.cases)
+    exec:
+      command: "{{ vars.env }} COLUMNS=100 {{ vars.psl }} render < {{ vars.testdata }}/inputs/{{ vars.cases[i].input }}"
+    bind:
+      'results[]': '{"case": vars.cases[i].name, "exit": current.exit_code, "stderr": current.stderr, "system": plain(current.stdout) contains "💻 System"}'
+  check:
+    test: 'compare(results, map(vars.cases, {{"case": .name, "exit": 0, "stderr": "", "system": true}}))'

@@ -84,8 +84,8 @@ func readEntry(t *model.Transcript, line []byte) {
 	if !ok {
 		return
 	}
-	if at, err := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp")); err == nil && t.Started.IsZero() {
-		t.Started = at
+	if at, err := time.Parse(time.RFC3339Nano, jsonx.Or[string](entry, "timestamp")); err == nil {
+		t.Stamped(at)
 	}
 	switch jsonx.Or[string](entry, "type") {
 	case entryAssistant:
@@ -93,11 +93,9 @@ func readEntry(t *model.Transcript, line []byte) {
 	case entryUser:
 		readPrompt(t, entry)
 	case entryPermission:
-		if mode := jsonx.Or[string](entry, "permissionMode"); mode != "" {
-			t.PermissionMode = mode
-		}
+		t.PermissionChanged(jsonx.Or[string](entry, "permissionMode"))
 	case entryAttachment:
-		readAttachment(t, jsonx.Or[string](jsonx.Child(entry, "attachment"), "type"))
+		t.Attached(attachmentKind(jsonx.Or[string](jsonx.Child(entry, "attachment"), "type")))
 	case entrySystem:
 		switch jsonx.Or[string](entry, "subtype") {
 		case turnDuration:
@@ -111,79 +109,79 @@ func readEntry(t *model.Transcript, line []byte) {
 	}
 }
 
-// readAttachment adds what Claude Code attached to the conversation: the
+// attachmentKind names what Claude Code attached to the conversation: the
 // result of a hook, a prompt queued while the agent worked, the diagnostics of
 // the editor.
-func readAttachment(t *model.Transcript, kind string) {
+func attachmentKind(kind string) model.AttachmentKind {
 	switch kind {
 	case "hook_success":
-		t.HookRan(false)
+		return model.AttachedHook
 	case "hook_non_blocking_error", "hook_blocking_error", "hook_cancelled":
-		t.HookRan(true)
+		return model.AttachedHookError
 	case "queued_command":
-		t.Queued++
+		return model.AttachedQueued
 	case "diagnostics":
-		t.Diagnostics++
+		return model.AttachedDiagnostics
 	}
+	return model.AttachedOther
 }
 
+// syntheticModel is the model Claude Code names for a response it made up
+// itself; no model answered it.
+const syntheticModel = "<synthetic>"
+
 // readResponse adds a response of the model. Claude Code writes a response as
-// one entry per content block, each repeating its usage, so the usage is
-// counted on the first entry of each message only (Cursor.Counted). The files edited are read
-// from every entry: each holds a block of its own.
+// one entry per content block, each repeating its usage, so the response is
+// counted on the first entry of each message only (Cursor.Counted). The calls
+// and texts are read from every entry: each holds a block of its own.
 func readResponse(t *model.Transcript, entry jsonx.Object) {
 	message := jsonx.Child(entry, "message")
 	side := jsonx.Or[bool](entry, "isSidechain")
 	for _, block := range jsonx.Or[[]jsonx.Object](message, "content") {
 		switch jsonx.Or[string](block, "type") {
 		case "tool_use":
-			readCall(t, block, side)
+			readCall(t, block, side, jsonx.Or[string](entry, "timestamp"))
 		case "text":
-			if !side {
-				t.Quality.Claimed(jsonx.Or[string](block, "text"))
-			}
+			t.Said(jsonx.Or[string](block, "text"), side)
 		}
 	}
 	if t.Cursor.Counted(jsonx.Or[string](message, "id")) {
 		return
 	}
-	t.Requests++
-	if jsonx.Or[bool](entry, "isSidechain") {
-		t.SideRequests++
-	}
-	if name := jsonx.Or[string](message, "model"); name != "" && name != "<synthetic>" {
-		if t.Models == nil {
-			t.Models = map[string]int{}
-		}
-		t.Models[name]++
+	r := model.Response{Model: jsonx.Or[string](message, "model"), Side: side, ThinkingMs: jsonx.Or[float64](entry, "thinkingDurationMs")}
+	if r.Model == syntheticModel {
+		r.Model = ""
 	}
 	switch jsonx.Or[string](message, "stop_reason") {
 	case stopRefusal:
-		t.Refusals++
+		r.StopReason = model.StoppedRefusal
 	case stopMaxTokens:
-		t.Truncated++
+		r.StopReason = model.StoppedTruncated
 	}
-	t.ThinkingSeconds += jsonx.Or[float64](entry, "thinkingDurationMs") / float64(time.Second/time.Millisecond)
-	usage := jsonx.Child(message, "usage")
-	tokens := &t.Tokens
-	tokens.Input += jsonx.Or[float64](usage, "input_tokens")
-	tokens.CacheWrite += jsonx.Or[float64](usage, "cache_creation_input_tokens")
-	tokens.CacheWrite1h += jsonx.Or[float64](jsonx.Child(usage, "cache_creation"), "ephemeral_1h_input_tokens")
-	tokens.CacheRead += jsonx.Or[float64](usage, "cache_read_input_tokens")
-	tokens.Output += jsonx.Or[float64](usage, "output_tokens")
-	tokens.Thinking += jsonx.Or[float64](jsonx.Child(usage, "output_tokens_details"), "thinking_tokens")
-	server := jsonx.Child(usage, "server_tool_use")
-	t.WebSearches += int(jsonx.Or[float64](server, "web_search_requests"))
-	t.WebFetches += int(jsonx.Or[float64](server, "web_fetch_requests"))
+	if usage, ok := jsonx.Get[jsonx.Object](message, "usage"); ok {
+		server := jsonx.Child(usage, "server_tool_use")
+		r.Usage = model.Some(model.Usage{
+			Input:        jsonx.Or[float64](usage, "input_tokens"),
+			CacheWrite:   jsonx.Or[float64](usage, "cache_creation_input_tokens"),
+			CacheWrite1h: jsonx.Or[float64](jsonx.Child(usage, "cache_creation"), "ephemeral_1h_input_tokens"),
+			CacheRead:    jsonx.Or[float64](usage, "cache_read_input_tokens"),
+			Output:       jsonx.Or[float64](usage, "output_tokens"),
+			Thinking:     jsonx.Or[float64](jsonx.Child(usage, "output_tokens_details"), "thinking_tokens"),
+			WebSearches:  int(jsonx.Or[float64](server, "web_search_requests")),
+			WebFetches:   int(jsonx.Or[float64](server, "web_fetch_requests")),
+		})
+	}
+	t.Responded(r)
 }
 
 // readCall reads a tool call into the model's terms: its kind, the file an
 // edit names and the command a shell call runs. What the call means is the
 // model's to record.
-func readCall(t *model.Transcript, block jsonx.Object, side bool) {
+func readCall(t *model.Transcript, block jsonx.Object, side bool, timestamp string) {
 	name := jsonx.Or[string](block, "name")
 	input := jsonx.Child(block, "input")
-	call := model.ToolCall{ID: jsonx.Or[string](block, "id"), Kind: callKind(name), Signature: signature(name, block["input"]), Side: side}
+	at, _ := time.Parse(time.RFC3339Nano, timestamp)
+	call := model.ToolCall{Name: name, At: at, ID: jsonx.Or[string](block, "id"), Kind: callKind(name), Signature: signature(name, block["input"]), Side: side}
 	if member, ok := editTools[name]; ok {
 		call.File = jsonx.Or[string](input, member)
 	} else if name == bashTool {
@@ -224,15 +222,11 @@ func signature(name string, input []byte) string {
 // readResults reads the results of tool calls into the model's terms. A
 // refused or interrupted call did not run; the model leaves it undecided.
 func readResults(t *model.Transcript, entry jsonx.Object) {
-	if !jsonx.Or[bool](entry, "isSidechain") {
-		for _, block := range jsonx.Or[[]jsonx.Object](jsonx.Child(entry, "message"), "content") {
-			if jsonx.Or[string](block, "type") == "tool_result" {
-				t.Trace.Observed(len(resultText(block)))
-			}
+	side := jsonx.Or[bool](entry, "isSidechain")
+	for _, block := range jsonx.Or[[]jsonx.Object](jsonx.Child(entry, "message"), "content") {
+		if jsonx.Or[string](block, "type") == "tool_result" {
+			t.ToolOutput(len(resultText(block)), side)
 		}
-	}
-	if len(t.Quality.Pending) == 0 {
-		return
 	}
 	result := jsonx.Child(entry, "toolUseResult")
 	skipped := jsonx.Or[string](entry, "toolDenialKind") != "" || jsonx.Or[bool](result, "interrupted")
@@ -247,7 +241,7 @@ func readResults(t *model.Transcript, entry jsonx.Object) {
 			output = resultText(block)
 		}
 		t.Resulted(model.ToolResult{
-			ID: jsonx.Or[string](block, "tool_use_id"), Skipped: skipped, Failed: jsonx.Or[bool](block, "is_error"),
+			Side: side, ID: jsonx.Or[string](block, "tool_use_id"), Skipped: skipped, Failed: jsonx.Or[bool](block, "is_error"),
 			Output: output, At: at,
 		})
 	}
@@ -271,18 +265,12 @@ func resultText(block jsonx.Object) string {
 // also arrive as user entries and are not prompts.
 func readPrompt(t *model.Transcript, entry jsonx.Object) {
 	readResults(t, entry)
-	if jsonx.Or[string](entry, "interruptedMessageId") != "" {
+	t.Prompted(model.PromptEntry{
 		// The note of the interruption is written as a user entry; it is not a prompt.
-		t.Interrupts++
-		return
-	}
-	if jsonx.Or[string](entry, "toolDenialKind") != "" {
-		t.Denials++
-	}
-	if isHumanPrompt(entry) {
-		t.Prompts++
-		t.Trace.Prompt(t.Tokens.AllInput() + t.Tokens.Output)
-	}
+		Interrupted: jsonx.Or[string](entry, "interruptedMessageId") != "",
+		Denied:      jsonx.Or[string](entry, "toolDenialKind") != "",
+		Human:       isHumanPrompt(entry),
+	})
 }
 
 // isHumanPrompt reports whether a user entry is a prompt a human typed. Claude

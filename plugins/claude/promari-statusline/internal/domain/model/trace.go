@@ -8,8 +8,8 @@ import (
 const (
 	// maxSeenKept bounds the reads and searches remembered since the last edit.
 	maxSeenKept = 200
-	// maxTurnTokensKept bounds the token totals of the prompts kept.
-	maxTurnTokensKept = 200
+	// MaxTurnTokensKept bounds the token totals of the prompts kept.
+	MaxTurnTokensKept = 200
 	// bytesPerToken converts the bytes of a tool's output to tokens: about four
 	// characters of English text make a token. Japanese takes more bytes per
 	// character and fewer per token, so the estimate is rough either way.
@@ -114,8 +114,8 @@ func (t *Trace) Prompt(tokens float64) {
 	// prompt queued behind another) is no turn of the agent's.
 	if spent := tokens - t.TurnMark; t.Prompted && spent > 0 {
 		t.TurnTokens = append(t.TurnTokens, spent)
-		if n := len(t.TurnTokens); n > maxTurnTokensKept {
-			t.TurnTokens = slices.Clone(t.TurnTokens[n-maxTurnTokensKept:])
+		if n := len(t.TurnTokens); n > MaxTurnTokensKept {
+			t.TurnTokens = slices.Clone(t.TurnTokens[n-MaxTurnTokensKept:])
 		}
 	}
 	t.Prompted = true

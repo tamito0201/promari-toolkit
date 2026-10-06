@@ -7,6 +7,9 @@ vars:
   # the checks, tools/release for syft and cosign, and one modfile per tool whose dependencies
   # conflict) and prefers CI's prebuilt release binaries.
   TOOL: 'GO={{.GO}} sh tools/run.sh'
+  # E2E（runn のシナリオ）は配布する psl に runn の依存を持ち込まないよう別モジュール e2e/ に置く。
+  # ./... は入れ子のモジュールに入らないので、テスト・検査の各タスクは E2E を明示して走らせる。
+  E2E: '{{.GO}} -C e2e'
 
 env:
   GOTOOLCHAIN: '{{.GOTOOLCHAIN | default "auto"}}'
@@ -44,8 +47,10 @@ tasks:
     desc: go vet, go fix and golangci-lint (a CI job of its own)
     cmds:
       - '{{.GO}} vet ./...'
+      - '{{.E2E}} vet ./...'
       - task: modern
       - '{{.TOOL}} golangci-lint run ./...'
+      - 'cd e2e && GO={{.GO}} sh ../tools/run.sh golangci-lint run ./...'
 
   ci-lint-deadcode:
     desc: deadcode, a whole-program analysis (a CI job of its own)
@@ -69,11 +74,21 @@ tasks:
       # duration, for the CI dashboard); the log still shows go test's usual output.
       - |
         {{if .GOTEST_REPORT}}set -o pipefail
-        {{.GO}} test -race -json ./... | tee "{{.GOTEST_REPORT}}" | jq -rj 'select(.Action == "output") | .Output'{{else}}{{.GO}} test -race ./...{{end}}
+        {{.GO}} test -race -json ./... | tee "{{.GOTEST_REPORT}}" | jq -rj 'select(.Action == "output") | .Output'
+        {{.E2E}} test -race -json ./... | tee -a "{{.GOTEST_REPORT}}" | jq -rj 'select(.Action == "output") | .Output'{{else}}{{.GO}} test -race ./...
+        {{.E2E}} test -race ./...{{end}}
 
   launcher-test:
     desc: How bin/psl provides a binary (release download, Go build, checksum mismatch, hook), with fake go and curl
     cmds: ['sh tools/test-launcher.sh']
+
+  web:
+    desc: 'Build the page of `psl dashboard` from web/ (TypeScript, needs pnpm) into internal/interfaces/dashboard/assets; commit the result'
+    dir: web
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm test
+      - pnpm build
 
   fmt:
     desc: Format (gofumpt + gci through golangci-lint)
@@ -94,8 +109,10 @@ tasks:
     desc: go vet, go fix, golangci-lint v2, deadcode (read the sources only)
     cmds:
       - '{{.GO}} vet ./...'
+      - '{{.E2E}} vet ./...'
       - task: modern
       - '{{.TOOL}} golangci-lint run ./...'
+      - 'cd e2e && GO={{.GO}} sh ../tools/run.sh golangci-lint run ./...'
       - '{{.TOOL}} deadcode -test ./...'
 
   lint-files:
@@ -103,11 +120,11 @@ tasks:
     cmds: ['{{.TOOL}} editorconfig-checker']
 
   test:
-    desc: Unit tests and the E2E tests of the built binary, with the race detector
+    desc: Unit tests and the E2E tests of the built binary (runn scenarios in e2e/), with the race detector
     # -race needs cgo on linux (not on darwin), so the global CGO_ENABLED=0 would fail only in CI.
     env:
       CGO_ENABLED: "1"
-    cmds: ['{{.GO}} test -race ./...']
+    cmds: ['{{.GO}} test -race ./...', '{{.E2E}} test -race ./...']
 
   coverage:
     desc: Coverage of the unit tests and the E2E binary together (covdata), reported and gated by octocov
@@ -119,6 +136,9 @@ tasks:
     cmds:
       - rm -rf .cover && mkdir -p .cover
       - '{{.GO}} test -cover -coverpkg=./... ./... -args -test.gocoverdir={{.ROOT_DIR}}/.cover'
+      # The E2E module builds psl with -cover and runs the runn scenarios against it; the binary
+      # counts into the same directory (PSL_E2E_COVERDIR above).
+      - '{{.E2E}} test ./...'
       # cmd/psl is counted: the E2E tests run the instrumented binary, and a -cover binary writes its
       # counters on os.Exit as well.
       - '{{.GO}} tool covdata textfmt -i=.cover -o coverage.out'
@@ -132,7 +152,8 @@ tasks:
     desc: Known vulnerabilities (govulncheck, osv-scanner) and secrets (gitleaks)
     cmds:
       - '{{.TOOL}} govulncheck ./...'
-      - '{{.TOOL}} osv-scanner scan source -L go.mod'
+      - 'cd e2e && GO={{.GO}} sh ../tools/run.sh govulncheck ./...'
+      - '{{.TOOL}} osv-scanner scan source -L go.mod -L e2e/go.mod'
       - '{{.TOOL}} gitleaks dir . --no-banner --redact'
 
   build:

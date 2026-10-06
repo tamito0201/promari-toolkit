@@ -58,7 +58,7 @@ func (c CCUsage) Spend(ctx context.Context, input []byte) (model.Spend, error) {
 }
 
 func parseSpend(line string) model.Spend {
-	var spend model.Spend
+	spend := model.Spend{Inactive: strings.Contains(line, "No active block")}
 	if m := todayRe.FindStringSubmatch(line); m != nil {
 		spend.Today = amount(m[1])
 	}

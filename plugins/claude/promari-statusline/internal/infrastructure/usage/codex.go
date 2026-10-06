@@ -18,7 +18,11 @@ import (
 )
 
 // rateLimitsKey is the member Codex writes its usage windows under.
-const rateLimitsKey = "rate_limits"
+const (
+	rateLimitsKey = "rate_limits"
+	// 長いログでも返却する履歴を制限する。表示範囲の判定は元の観測時刻を使う。
+	codexHistoryMax = 200
+)
 
 // Codex reads the usage windows from the newest Codex session log. Codex has
 // no command that prints them; it writes them into the log of each session.
@@ -60,6 +64,7 @@ func (c Codex) newestLog() (path string, modified time.Time, ok bool) {
 // lastRateLimits returns the usage windows of the last log line that has any.
 func lastRateLimits(log []byte) (limits model.CodexLimits, ok bool) {
 	marker := []byte(`"` + rateLimitsKey + `"`)
+	var history []model.CodexRatePoint
 	for line := range bytes.Lines(log) {
 		if !bytes.Contains(line, marker) {
 			continue
@@ -70,9 +75,25 @@ func lastRateLimits(log []byte) (limits model.CodexLimits, ok bool) {
 		}
 		if found, has := findRateLimits(entry); has {
 			limits, ok = found, true
+			if point, measured := codexPoint(entry, found); measured {
+				history = append(history, point)
+			}
 		}
 	}
+	slices.SortFunc(history, func(a, b model.CodexRatePoint) int { return a.At.Compare(b.At) })
+	limits.History = history[max(0, len(history)-codexHistoryMax):]
 	return limits, ok
+}
+
+// ファイル更新時刻を観測時刻にしない。時刻や時間枠がない行はグラフに載せない。
+func codexPoint(entry any, limits model.CodexLimits) (model.CodexRatePoint, bool) {
+	obj, _ := entry.(map[string]any)
+	stamp, _ := obj["timestamp"].(string)
+	at, err := time.Parse(time.RFC3339Nano, stamp)
+	if err != nil || !limits.Primary.Present() && !limits.Secondary.Present() {
+		return model.CodexRatePoint{}, false
+	}
+	return model.CodexRatePoint{At: at, Primary: limits.Primary, Secondary: limits.Secondary}, true
 }
 
 // findRateLimits searches a decoded log line, depth first, for an object with

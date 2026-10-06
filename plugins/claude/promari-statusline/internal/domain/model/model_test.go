@@ -358,6 +358,14 @@ func TestRateHistoryRecord(t *testing.T) {
 			t.Errorf("new point = %+v, want five_hour 10 and no seven_day", last)
 		}
 	})
+	t.Run("records the seven-day window when it is known", func(t *testing.T) {
+		t.Parallel()
+		both := model.RateLimits{FiveHour: limits.FiveHour, SevenDay: model.Some(model.RateWindow{UsedPct: 40})}
+		history := model.RateHistory(nil).Record(both, t0)
+		if len(history) != 1 || history[0].FiveHour.Or(-1) != 10 || history[0].SevenDay.Or(-1) != 40 {
+			t.Errorf("history = %+v, want five_hour 10 and seven_day 40", history)
+		}
+	})
 	t.Run("keeps at most 200 points", func(t *testing.T) {
 		t.Parallel()
 		var history model.RateHistory

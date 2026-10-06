@@ -3,6 +3,8 @@ package usage_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +61,7 @@ func TestCCUsage(t *testing.T) {
 			nil,
 		},
 		{"a summary with nothing in it", platformtest.Result{Out: "no usage data"}, model.Spend{}, repository.ErrNone},
+		{"稼働枠なしは未取得と区別", platformtest.Result{Out: "$293.35 today / No active block"}, model.Spend{Today: amount("293.35", 293.35), Inactive: true}, nil},
 		{"ccusage is not installed", platformtest.Result{Err: errMissing}, model.Spend{}, errMissing},
 	}
 	for _, tt := range tests {
@@ -131,6 +134,20 @@ not json "rate_limits"
 		{"a log without limits", map[string]string{dir + "a.jsonl": `{"type":"session_meta"}` + "\n"}, nil, model.CodexLimits{}, repository.ErrNone},
 		{"limits that are not an object", map[string]string{dir + "a.jsonl": `{"rate_limits":"none"}`}, nil, model.CodexLimits{}, repository.ErrNone},
 		{"no codex logs", nil, nil, model.CodexLimits{}, repository.ErrNone},
+		{
+			"履歴は観測時刻とゼロを保持し、欠測は補完しない",
+			map[string]string{dir + "a.jsonl": `{"timestamp":"2026-10-03T04:08:00Z","payload":{"rate_limits":{"primary":{"used_percent":0,"window_minutes":10080}}}}
+{"timestamp":"2026-10-03T04:07:00Z","payload":{"rate_limits":{"secondary":{"used_percent":4,"window_minutes":300}}}}
+{"timestamp":"invalid","rate_limits":{"primary":{"used_percent":90}}}
+{"timestamp":"2026-10-03T04:09:00Z","rate_limits":{"credits":{"balance":12}}}
+`},
+			nil,
+			model.CodexLimits{Balance: model.Some(12.0), SeenAt: t0, History: []model.CodexRatePoint{
+				{At: t0.Add(-2 * time.Minute), Secondary: model.Some(model.CodexWindow{UsedPct: 4, WindowMinutes: 300})},
+				{At: t0.Add(-time.Minute), Primary: model.Some(model.CodexWindow{UsedPct: 0, WindowMinutes: 10080})},
+			}},
+			nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -141,10 +158,34 @@ not json "rate_limits"
 			}
 			sys.Times = tt.times
 			got, err := usage.Codex{Sys: sys}.Codex(context.Background())
-			if got != tt.want || !errors.Is(err, tt.err) {
+			if !reflect.DeepEqual(got, tt.want) || !errors.Is(err, tt.err) {
 				t.Errorf("Codex() = %+v, %v; want %+v, %v", got, err, tt.want, tt.err)
 			}
 		})
+	}
+}
+
+func TestCodexHistoryIsBoundedAndDoesNotMeasureOnRead(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	const path = "/h/.codex/sessions/2026/10/03/a.jsonl"
+	var log strings.Builder
+	for i := range 205 {
+		fmt.Fprintf(&log, `{"timestamp":%q,"rate_limits":{"primary":{"used_percent":42,"window_minutes":10080}}}`+"\n", t0.Add(time.Duration(i)*time.Second).Format(time.RFC3339))
+	}
+	sys.Files[path] = []byte(log.String())
+	sys.Times = map[string]time.Time{path: t0.Add(time.Hour)}
+	for range 2 {
+		got, err := (usage.Codex{Sys: sys}).Codex(t.Context())
+		if err != nil || len(got.History) != 200 {
+			t.Fatalf("履歴件数 %d, err %v", len(got.History), err)
+		}
+		if !got.History[0].At.Equal(t0.Add(5*time.Second)) || !got.History[199].At.Equal(t0.Add(204*time.Second)) {
+			t.Error("履歴がファイル更新時刻や閲覧時刻で上書きされた")
+		}
+	}
+	if len(sys.Files) != 1 || string(sys.Files[path]) != log.String() {
+		t.Error("履歴の読み取りがファイルに書き込んだ")
 	}
 }
 

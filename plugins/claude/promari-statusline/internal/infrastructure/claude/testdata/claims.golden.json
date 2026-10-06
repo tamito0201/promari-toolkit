@@ -1,0 +1,36 @@
+{
+  "tools": {
+    "total": 0,
+    "errors": 0,
+    "top": []
+  },
+  "tokens": {
+    "input": 110,
+    "cache_write": 0,
+    "cache_read": 0,
+    "output": 50
+  },
+  "requests": 2,
+  "usage_requests": 2,
+  "side_requests": 1,
+  "prompts": 3,
+  "compactions": 1,
+  "last_compaction": "2026-10-03T05:00:00Z",
+  "trace": {
+    "prompts_since_compact": 1,
+    "turn_tokens": [
+      160
+    ],
+    "turn_mark": 160,
+    "prompted": true
+  },
+  "started": "2026-10-03T05:00:00Z",
+  "cursor": {
+    "offset": 561,
+    "format": 5,
+    "recent": [
+      "r1",
+      "r2"
+    ]
+  }
+}

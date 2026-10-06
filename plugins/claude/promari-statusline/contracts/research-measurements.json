@@ -1,0 +1,296 @@
+[
+  {
+    "key": "turnSamples",
+    "category": "Latency",
+    "label": "Samples",
+    "unit": "number"
+  },
+  {
+    "key": "turnMean",
+    "category": "Latency",
+    "label": "Mean",
+    "unit": "seconds"
+  },
+  {
+    "key": "turnMin",
+    "category": "Latency",
+    "label": "Min",
+    "unit": "seconds"
+  },
+  {
+    "key": "turnMax",
+    "category": "Latency",
+    "label": "Max",
+    "unit": "seconds"
+  },
+  {
+    "key": "turnP95",
+    "category": "Latency",
+    "label": "P95",
+    "unit": "seconds"
+  },
+  {
+    "key": "turnP99",
+    "category": "Latency",
+    "label": "P99",
+    "unit": "seconds"
+  },
+  {
+    "key": "turnSD",
+    "category": "Latency",
+    "label": "StdDev",
+    "unit": "seconds"
+  },
+  {
+    "key": "turnCV",
+    "category": "Latency",
+    "label": "CV",
+    "unit": "ratio"
+  },
+  {
+    "key": "turnTail",
+    "category": "Latency",
+    "label": "Tail",
+    "unit": "ratio"
+  },
+  {
+    "key": "observedCalls",
+    "category": "Tools",
+    "label": "Calls",
+    "unit": "number"
+  },
+  {
+    "key": "toolCompleted",
+    "category": "Tools",
+    "label": "Results",
+    "unit": "number"
+  },
+  {
+    "key": "toolFailed",
+    "category": "Tools",
+    "label": "Errors",
+    "unit": "number"
+  },
+  {
+    "key": "toolSkipped",
+    "category": "Tools",
+    "label": "Skipped",
+    "unit": "number"
+  },
+  {
+    "key": "toolPending",
+    "category": "Tools",
+    "label": "Pending",
+    "unit": "number"
+  },
+  {
+    "key": "toolUnpaired",
+    "category": "Tools",
+    "label": "Unpaired",
+    "unit": "number"
+  },
+  {
+    "key": "toolEvicted",
+    "category": "Tools",
+    "label": "Evicted",
+    "unit": "number"
+  },
+  {
+    "key": "toolMissingID",
+    "category": "Tools",
+    "label": "MissingID",
+    "unit": "number"
+  },
+  {
+    "key": "toolUntimed",
+    "category": "Tools",
+    "label": "Untimed",
+    "unit": "number"
+  },
+  {
+    "key": "toolTimeSamples",
+    "category": "Tools",
+    "label": "Timed",
+    "unit": "number"
+  },
+  {
+    "key": "toolTimeMean",
+    "category": "Tools",
+    "label": "RoundMean",
+    "unit": "seconds"
+  },
+  {
+    "key": "toolTimeP50",
+    "category": "Tools",
+    "label": "RoundP50",
+    "unit": "seconds"
+  },
+  {
+    "key": "toolTimeP95",
+    "category": "Tools",
+    "label": "RoundP95",
+    "unit": "seconds"
+  },
+  {
+    "key": "toolTimeMax",
+    "category": "Tools",
+    "label": "RoundMax",
+    "unit": "seconds"
+  },
+  {
+    "key": "toolErrorRate",
+    "category": "Tools",
+    "label": "MainErr",
+    "unit": "percent"
+  },
+  {
+    "key": "toolErrorLow",
+    "category": "Tools",
+    "label": "WilsonLow",
+    "unit": "percent"
+  },
+  {
+    "key": "toolErrorHigh",
+    "category": "Tools",
+    "label": "WilsonHigh",
+    "unit": "percent"
+  },
+  {
+    "key": "toolKinds",
+    "category": "Diversity",
+    "label": "Kinds",
+    "unit": "number"
+  },
+  {
+    "key": "toolEntropy",
+    "category": "Diversity",
+    "label": "Entropy",
+    "unit": "decimal"
+  },
+  {
+    "key": "toolEffective",
+    "category": "Diversity",
+    "label": "Effective",
+    "unit": "decimal"
+  },
+  {
+    "key": "toolDominance",
+    "category": "Diversity",
+    "label": "Dominant",
+    "unit": "percent"
+  },
+  {
+    "key": "toolTransitions",
+    "category": "Diversity",
+    "label": "Transitions",
+    "unit": "number"
+  },
+  {
+    "key": "toolSwitch",
+    "category": "Diversity",
+    "label": "Switch",
+    "unit": "percent"
+  },
+  {
+    "key": "promptSamples",
+    "category": "Budget",
+    "label": "Samples",
+    "unit": "number"
+  },
+  {
+    "key": "promptMean",
+    "category": "Budget",
+    "label": "MeanTok",
+    "unit": "number"
+  },
+  {
+    "key": "promptMedian",
+    "category": "Budget",
+    "label": "P50Tok",
+    "unit": "number"
+  },
+  {
+    "key": "promptP95",
+    "category": "Budget",
+    "label": "P95Tok",
+    "unit": "number"
+  },
+  {
+    "key": "promptMax",
+    "category": "Budget",
+    "label": "MaxTok",
+    "unit": "number"
+  },
+  {
+    "key": "promptCV",
+    "category": "Budget",
+    "label": "TokenCV",
+    "unit": "ratio"
+  },
+  {
+    "key": "promptTop10",
+    "category": "Budget",
+    "label": "Top10",
+    "unit": "percent"
+  },
+  {
+    "key": "inputPerRequest",
+    "category": "Budget",
+    "label": "InputReq",
+    "unit": "number"
+  },
+  {
+    "key": "outputPerRequest",
+    "category": "Budget",
+    "label": "OutputReq",
+    "unit": "number"
+  },
+  {
+    "key": "sessionCacheShare",
+    "category": "Budget",
+    "label": "Cached",
+    "unit": "percent"
+  },
+  {
+    "key": "testDecided",
+    "category": "Evidence",
+    "label": "TestKnown",
+    "unit": "number"
+  },
+  {
+    "key": "testUnknown",
+    "category": "Evidence",
+    "label": "TestUnknown",
+    "unit": "number"
+  },
+  {
+    "key": "testPassRate",
+    "category": "Evidence",
+    "label": "TestPass",
+    "unit": "percent"
+  },
+  {
+    "key": "buildUnknown",
+    "category": "Evidence",
+    "label": "BuildUnknown",
+    "unit": "number"
+  },
+  {
+    "key": "buildPassRate",
+    "category": "Evidence",
+    "label": "BuildPass",
+    "unit": "percent"
+  },
+  {
+    "key": "hookErrorRate",
+    "category": "Evidence",
+    "label": "HookError",
+    "unit": "percent"
+  },
+  {
+    "key": "editErrorRate",
+    "category": "Evidence",
+    "label": "EditError",
+    "unit": "percent"
+  }
+]

@@ -1,0 +1,146 @@
+{
+  "observations": {
+    "calls": 8,
+    "completed": 4,
+    "failed": 2,
+    "skipped": 2,
+    "unpaired": 1,
+    "evicted": 0,
+    "missing_id": 0,
+    "untimed": 3,
+    "names": {
+      "Bash": 4,
+      "Edit": 2,
+      "Read": 2
+    },
+    "switches": 3,
+    "transitions": 7,
+    "last_name": "Read",
+    "pending": [
+      {
+        "id": "x1",
+        "at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "x2",
+        "at": "0001-01-01T00:00:00Z"
+      }
+    ],
+    "recent": [
+      "t1",
+      "e1",
+      "e2",
+      "t2",
+      "t3",
+      "b1",
+      "x1",
+      "x2"
+    ],
+    "result_ids": [
+      "t1",
+      "e1",
+      "e2",
+      "t2",
+      "t3",
+      "b1",
+      "unknown"
+    ],
+    "seconds": [
+      60
+    ]
+  },
+  "tools": {
+    "total": 8,
+    "errors": 4,
+    "top": [
+      {
+        "name": "Bash",
+        "count": 4
+      },
+      {
+        "name": "Edit",
+        "count": 2
+      },
+      {
+        "name": "Read",
+        "count": 2
+      }
+    ]
+  },
+  "tool_counts": [
+    {
+      "name": "Bash",
+      "count": 4
+    },
+    {
+      "name": "Edit",
+      "count": 2
+    },
+    {
+      "name": "Read",
+      "count": 2
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "cache_write": 0,
+    "cache_read": 0,
+    "output": 0
+  },
+  "requests": 8,
+  "prompts": 0,
+  "denials": 1,
+  "files": [
+    "/w/a.go"
+  ],
+  "quality": {
+    "tests": {
+      "runs": 1,
+      "failed": 1,
+      "masked": 1,
+      "last": 2
+    },
+    "builds": {
+      "runs": 1,
+      "failed": 1,
+      "last": 2
+    },
+    "edits": 2,
+    "edit_failures": 1,
+    "re_edits": 1,
+    "red_calls": 7,
+    "edits_since_run": 1,
+    "red_since": "2026-10-03T04:01:00Z",
+    "repeats": 3,
+    "unverified": [
+      "/w/a.go"
+    ],
+    "pending": [],
+    "last_call": "2ho6l2baaej62"
+  },
+  "trace": {
+    "explores": 2,
+    "rereads": 1,
+    "seen": [
+      "2ho6l2baaej62"
+    ],
+    "max_edit_run": 2,
+    "observed_bytes": 108,
+    "largest_observed": 43
+  },
+  "started": "2026-10-03T04:00:00Z",
+  "cursor": {
+    "offset": 2219,
+    "format": 5,
+    "recent": [
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+      "m5",
+      "m6",
+      "m7",
+      "m8"
+    ]
+  }
+}

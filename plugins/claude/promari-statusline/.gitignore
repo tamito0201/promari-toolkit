@@ -5,3 +5,6 @@ sbom.spdx.json
 .cover/
 coverage.all.out
 checksums.txt.sigstore.json
+
+# web/: dependencies of the page build (pnpm install in web/)
+web/node_modules/

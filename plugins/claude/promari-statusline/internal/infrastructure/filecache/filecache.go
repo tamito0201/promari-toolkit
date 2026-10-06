@@ -53,6 +53,19 @@ func (s *Store) WriteRaw(name string, data []byte) error {
 	return s.sys.WriteFile(s.Path(name), data, platform.Private)
 }
 
+// ReadRaw returns a file of the store as it is, with when it was written.
+func (s *Store) ReadRaw(name string) ([]byte, time.Time, error) {
+	at, err := s.sys.ModTime(s.Path(name))
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("stat %s: %w", s.Path(name), err)
+	}
+	data, err := s.sys.ReadFile(s.Path(name))
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("read %s: %w", s.Path(name), err)
+	}
+	return data, at, nil
+}
+
 // durations writes a time.Duration as its text ("1m30s") and reads it back.
 // encoding/json/v2 has no form of its own for a duration and refuses to write
 // one: a fact holding a duration would fail its whole save, and a cache that

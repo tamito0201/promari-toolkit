@@ -23,6 +23,8 @@ const (
 // to them. Claude Code reports most of the session on standard input, but only
 // for the moment; the transcript holds the whole session.
 type Transcript struct {
+	// Observations は主会話のID対応と結果を独立して集計する。
+	Observations ToolObservations `json:"observations,omitzero"`
 	// Tools summarises ToolCounts: the total, the failures and the most called.
 	Tools ToolStats `json:"tools"`
 	// ToolCounts are every tool called, in the order first called.
@@ -32,8 +34,9 @@ type Transcript struct {
 	Tokens TokenTotals `json:"tokens"`
 	// Requests is the number of responses of the model; Side counts those of
 	// subagents.
-	Requests     int `json:"requests"`
-	SideRequests int `json:"side_requests,omitzero"`
+	Requests      int `json:"requests"`
+	UsageRequests int `json:"usage_requests,omitzero"`
+	SideRequests  int `json:"side_requests,omitzero"`
 	// Models are the models that answered, with how many responses each.
 	Models map[string]int `json:"models,omitzero"`
 	// Prompts are the prompts a human typed, not the tool results and reminders
@@ -99,7 +102,8 @@ type TranscriptCursor struct {
 
 // TranscriptFormat is the version of what a reading of a transcript counts. It
 // goes up whenever a reading counts something new (2: the quality of the work; 3: the trace and the claims; 4: the repairs of failing tests).
-const TranscriptFormat = 4
+// 5 はツールIDと時刻の対応、usage付き応答数を追加し、既存ログを再集計する。
+const TranscriptFormat = 5
 
 // recentKept is how many response ids the cursor remembers.
 const recentKept = 16
@@ -263,6 +267,8 @@ func (t *Transcript) HookRan(failed bool) {
 
 // ToolCall is a tool call as the transcript wrote it, told apart by kind.
 type ToolCall struct {
+	Name string
+	At   time.Time
 	// ID pairs the call with its result.
 	ID string
 	// Kind is CallRead, CallSearch, CallEdit or CallOther.
@@ -282,6 +288,7 @@ type ToolCall struct {
 // changes and whether it was edited before, and the check a shell command runs.
 // The calls that wait for their result to decide something are awaited.
 func (t *Transcript) Called(c ToolCall) {
+	t.Observations.Called(c)
 	q := &t.Quality
 	if !c.Side {
 		q.Call(c.Signature)
@@ -308,6 +315,7 @@ func (t *Transcript) Called(c ToolCall) {
 
 // ToolResult is the result of a tool call as the transcript wrote it.
 type ToolResult struct {
+	Side bool
 	// ID is the call's.
 	ID string
 	// Skipped is true for a call that was refused or interrupted: it did not
@@ -326,6 +334,7 @@ type ToolResult struct {
 // exit code said success is counted as masked. A result nobody waited for is
 // left alone.
 func (t *Transcript) Resulted(r ToolResult) {
+	t.Observations.Resulted(r)
 	q := &t.Quality
 	call, ok := q.Resolve(r.ID)
 	if !ok || r.Skipped {
@@ -341,4 +350,175 @@ func (t *Transcript) Resulted(r ToolResult) {
 	}
 	outcome := JudgeCheck(call.Check, call.Command, r.Failed, r.Output)
 	q.Checked(call.Check, outcome, outcome == OutcomeFail && !r.Failed, r.At)
+}
+
+// Stamped records the time an entry was written: the first stamps the start of
+// the transcript. An entry without a time changes nothing.
+func (t *Transcript) Stamped(at time.Time) {
+	if t.Started.IsZero() {
+		t.Started = at
+	}
+}
+
+// PermissionChanged records the permission mode the session switched to. An
+// entry that names no mode changes nothing.
+func (t *Transcript) PermissionChanged(mode string) {
+	if mode != "" {
+		t.PermissionMode = mode
+	}
+}
+
+// AttachmentKind is what Claude Code attached to the conversation, as far as
+// the transcript counts it.
+type AttachmentKind uint8
+
+// The attachments told apart.
+const (
+	// AttachedOther is an attachment that is not counted.
+	AttachedOther AttachmentKind = iota
+	// AttachedHook is a hook that ran; AttachedHookError one that failed or was
+	// cancelled.
+	AttachedHook
+	AttachedHookError
+	// AttachedQueued is a prompt typed while the agent was still working.
+	AttachedQueued
+	// AttachedDiagnostics is a batch of editor diagnostics.
+	AttachedDiagnostics
+)
+
+// Attached records what Claude Code attached to the conversation: the result
+// of a hook, a prompt queued while the agent worked, the diagnostics of the
+// editor.
+func (t *Transcript) Attached(kind AttachmentKind) {
+	switch kind {
+	case AttachedHook:
+		t.HookRan(false)
+	case AttachedHookError:
+		t.HookRan(true)
+	case AttachedQueued:
+		t.Queued++
+	case AttachedDiagnostics:
+		t.Diagnostics++
+	case AttachedOther:
+	}
+}
+
+// Said records a text the model wrote. A subagent's text is not the main
+// conversation's claim.
+func (t *Transcript) Said(text string, side bool) {
+	if !side {
+		t.Quality.Claimed(text)
+	}
+}
+
+// StopReason is why a response ended, as far as the transcript counts it.
+type StopReason uint8
+
+// The stop reasons told apart.
+const (
+	// StoppedOther is any other end: the turn ended, a tool was called.
+	StoppedOther StopReason = iota
+	// StoppedRefusal is a response that stopped on a refusal.
+	StoppedRefusal
+	// StoppedTruncated is a response that stopped on the output limit.
+	StoppedTruncated
+)
+
+// Usage is the tokens one response reports, and the server tools it used.
+type Usage struct {
+	Input, CacheWrite, CacheWrite1h, CacheRead, Output, Thinking float64
+	WebSearches, WebFetches                                      int
+}
+
+// Response is one response of the model, counted once however many entries
+// Claude Code wrote it as.
+type Response struct {
+	// Model is the model that answered, or "" when none did (a response
+	// Claude Code made up itself).
+	Model      string
+	StopReason StopReason
+	// Side is true for a subagent's response.
+	Side bool
+	// Usage is absent when the response reported none.
+	Usage Optional[Usage]
+	// ThinkingMs is the time the model spent thinking, in milliseconds.
+	ThinkingMs float64
+}
+
+// Responded records a response of the model: who answered, why it stopped,
+// how long it thought and the tokens it reported.
+func (t *Transcript) Responded(r Response) {
+	t.Requests++
+	if r.Side {
+		t.SideRequests++
+	}
+	if r.Model != "" {
+		if t.Models == nil {
+			t.Models = map[string]int{}
+		}
+		t.Models[r.Model]++
+	}
+	switch r.StopReason {
+	case StoppedRefusal:
+		t.Refusals++
+	case StoppedTruncated:
+		t.Truncated++
+	case StoppedOther:
+	}
+	t.ThinkingSeconds += r.ThinkingMs / float64(time.Second/time.Millisecond)
+	usage, reported := r.Usage.Get()
+	if reported {
+		t.UsageRequests++
+	}
+	t.Tokens = t.Tokens.plus(usage)
+	t.WebSearches += usage.WebSearches
+	t.WebFetches += usage.WebFetches
+}
+
+// plus returns the totals with the tokens of one more response.
+func (t TokenTotals) plus(u Usage) TokenTotals {
+	t.Input += u.Input
+	t.CacheWrite += u.CacheWrite
+	t.CacheWrite1h += u.CacheWrite1h
+	t.CacheRead += u.CacheRead
+	t.Output += u.Output
+	t.Thinking += u.Thinking
+	return t
+}
+
+// ToolOutput records the size in bytes of a tool's output as the model sees
+// it. A subagent's output does not fill the main conversation's context.
+func (t *Transcript) ToolOutput(size int, side bool) {
+	if !side {
+		t.Trace.Observed(size)
+	}
+}
+
+// PromptEntry is a user entry of the transcript, which is a prompt a human
+// typed, the note of an interruption, a refused tool call, or none of them (a
+// tool result, a reminder, a notification).
+type PromptEntry struct {
+	// Interrupted is the note written when the human stopped a response.
+	Interrupted bool
+	// Denied is true when the human or a permission rule refused a tool call.
+	Denied bool
+	// Human is true for a prompt a human typed.
+	Human bool
+}
+
+// Prompted records a user entry. The note of an interruption is no prompt; a
+// prompt a human typed ends the trace's previous prompt at the session's
+// tokens so far.
+func (t *Transcript) Prompted(p PromptEntry) {
+	if p.Interrupted {
+		t.Interrupts++
+		return
+	}
+	if p.Denied {
+		t.Denials++
+	}
+	if p.Human {
+		t.Prompts++
+		t.Trace.Prompt(t.Tokens.AllInput() + t.Tokens.Output)
+	}
 }

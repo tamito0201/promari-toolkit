@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":"fix it"}}
+{"type":"assistant","message":{"id":"r1","usage":{"input_tokens":100,"output_tokens":50},"content":[{"type":"text","text":"Done. All tests pass now."}]}}
+{"type":"assistant","isSidechain":true,"message":{"id":"r2","usage":{"input_tokens":10},"content":[{"type":"text","text":"tests passed"}]}}
+{"type":"user","message":{"role":"user","content":"again"}}
+{"type":"system","subtype":"compact_boundary","timestamp":"2026-10-03T05:00:00Z"}
+{"type":"user","message":{"role":"user","content":"and again"}}

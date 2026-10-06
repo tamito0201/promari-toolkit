@@ -8,5 +8,8 @@ Usage:
                           (written to the project's personal .claude/settings.local.json)
   psl uninstall          take the status line out of the settings and remove the copy
   psl doctor             check the installation
+  psl dashboard [--addr 127.0.0.1:4646]
+                          serve every category of the status line as a web page
+                          (open http://localhost:4646/; Ctrl-C to stop)
   psl hook <event>       handle a Claude Code hook (SessionStart keeps the copy current)
   psl version            print the version

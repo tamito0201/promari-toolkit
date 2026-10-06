@@ -23,6 +23,7 @@ type fakes struct {
 	checks   []usecase.Check
 	dryRun   bool
 	refreshs int
+	addr     string
 }
 
 func (f *fakes) Handle(_ context.Context, in io.Reader, out io.Writer) error {
@@ -64,6 +65,14 @@ func (r refresher) Execute(context.Context) (bool, error) {
 	return false, r.err
 }
 
+type dashboarder struct{ *fakes }
+
+func (d dashboarder) Serve(_ context.Context, addr string, out io.Writer) error {
+	d.addr = addr
+	_, _ = io.WriteString(out, "serving "+addr+"\n")
+	return d.err
+}
+
 type diagnoser struct{ *fakes }
 
 func (d diagnoser) Execute(context.Context) []usecase.Check { return d.checks }
@@ -72,7 +81,8 @@ func run(f *fakes, stdin string, args ...string) (code int, stdout, stderr strin
 	var out, errOut bytes.Buffer
 	app := &cli.App{
 		Render: f, Install: installer{f}, Global: globalInstaller{f}, Uninstall: uninstaller{f}, Refresh: refresher{f}, Diagnose: diagnoser{f},
-		In: strings.NewReader(stdin), Out: &out, Err: &errOut,
+		Dashboard: dashboarder{f},
+		In:        strings.NewReader(stdin), Out: &out, Err: &errOut,
 	}
 	code = app.Run(context.Background(), args)
 	return code, out.String(), errOut.String()
@@ -327,4 +337,42 @@ func TestDoctorWords(t *testing.T) {
 			t.Errorf("no words for the missing tool %s:\n%s", tool, out)
 		}
 	}
+}
+
+func TestDashboard(t *testing.T) {
+	t.Parallel()
+	t.Run("it listens on the loopback address by default", func(t *testing.T) {
+		t.Parallel()
+		f := &fakes{}
+		code, out, _ := run(f, "", "dashboard")
+		if code != 0 || f.addr != "127.0.0.1:4646" || out != "serving 127.0.0.1:4646\n" {
+			t.Errorf("code %d, addr %q, out %q", code, f.addr, out)
+		}
+	})
+	t.Run("--addr chooses another address", func(t *testing.T) {
+		t.Parallel()
+		f := &fakes{}
+		if code, _, _ := run(f, "", "dashboard", "--addr", "127.0.0.1:5000"); code != 0 || f.addr != "127.0.0.1:5000" {
+			t.Errorf("code %d, addr %q", code, f.addr)
+		}
+	})
+	t.Run("an unknown flag is a usage error", func(t *testing.T) {
+		t.Parallel()
+		f := &fakes{}
+		if code, _, stderr := run(f, "", "dashboard", "--port", "1"); code != 2 || f.addr != "" || !strings.Contains(stderr, "-port") {
+			t.Errorf("code %d, addr %q, stderr %q", code, f.addr, stderr)
+		}
+	})
+	t.Run("a server that fails is an error", func(t *testing.T) {
+		t.Parallel()
+		if code, _, stderr := run(&fakes{err: errBroken}, "", "dashboard"); code != 1 || !strings.Contains(stderr, "broken") {
+			t.Errorf("code %d, stderr %q", code, stderr)
+		}
+	})
+	t.Run("the help names the command", func(t *testing.T) {
+		t.Parallel()
+		if _, out, _ := run(&fakes{}, "", "help"); !strings.Contains(out, "psl dashboard") {
+			t.Errorf("help lacks the dashboard:\n%s", out)
+		}
+	})
 }

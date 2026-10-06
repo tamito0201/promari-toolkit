@@ -53,6 +53,7 @@ func alarmIf(on bool, c model.Chip) model.Chip {
 // section is one category of the status line: its title and the chips it
 // builds from a view. A section without chips is left out.
 type section struct {
+	band  model.Band
 	title string
 	tone  model.Tone
 	chips func(*View) []model.Chip
@@ -76,37 +77,63 @@ type section struct {
 func sections() []section {
 	return []section{
 		// 1. Alerts
-		{"🚨 Alert", model.ToneDanger, alertChips},
-		{"📉 Forecast", model.ToneDanger, forecastChips},
+		{model.BandAlerts, "🚨 Alert", model.ToneDanger, alertChips},
+		{model.BandAlerts, "📉 Forecast", model.ToneDanger, forecastChips},
 		// 2. Limits
-		{"🧠 Context", model.ToneAccent, contextChips},
-		{"", model.TonePlain, claudeChips}, // the chip carries its own ⚡ Claude header
-		{"", model.TonePlain, codexChips},  // the chip carries its own 🤖 Codex header
+		{model.BandLimits, "🧠 Context", model.ToneAccent, contextChips},
+		{model.BandLimits, "", model.TonePlain, claudeChips}, // the chip carries its own ⚡ Claude header
+		{model.BandLimits, "", model.TonePlain, codexChips},  // the chip carries its own 🤖 Codex header
 		// 3. Money
-		{"💰 Cost", model.ToneMoney, costChips},
-		{"🔥 Burn", model.ToneDanger, burnChips},
+		{model.BandMoney, "💰 Cost", model.ToneMoney, costChips},
+		{model.BandMoney, "🔥 Burn", model.ToneDanger, burnChips},
 		// 4. Where the work stands
-		{"🌿 Git", model.ToneGood, gitChips},
-		{"🔀 PR", model.ToneInfo, pullChips},
-		{"🔧 Work", model.ToneNote, workChips},
-		{"⏰ Due", model.ToneCaution, dueChips},
-		{"🔖 Session", model.ToneNote, sessionChips},
-		{"👥 Sessions", model.ToneInfo, peerChips},
+		{model.BandWork, "🌿 Git", model.ToneGood, gitChips},
+		{model.BandWork, "🔀 PR", model.ToneInfo, pullChips},
+		{model.BandWork, "🔧 Work", model.ToneNote, workChips},
+		{model.BandWork, "⏰ Due", model.ToneCaution, dueChips},
+		{model.BandWork, "🔖 Session", model.ToneNote, sessionChips},
+		{model.BandWork, "👥 Sessions", model.ToneInfo, peerChips},
 		// 5. How well it goes
-		{"📈 KPI", model.ToneGood, kpiChips},
-		{"🚀 Perf", model.ToneNote, perfChips},
-		{"📦 Cache", model.ToneNote, cacheChips},
-		{"📊 Tokens", model.ToneInfo, tokenChips},
-		{"🤝 Agent", model.ToneAccent, agentChips},
-		{"🧪 Quality", model.ToneGood, qualityChips},
-		{"📏 Rules", model.ToneCaution, rulesChips},
-		{"🧬 Trace", model.ToneInfo, traceChips},
-		{"🎓 Habits", model.ToneGood, habitsChips},
+		{model.BandMetrics, "📈 KPI", model.ToneGood, kpiChips},
+		{model.BandMetrics, "🚀 Perf", model.ToneNote, perfChips},
+		{model.BandMetrics, "📦 Cache", model.ToneNote, cacheChips},
+		{model.BandMetrics, "📊 Tokens", model.ToneInfo, tokenChips},
+		{model.BandMetrics, "🤝 Agent", model.ToneAccent, agentChips},
+		{model.BandMetrics, "🧪 Quality", model.ToneGood, qualityChips},
+		{model.BandMetrics, "📏 Rules", model.ToneCaution, rulesChips},
+		{model.BandMetrics, "🧬 Trace", model.ToneInfo, traceChips},
+		{model.BandMetrics, "🎓 Habits", model.ToneGood, habitsChips},
+		// 研究由来の記述統計。実測できる範囲を個別に表示する。
+		{model.BandMetrics, "📐 Latency", model.ToneInfo, latencySection.chips},
+		{model.BandMetrics, "🧰 Tools", model.ToneInfo, toolsSection.chips},
+		{model.BandMetrics, "🎲 Diversity", model.ToneInfo, diversitySection.chips},
+		{model.BandMetrics, "🧮 Budget", model.ToneInfo, budgetSection.chips},
+		{model.BandMetrics, "🔬 Evidence", model.ToneInfo, evidenceSection.chips},
 		// 6. Surroundings
-		{"🧭 Env", model.ToneAccent, envChips},
-		{"💻 System", model.ToneInfo, systemChips},
-		{"🧾 Meta", model.ToneMuted, metaChips},
-		{"🎵 Music", model.ToneAccent, musicChips},
+		{model.BandSurroundings, "🧭 Env", model.ToneAccent, envChips},
+		{model.BandSurroundings, "💻 System", model.ToneInfo, systemChips},
+		{model.BandSurroundings, "🧾 Meta", model.ToneMuted, metaChips},
+		{model.BandSurroundings, "🎵 Music", model.ToneAccent, musicChips},
+	}
+}
+
+// BandInfo names a band for a reader: a short English name and the question
+// the band answers.
+type BandInfo struct {
+	Band     model.Band
+	Name     string
+	Question string
+}
+
+// Bands returns the bands in display order.
+func Bands() []BandInfo {
+	return []BandInfo{
+		{model.BandAlerts, "ALERTS", "いま手を打つべきこと"},
+		{model.BandLimits, "LIMITS", "このまま続けられるか"},
+		{model.BandMoney, "MONEY", "いくらかかっているか"},
+		{model.BandWork, "WORK", "作業はどこまで進んだか"},
+		{model.BandMetrics, "METRICS", "うまく進んでいるか"},
+		{model.BandSurroundings, "SURROUNDINGS", "どんな環境で動いているか"},
 	}
 }
 
@@ -115,7 +142,7 @@ func Compose(v *View) []model.Group {
 	var groups []model.Group
 	for _, s := range sections() {
 		if chips := s.chips(v); len(chips) > 0 {
-			groups = append(groups, model.Group{Title: s.title, Tone: s.tone, Chips: chips})
+			groups = append(groups, model.Group{Title: s.title, Tone: s.tone, Chips: chips, Band: s.band})
 		}
 	}
 	return groups

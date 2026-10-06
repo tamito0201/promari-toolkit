@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -292,7 +293,7 @@ func TestRenderGathersEveryFact(t *testing.T) {
 	if !slices.Equal(w.asked, wantAsked) {
 		t.Errorf("asked %q, want %q", w.asked, wantAsked)
 	}
-	if len(m.codex) != 1 || m.codex[0] != w.codex || len(m.claude) != 0 {
+	if len(m.codex) != 1 || !reflect.DeepEqual(m.codex[0], w.codex) || len(m.claude) != 0 {
 		t.Errorf("posted Codex %+v and Claude %+v; want the Codex usage that was read and, without rate limits, nothing for Claude", m.codex, m.claude)
 	}
 	if string(m.input) != `{"raw":true}` || m.width != "test "+strings.Repeat("#", 197) {

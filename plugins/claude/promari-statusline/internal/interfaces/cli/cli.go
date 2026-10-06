@@ -57,6 +57,14 @@ type Diagnoser interface {
 	Execute(ctx context.Context) []usecase.Check
 }
 
+// Dashboard serves the status line as a web page until ctx ends.
+type Dashboard interface {
+	Serve(ctx context.Context, addr string, out io.Writer) error
+}
+
+// DefaultDashboardAddr is where `psl dashboard` listens without --addr.
+const DefaultDashboardAddr = "127.0.0.1:4646"
+
 // App is the command line with the use cases it calls.
 type App struct {
 	Render    Renderer
@@ -65,6 +73,7 @@ type App struct {
 	Uninstall Uninstaller
 	Refresh   Refresher
 	Diagnose  Diagnoser
+	Dashboard Dashboard
 
 	In  io.Reader
 	Out io.Writer
@@ -88,6 +97,8 @@ func (a *App) Run(ctx context.Context, args []string) int {
 		return a.doctor(ctx)
 	case "hook":
 		return a.hook(ctx)
+	case "dashboard":
+		return a.dashboard(ctx, rest)
 	case "version", "--version", "-v":
 		fmt.Fprintln(a.Out, "psl "+Version)
 		return exitOK
@@ -238,6 +249,17 @@ func (a *App) doctor(ctx context.Context) int {
 		fmt.Fprintf(a.Out, "%s %s: %s\n", mark, name, detail)
 	}
 	return code
+}
+
+// dashboard serves the web page until Ctrl-C.
+func (a *App) dashboard(ctx context.Context, args []string) int {
+	flags := flag.NewFlagSet("dashboard", flag.ContinueOnError)
+	flags.SetOutput(a.Err)
+	addr := flags.String("addr", DefaultDashboardAddr, "the address to listen on (keep it on the loopback address)")
+	if err := flags.Parse(args); err != nil {
+		return exitUsage
+	}
+	return a.report(a.Dashboard.Serve(ctx, *addr, a.Out))
 }
 
 // hook handles a Claude Code hook. Every event does the same thing: bring the

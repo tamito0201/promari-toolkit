@@ -204,3 +204,35 @@ func TestActivitiesPruneSweepsStaleTemporaries(t *testing.T) {
 		t.Error("the stale temporary file survived the prune")
 	}
 }
+
+func TestLastInput(t *testing.T) {
+	t.Parallel()
+	t.Run("no render recorded is nothing", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := state.Recorder{Store: filecache.NewStore(platformtest.New(t0))}.LastInput()
+		if !errors.Is(err, repository.ErrNone) {
+			t.Errorf("err = %v, want ErrNone", err)
+		}
+	})
+	t.Run("the recorded input comes back with the time it was written", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		recorder := state.Recorder{Store: filecache.NewStore(sys)}
+		recorder.Input([]byte(`{"session_id":"s1"}`))
+		sys.Times[cache+"last-input.json"] = t0.Add(-time.Minute)
+		raw, at, err := recorder.LastInput()
+		if err != nil || string(raw) != `{"session_id":"s1"}` || !at.Equal(t0.Add(-time.Minute)) {
+			t.Errorf("LastInput() = %q, %v, %v", raw, at, err)
+		}
+	})
+	t.Run("a file that cannot be read is nothing", func(t *testing.T) {
+		t.Parallel()
+		sys := platformtest.New(t0)
+		sys.Files[cache+"last-input.json"] = []byte("{}")
+		sys.ReadErr = map[string]error{cache + "last-input.json": errors.New("denied")}
+		_, _, err := state.Recorder{Store: filecache.NewStore(sys)}.LastInput()
+		if !errors.Is(err, repository.ErrNone) || !strings.Contains(err.Error(), "denied") {
+			t.Errorf("err = %v", err)
+		}
+	})
+}

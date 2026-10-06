@@ -61,7 +61,24 @@ type Group struct {
 	Title string
 	Tone  Tone
 	Chips []Chip
+	// Band is the band of the status line the category belongs to, from 1
+	// (what needs action now) to the surroundings. Categories of a band stand
+	// together; the dashboard shows a band as a section.
+	Band Band
 }
+
+// Band is a band of categories: categories that answer the same question.
+type Band uint8
+
+// The bands, from the top of the status line.
+const (
+	BandAlerts       Band = iota + 1 // outages and exhaustion
+	BandLimits                       // whether the session can go on
+	BandMoney                        // what it costs
+	BandWork                         // where the work stands
+	BandMetrics                      // how well it goes
+	BandSurroundings                 // the environment and the machine
+)
 
 // Separator is what stands between two items of a line.
 type Separator uint8

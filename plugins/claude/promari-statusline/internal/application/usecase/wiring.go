@@ -21,7 +21,7 @@ func unwired(path string, v reflect.Value) string {
 	for i := range v.NumField() {
 		field, name := v.Field(i), path+"."+v.Type().Field(i).Name
 		switch field.Kind() {
-		case reflect.Interface:
+		case reflect.Interface, reflect.Func:
 			if field.IsNil() {
 				return name
 			}

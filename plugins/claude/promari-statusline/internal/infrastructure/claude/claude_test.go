@@ -2,6 +2,7 @@ package claude_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"maps"
@@ -681,6 +682,37 @@ func TestTranscriptContinues(t *testing.T) {
 	got, err = reader.Transcript(ctx, "/t.jsonl", got)
 	if err != nil || got.Requests != 1 || got.Cursor.Offset != int64(len(first)) {
 		t.Errorf("a replaced transcript = %+v, %v", got, err)
+	}
+}
+
+func TestObservedCallsContinueAfterPersistedPartialResult(t *testing.T) {
+	t.Parallel()
+	const call = `{"type":"assistant","timestamp":"2026-10-06T00:00:00Z","message":{"id":"msg_1","usage":{"input_tokens":10},"content":[{"type":"tool_use","id":"a","name":"Read"}]}}` + "\n"
+	const result = `{"type":"user","timestamp":"2026-10-06T00:00:02Z","message":{"content":[{"type":"tool_result","tool_use_id":"a","is_error":true}]}}` + "\n"
+	sys := platformtest.New(t0)
+	reader := claude.Transcript{Sys: sys}
+	sys.Files["/t.jsonl"] = []byte(call + result[:len(result)/2])
+	first, err := reader.Transcript(t.Context(), "/t.jsonl", model.Transcript{})
+	if err != nil || first.Observations.View().Calls != 1 || first.Observations.View().Pending != 1 || first.UsageRequests != 1 {
+		t.Fatalf("呼び出しの初回集計: %+v, %v", first, err)
+	}
+	saved, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored model.Transcript
+	if err := json.Unmarshal(saved, &restored); err != nil {
+		t.Fatal(err)
+	}
+	sys.Files["/t.jsonl"] = []byte(call + result + call + result)
+	got, err := reader.Transcript(t.Context(), "/t.jsonl", restored)
+	if err != nil || got.Observations.View().Calls != 1 || got.Observations.View().Completed != 1 || got.Observations.View().Failed != 1 || got.Observations.View().Pending != 0 || !slices.Equal(got.Observations.View().Seconds, []float64{2}) || got.UsageRequests != 1 {
+		t.Fatalf("再開後に重複を数えたか対応を失った: %+v, %v", got, err)
+	}
+	got.Cursor.Format = model.TranscriptFormat - 1
+	rebuilt, err := reader.Transcript(t.Context(), "/t.jsonl", got)
+	if err != nil || rebuilt.Cursor.Format != model.TranscriptFormat || rebuilt.Observations.View().Calls != 1 || rebuilt.Observations.View().Completed != 1 || rebuilt.UsageRequests != 1 {
+		t.Fatalf("旧形式からの再集計: %+v, %v", rebuilt, err)
 	}
 }
 

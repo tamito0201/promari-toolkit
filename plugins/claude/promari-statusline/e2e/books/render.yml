@@ -1,0 +1,56 @@
+desc: 1回目の描画が全分類を出し、入力・幅・他ツール向けの板を記録し、2回目以降が1回目を覚えている
+vars:
+  # 各行: 1回目の描画に含まれるべきチップ
+  chips:
+    - "🧠 Context │ ████░░░░░░ 42% 84k/200k 残 116k"
+    - "⚡ Claude 5h ░░░░░ 1% 7d ████░ 73%"
+    - "💰 Cost │ Sess $1.23"
+    - "⏰ 10m (API 5m)"
+    - "Lines +10-2"
+    - "Parallel ×0.50"
+    - "🧭 Env │ Opus 5.5"
+    - "🕐 "
+    - "v2.1.34"
+    - "🆙 Update v99.0.0"
+steps:
+  first:
+    exec:
+      command: "{{ vars.env }} COLUMNS=100 {{ vars.psl }} render < {{ vars.testdata }}/report.json"
+    test: |
+      compare(
+        {"exit": current.exit_code, "stderr": current.stderr, "coloured": current.stdout contains "\x1b[38;5;"},
+        {"exit": 0, "stderr": "", "coloured": true}
+      )
+  chips:
+    desc: 表の全行を1回の compare で確かめる（runn のステップループは最後の回の test しか判定しないため使わない）
+    test: |
+      compare(
+        fromPairs(map(vars.chips, {[#, plain(steps.first.stdout) contains #]})),
+        fromPairs(map(vars.chips, {[#, true]}))
+      )
+  recorded:
+    desc: 受け取った入力・使った幅・他ツールが読む板（internal/infrastructure/usage/board.go が契約）
+    test: |
+      compare(
+        {
+          "input": file(vars.home + "/.cache/promari-statusline/last-input.json"),
+          "width": file(vars.home + "/.cache/promari-statusline/width.txt"),
+          "board": file(vars.home + "/.cache/claude-rate-limits.json") matches '^\\{"ts":[0-9.]+,"rl":\\{"five_hour":\\{"used_percentage":1\\},"seven_day":\\{"used_percentage":73\\}\\}\\}$'
+        },
+        {"input": file(vars.testdata + "/report.json"), "width": "COLUMNS 97\n", "board": true}
+      )
+  second_prompt:
+    desc: 同じセッションの次の描画は、1回目のプロンプトを覚えている
+    exec:
+      command: "{{ vars.env }} COLUMNS=100 {{ vars.psl }} render < {{ vars.testdata }}/report_next.json"
+    test: 'compare({"turns": plain(current.stdout) contains "Turns ×2"}, {"turns": true})'
+  remembered_limits:
+    desc: rate_limits の無い描画は、覚えている値を鮮度の注記つきで出す
+    exec:
+      command: "{{ vars.env }} COLUMNS=100 {{ vars.psl }} render"
+      stdin: '{"model":{"display_name":"Opus 5.5"}}'
+    test: |
+      compare(
+        {"limits": plain(current.stdout) contains "⚡ Claude 5h", "note": plain(current.stdout) contains "初回応答待ち"},
+        {"limits": true, "note": true}
+      )

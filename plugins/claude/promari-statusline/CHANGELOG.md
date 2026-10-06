@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.14.0 — 2026-10-06
+
+- 論文と公式監視仕様を根拠に、Latency・Tools・Diversity・Budget・Evidenceの5分類・49指標を追加。
+  完了時間のp95/p99・ばらつき、ツール結果のエラー率とWilson区間、追跡欠損、Shannonエントロピーと
+  Hill数、消費の分布・集中度、判定できた検証結果をコンソールとダッシュボードに表示する。
+- ダッシュボードの `#detail/research` に5図表と全49指標の定義・単位・観測数・一次情報へのリンクを追加。
+  既存分を合わせた数値は104。観測不足と0を分け、p95は20件、p99は100件から表示する。
+- ツールIDとログ記録時刻を対応付け、並列実行・重複再掲・拒否・中断・部分行・再開を区別する。
+  時刻差は許可待ちを含むログ往復であり、純粋な実行時間やTTFTとはみなさない。
+  集計キャッシュを形式5に更新し、既存の会話記録から再計算する。
+- Node.js 24の型定義を24.19.0に固定し、公開直後のパッケージを保留するpnpmポリシーに適合させる。
+
+## 1.13.0 — 2026-10-06
+
+A dashboard: `psl dashboard` serves the status line as a web page at http://localhost:4646/.
+
+- Every category of the status line, in its order, grouped into the six bands of 1.12.0
+  (alerts, limits, money, where the work stands, metrics, surroundings), with the context,
+  the Claude windows and today's spend shown large. Bars are drawn as gauges and warnings
+  blink. When no outage is reported, the alerts band links to the categories in warning.
+- The page shows the session that drew last and refreshes every five seconds. It only
+  reads: no activity, rate limit, history or post for other tools is written, and a render
+  older than two minutes is shown as such, with the remembered limits and no forecast.
+- It listens on 127.0.0.1 and refuses requests whose Host is not this machine (DNS
+  rebinding), with a Content-Security-Policy that allows only the page itself and its font.
+- The page is TypeScript (`web/`), built with esbuild and embedded in the binary; the
+  release still needs Go only. A test checks that the embedded page was built from the
+  current sources.
+
 ## 1.12.0 — 2026-10-06
 
 The order of the status line is fixed, one category per line:

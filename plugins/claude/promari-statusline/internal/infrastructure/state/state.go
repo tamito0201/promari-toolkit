@@ -6,6 +6,7 @@ package state
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -124,6 +125,18 @@ func (r Recorder) Input(raw []byte) {
 	}
 	// A record that cannot be written only makes a later diagnosis harder.
 	_ = r.Store.WriteRaw(lastInputFile, raw)
+}
+
+var _ repository.InputArchive = Recorder{}
+
+// LastInput implements repository.InputArchive.
+func (r Recorder) LastInput() ([]byte, time.Time, error) {
+	raw, at, err := r.Store.ReadRaw(lastInputFile)
+	if err != nil {
+		// A cache without the file is a machine where no session has drawn yet.
+		return nil, time.Time{}, fmt.Errorf("%w: %w", repository.ErrNone, err)
+	}
+	return raw, at, nil
 }
 
 // Width implements repository.Recorder.

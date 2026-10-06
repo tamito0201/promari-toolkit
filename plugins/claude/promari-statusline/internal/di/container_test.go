@@ -117,3 +117,15 @@ func TestNew(t *testing.T) {
 		})
 	}
 }
+
+// The dashboard is wired to the real server: an address it cannot listen on
+// comes back as the server's own error.
+func TestNewWiresTheDashboard(t *testing.T) {
+	t.Parallel()
+	sys := platformtest.New(t0)
+	var out, errOut bytes.Buffer
+	app := di.New(sys, di.Streams{In: strings.NewReader(""), Out: &out, Err: &errOut})
+	if code := app.Run(t.Context(), []string{"dashboard", "--addr", "127.0.0.1:notaport"}); code != 1 || !strings.Contains(errOut.String(), "listen on 127.0.0.1:notaport") {
+		t.Errorf("code %d, stderr %q", code, errOut.String())
+	}
+}

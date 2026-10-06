@@ -64,6 +64,23 @@ first read of a 29 MB transcript, 0.13 ms for the next). Where a chip's threshol
 research, the source is named in the code beside it; the list is in
 [docs/statusline/README.md](../docs/statusline/README.md).
 
+## 研究に基づく追加指標
+
+コンソールに **Latency / Tools / Diversity / Budget / Evidence** の5分類・49指標を追加した。
+完了時間のp95・p99、ツール結果のエラー率とWilson区間、観測の欠損、ツール利用の偏り、
+プロンプトごとの消費分布、テスト・ビルド実行結果を確認できる。
+
+`psl dashboard` 起動後、[研究に基づく49指標](http://localhost:4646/#detail/research) を開くと、
+5図表と全数値・単位・分母・算出条件・一次情報リンクを表示する。既存分と合わせて104数値。
+p95は20観測、p99は100観測から表示し、未取得と実測0を区別する。
+ログ上の往復時間には許可待ちを含み、ツールの実行時間やTTFTではない。
+エラー率や多様性は記述統計であり、タスク成功率・生産性のスコアには変換しない。
+
+根拠は Dean & Barroso (2013)、Wilson (1927)、Shannon (1948)、Hill (1973)、
+Kapoor et al. (2024)、Yang et al. (2024)、Anthropicの公式監視仕様。
+数式・母数・採用しなかった指標は
+[調査記録](../docs/statusline/README.md#論文公式仕様から追加した49指標2026-10-06) を参照。
+
 ## Install
 
 The plugin is released in promari-toolkit but not listed in its marketplace yet, so
@@ -127,10 +144,34 @@ plugin's) and deletes the copy.
 | `psl setup [--dry-run]` | Install the binary and point the settings at it |
 | `psl uninstall` | Take the status line out of the settings and remove the binary |
 | `psl doctor` | Check the settings, the installed binary, the optional tools and the terminal width |
+| `psl dashboard [--addr 127.0.0.1:4646]` | Serve every category of the status line as a web page at <http://localhost:4646/> |
 | `psl version` | Print the version |
 
 `/promari-statusline:setup` and `/promari-statusline:doctor` run the same commands from
 inside Claude Code.
+
+## Dashboard
+
+`psl dashboard` serves the status line as a web page, in the design of the Promari journal:
+a poster with the three numbers that matter most (context, the Claude windows, today's
+spend), then every category in the status line's order, grouped into its six bands —
+alerts, limits, money, where the work stands, metrics and the surroundings. A warning
+blinks in red, and the alerts band points at the categories in warning.
+
+```bash
+psl dashboard                      # http://localhost:4646/ until Ctrl-C
+psl dashboard --addr 127.0.0.1:5000
+```
+
+The page shows the session that drew the status line last, refreshed every five seconds
+(paused while the tab is hidden). It only reads: the rate limits, the activity and the
+sessions shown are those the status line remembered, and nothing is recorded or posted for
+other tools. While the last render is more than two minutes old the page says so, shows
+the remembered limits with their time, and makes no forecast from them.
+
+It listens on the loopback address only and answers only requests that name this machine
+(`localhost`, `127.0.0.1`, `[::1]`): a page on another site that points its own name at
+127.0.0.1 is refused, so it cannot read your branches and costs through your browser.
 
 ## Optional tools
 
@@ -217,13 +258,19 @@ hang under the chips of its first line, so every section is named once.
 ```bash
 sh tools/run.sh task          # lint, tests (unit + E2E of the built binary), launcher, security
 sh tools/run.sh task build    # snapshot binaries for every platform
+sh tools/run.sh task web      # build the dashboard page from web/ (TypeScript, needs pnpm)
 ```
+
+The page of `psl dashboard` is written in TypeScript in `web/` and built with esbuild into
+`internal/interfaces/dashboard/assets`, which the binary embeds. The built files are
+committed, so the release needs Go only. `assets/source.sha256` records the sources they
+were built from, and a Go test fails when a source changed without `task web`.
 
 Go 1.27, two dependencies (`golang.org/x/term`, `golang.org/x/text`). Layered architecture
 with DDD: `internal/domain` (the session, the chips, how they are composed and laid out; no
 I/O), `internal/application` (the use cases, which know the domain and its ports),
 `internal/infrastructure` (the adapters behind the ports: git, gh, files, the machine),
-`internal/interfaces` (the command line and the ANSI presenter) and `internal/di` (the one
+`internal/interfaces` (the command line, the ANSI presenter and the dashboard's HTTP server) and `internal/di` (the one
 place that names them all). The direction of the imports is checked by `depguard` in
 `.golangci.yml`.
 

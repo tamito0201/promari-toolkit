@@ -51,6 +51,13 @@ linters:
     - usetesting
     - wastedassign
   settings:
+    recvcheck:
+      # encoding/json/v2 calls a pointer-receiver MarshalJSONTo only on an
+      # addressable value: json.Marshal(transcript) would then silently write
+      # the observations as {}. The marshaler keeps a value receiver while the
+      # mutating methods take pointers (TestToolObservationsJSON pins this).
+      exclusions:
+        - "*.MarshalJSONTo"
     depguard:
       # The dependency direction of the layered architecture, checked by machine:
       #

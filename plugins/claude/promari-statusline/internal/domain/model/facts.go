@@ -128,8 +128,10 @@ type Amount struct {
 // Spend is the estimated spending across sessions (from ccusage). It is an
 // estimate priced at API rates, unlike the session cost Claude Code reports.
 type Spend struct {
-	Today Optional[Amount]
-	Block Optional[Amount]
+	// Inactive は ccusage が稼働中の課金枠なしと明示した場合だけ真。
+	Inactive bool
+	Today    Optional[Amount]
+	Block    Optional[Amount]
 	// BlockLeft is the time left in the billing block, as printed and as a
 	// duration.
 	BlockLeftText string
@@ -150,11 +152,20 @@ func (s Spend) EstimatedBlock() (float64, bool) {
 
 // CodexLimits are the usage windows Codex last reported.
 type CodexLimits struct {
+	// History は最新セッションのログに記録された観測。閲覧時には追加しない。
+	History   []CodexRatePoint      `json:"history,omitzero"`
 	Primary   Optional[CodexWindow] `json:"primary,omitzero"`
 	Secondary Optional[CodexWindow] `json:"secondary,omitzero"`
 	Balance   Optional[float64]     `json:"balance,omitzero"`
 	// SeenAt is when Codex wrote the limits.
 	SeenAt time.Time `json:"seen_at"`
+}
+
+// CodexRatePoint は時間枠を固定せず、ログの観測時刻と値を保持する。
+type CodexRatePoint struct {
+	At        time.Time             `json:"at"`
+	Primary   Optional[CodexWindow] `json:"primary,omitzero"`
+	Secondary Optional[CodexWindow] `json:"secondary,omitzero"`
 }
 
 // CodexWindow is one Codex usage window.

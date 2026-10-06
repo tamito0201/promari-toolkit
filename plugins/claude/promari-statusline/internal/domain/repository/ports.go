@@ -158,6 +158,14 @@ type Recorder interface {
 	Sources(runs []model.SourceRun)
 }
 
+// InputArchive reads back what the Recorder kept: the session report of the
+// most recent render, of whichever session drew last.
+type InputArchive interface {
+	// LastInput returns the report and when it was written. It returns
+	// ErrNone when no render has been recorded.
+	LastInput() (raw []byte, at time.Time, err error)
+}
+
 // Switches are the user's on/off choices outside the settings file.
 type Switches interface {
 	// BlinkDemo makes every warning blink, to check that blinking works.

@@ -70,7 +70,7 @@ func burnChips(v *View) []model.Chip {
 	if activity, ok := v.Activity.Get(); ok {
 		chips = append(chips,
 			chip(model.ToneGood, "Active "+span(activity.Worked())),
-			chip(model.ToneMuted, "Streak "+span(activity.Streak(v.Now))))
+			chip(model.ToneMuted, "Streak "+span(activity.Streak(activityTime(&activity, v.Now)))))
 		if activity.Idled() >= idleShown {
 			chips = append(chips, chip(model.ToneMuted, "Idle "+span(activity.Idled())))
 		}
@@ -98,7 +98,7 @@ func kpiChips(v *View) []model.Chip {
 		chips = append(chips, chip(model.ToneInfo, "Lines/h "+grouped(added/worked.Hours())))
 	}
 	if tracked {
-		chips = append(chips, flowChips(&activity, v.Now)...)
+		chips = append(chips, flowChips(&activity, activityTime(&activity, v.Now))...)
 	}
 	total := cost.TotalUSD.Or(0)
 	if total != 0 && added > 0 {

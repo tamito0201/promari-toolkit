@@ -1,0 +1,107 @@
+desc: |
+  研究由来の指標（Tools・Diversity・Budget）を、手計算できる会話記録から算出し、
+  コンソールとダッシュボードが同じ実測値を出すことを compare で確かめる。
+  入力 testdata/research.jsonl: 呼び出し4件（Read a・Bash b・Read c・Edit d）、
+  結果3件（a 成功 2秒後・b エラー 4秒後・c 成功 1秒後）、d は結果未着。応答2件（入力100+200・出力20+40）。
+vars:
+  # 手計算した期待値（実装の出力を写したものではない）
+  #   往復時間 [2,4,1]: 平均 7/3、nearest-rank の中央値は昇順 [1,2,4] の ceil(0.5×3)=2 番目 = 2、最大 4
+  #   エラー率 1/3。Wilson 95%（z=1.959964）: 中心 0.42692・半幅 0.36543 → 6.15% 〜 79.23%
+  #   名前 {Read:2, Bash:1, Edit:1}: 種類3、H = 0.5×1 + 2×0.25×2 = 1.5 bit、2^1.5 = 2.83、最大占有 50%
+  #   隣接ペア Read→Bash→Read→Edit: 遷移3・すべて名前が変わるので切り替え率 100%
+  #   応答当たり: 入力 300/2 = 150、出力 60/2 = 30
+  exact:
+    observedCalls: 4
+    toolCompleted: 3
+    toolFailed: 1
+    toolSkipped: 0
+    toolPending: 1
+    toolUnpaired: 0
+    toolEvicted: 0
+    toolMissingID: 0
+    toolUntimed: 0
+    toolTimeSamples: 3
+    toolTimeP50: 2
+    toolTimeMax: 4
+    toolKinds: 3
+    toolEntropy: 1.5
+    toolDominance: 50
+    toolTransitions: 3
+    toolSwitch: 100
+    inputPerRequest: 150
+    outputPerRequest: 30
+  rounded:
+    toolTimeMean: 2.33
+    toolErrorRate: 33.33
+    toolErrorLow: 6.15
+    toolErrorHigh: 79.23
+    toolEffective: 2.83
+  # 観測3件では p95 を出さない（20件から）。値が無いことと、その理由の注記があること。
+  waiting: ["toolTimeP95"]
+  # コンソールに出るチップ（ラベルは contracts/research-measurements.json）
+  chips:
+    - "Calls 4"
+    - "Errors 1"
+    - "Pending 1"
+    - "MainErr 33.3%"
+    - "Kinds 3"
+    - "Entropy 1.50"
+    - "Dominant 50.0%"
+    - "Switch 100.0%"
+steps:
+  render:
+    exec:
+      # 会話記録の絶対パスを入れた報告を標準入力で渡す（runn は複数行コマンドの改行を書き換えるので1行で書く）
+      command: printf '{"session_id":"research","prompt_id":"p1","transcript_path":"%s","model":{"display_name":"Opus 5.5"}}' "{{ vars.testdata }}/research.jsonl" | {{ vars.env }} COLUMNS=130 {{ vars.psl }} render
+    test: 'compare({"exit": current.exit_code, "stderr": current.stderr}, {"exit": 0, "stderr": ""})'
+  console:
+    desc: 表の全行を1回の compare で確かめる（runn のステップループは最後の回の test しか判定しないため使わない）
+    test: |
+      compare(
+        fromPairs(map(vars.chips, {[#, plain(steps.render.stdout) contains #]})),
+        fromPairs(map(vars.chips, {[#, true]}))
+      )
+  serve:
+    desc: 記録された入力をダッシュボードで配信する（終了コードは後でファイルから読む）
+    exec:
+      command: ( {{ vars.env }} {{ vars.psl }} dashboard --addr 127.0.0.1:{{ vars.port }} > /dev/null 2>&1 & echo $! > {{ vars.home }}/dashboard.pid; wait $!; echo $? > {{ vars.home }}/dashboard.exit )
+      background: true
+  snapshot:
+    loop:
+      count: 50
+      until: 'current.res?.status == 200' # 起動前は接続できず応答が無い
+      minInterval: 100ms
+      maxInterval: 100ms
+    dashboard:
+      /api/snapshot:
+        get:
+          body: null
+    bind:
+      m: current.res.body.measurements
+  exact_values:
+    desc: 整数・有限小数で表せる値は、ダッシュボードの数値が手計算と完全に一致する
+    test: 'compare(fromPairs(map(keys(vars.exact), {[#, m[#].value]})), vars.exact)'
+  rounded_values:
+    desc: 無限小数になる値は、小数2桁に丸めて手計算と一致する
+    test: 'compare(fromPairs(map(keys(vars.rounded), {[#, round(m[#].value * 100) / 100]})), vars.rounded)'
+  waiting_values:
+    desc: 観測不足の値は 0 ではなく「値なし」で、理由の注記がある
+    test: |
+      compare(
+        fromPairs(map(vars.waiting, {[#, {"value": m[#].value, "explained": m[#].note != ""}]})),
+        fromPairs(map(vars.waiting, {[#, {"value": nil, "explained": true}]}))
+      )
+  stop:
+    exec:
+      command: kill -INT "$(cat {{ vars.home }}/dashboard.pid)"
+    test: current.exit_code == 0
+  exited:
+    desc: Ctrl-C で正常終了する
+    loop:
+      count: 50
+      until: 'current.exit_code == 0'
+      minInterval: 100ms
+      maxInterval: 100ms
+    exec:
+      command: cat {{ vars.home }}/dashboard.exit
+    test: 'compare(current.stdout, "0\n")'

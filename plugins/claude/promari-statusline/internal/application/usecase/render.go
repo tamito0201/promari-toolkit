@@ -89,7 +89,7 @@ func (u *RenderStatusLine) Execute(ctx context.Context, req RenderRequest) Rende
 		view.Usage = model.Some(usage)
 		view.Activity = u.observe(&req.Session, usage.Used, now)
 	}
-	facts, runs := u.gather(ctx, req)
+	facts, runs := collector{sources: d.Sources, clock: d.Clock}.gather(ctx, req)
 	view.Facts = facts
 	d.Recorder.Sources(runs)
 	// The account the limits, the forecasts and the other sessions belong to.
@@ -171,19 +171,25 @@ func branchOf(facts model.Facts) string {
 	return ""
 }
 
+// collector asks the sources of a render for their facts.
+type collector struct {
+	sources Sources
+	clock   repository.Clock
+}
+
 // gather asks every source at once (fan-out) and waits for all (fan-in). Each
 // question runs in its own goroutine, which ends when its reader returns;
 // every reader is bounded by the timeout of the command or request behind it.
 // The number of goroutines is the number of sources, fixed in this function.
 // Each writes one field of its own. It returns the facts and how each question
 // went.
-func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) (model.Facts, []model.SourceRun) {
-	src := u.deps.Sources
+func (c collector) gather(ctx context.Context, req RenderRequest) (model.Facts, []model.SourceRun) {
+	src := c.sources
 	s := &req.Session
-	r := &runs{clock: u.deps.Clock}
+	r := &runs{clock: c.clock}
 	var facts model.Facts
 	var wg sync.WaitGroup
-	wg.Go(func() { facts.Git, facts.Pull = u.gitAndPull(ctx, r, s.WorkDir()) })
+	wg.Go(func() { facts.Git, facts.Pull = c.gitAndPull(ctx, r, s.WorkDir()) })
 	wg.Go(func() {
 		facts.Reviews = read(r, "reviews", func() (model.ReviewQueue, error) { return src.Reviews.ReviewQueue(ctx, s.WorkDir()) })
 	})
@@ -224,13 +230,13 @@ func (u *RenderStatusLine) gather(ctx context.Context, req RenderRequest) (model
 }
 
 // gitAndPull reads the working tree and then the pull request of its branch.
-func (u *RenderStatusLine) gitAndPull(ctx context.Context, r *runs, dir string) (model.Optional[model.Git], model.Optional[model.PullRequest]) {
-	git := read(r, "git", func() (model.Git, error) { return u.deps.Sources.Git.Git(ctx, dir) })
+func (c collector) gitAndPull(ctx context.Context, r *runs, dir string) (model.Optional[model.Git], model.Optional[model.PullRequest]) {
+	git := read(r, "git", func() (model.Git, error) { return c.sources.Git.Git(ctx, dir) })
 	g, ok := git.Get()
 	if !ok || g.Branch == "" {
 		return model.Optional[model.Git]{}, model.Optional[model.PullRequest]{}
 	}
-	pull := read(r, "pull", func() (model.PullRequest, error) { return u.deps.Sources.Pulls.PullRequest(ctx, dir, g.Branch) })
+	pull := read(r, "pull", func() (model.PullRequest, error) { return c.sources.Pulls.PullRequest(ctx, dir, g.Branch) })
 	return git, pull
 }
 

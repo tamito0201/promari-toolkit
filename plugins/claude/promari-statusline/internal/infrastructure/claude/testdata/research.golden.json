@@ -1,0 +1,111 @@
+{
+  "observations": {
+    "calls": 4,
+    "completed": 3,
+    "failed": 1,
+    "skipped": 0,
+    "unpaired": 0,
+    "evicted": 0,
+    "missing_id": 0,
+    "untimed": 0,
+    "names": {
+      "Bash": 1,
+      "Edit": 1,
+      "Read": 2
+    },
+    "switches": 3,
+    "transitions": 3,
+    "last_name": "Edit",
+    "pending": [
+      {
+        "id": "d",
+        "at": "2026-10-06T00:00:06Z"
+      }
+    ],
+    "recent": [
+      "a",
+      "b",
+      "c",
+      "d"
+    ],
+    "result_ids": [
+      "a",
+      "b",
+      "c"
+    ],
+    "seconds": [
+      2,
+      4,
+      1
+    ]
+  },
+  "tools": {
+    "total": 4,
+    "errors": 1,
+    "top": [
+      {
+        "name": "Read",
+        "count": 2
+      },
+      {
+        "name": "Bash",
+        "count": 1
+      },
+      {
+        "name": "Edit",
+        "count": 1
+      }
+    ]
+  },
+  "tool_counts": [
+    {
+      "name": "Read",
+      "count": 2
+    },
+    {
+      "name": "Bash",
+      "count": 1
+    },
+    {
+      "name": "Edit",
+      "count": 1
+    }
+  ],
+  "tokens": {
+    "input": 300,
+    "cache_write": 0,
+    "cache_read": 0,
+    "output": 60
+  },
+  "requests": 2,
+  "usage_requests": 2,
+  "prompts": 1,
+  "quality": {
+    "edits": 1,
+    "pending": [
+      {
+        "id": "d"
+      }
+    ],
+    "last_call": "2jh56d9rmmwhl"
+  },
+  "trace": {
+    "explores": 2,
+    "rereads": 1,
+    "edit_run": 1,
+    "max_edit_run": 1,
+    "observed_bytes": 10,
+    "largest_observed": 6,
+    "prompts_since_compact": 1,
+    "prompted": true
+  },
+  "started": "2026-10-06T00:00:00Z",
+  "cursor": {
+    "offset": 1028,
+    "format": 5,
+    "recent": [
+      "m1",
+      "m2"
+    ]
+  }
+}
