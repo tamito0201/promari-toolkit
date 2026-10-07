@@ -7,6 +7,7 @@ import type {
   Fullscreen,
 } from "./ports.ts";
 import {
+  retainMeasurements,
   presentDashboard,
   type DashboardState,
   type DashboardVM,
@@ -102,9 +103,17 @@ export function createDashboardViewModel(
     request = controller;
     update({ busy: true });
     try {
-      const snapshot = await deps.repository.load(controller.signal);
+      const incoming = await deps.repository.load(controller.signal);
       if (disposed || current !== generation) return;
-      state = { ...state, snapshot, offline: false };
+      // 新しい描画は毎回採用する。表示できていた値が「—」へ消える鍵だけ
+      // 直前の値を持ち越し、欠測の画面を見せない（件数は更新表示に出す）。
+      const retained = retainMeasurements(state.snapshot, incoming);
+      state = {
+        ...state,
+        snapshot: retained.snapshot,
+        carried: retained.carried,
+        offline: false,
+      };
     } catch {
       if (disposed || current !== generation) return;
       state = { ...state, offline: true };

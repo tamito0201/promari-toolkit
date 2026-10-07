@@ -199,6 +199,47 @@ test("非表示では更新せず、再表示時に更新する。一時停止�
   h.model.dispose();
 });
 
+test("欠測した集計値は直前の値を持ち越し、更新そのものは止めない", async () => {
+  const h = harness();
+  const requestsValue = () => {
+    for (const panel of h.state.panels)
+      for (const block of panel.blocks)
+        if (block.kind === "metrics")
+          for (const item of block.items)
+            if (item.key === "requests") return item.value;
+    return undefined;
+  };
+  h.model.start();
+  h.request(0).resolve({
+    ...snapshot("v1"),
+    measurements: { requests: { value: 5 } },
+  });
+  await setImmediate();
+  assert.equal(h.state.version, "psl v1");
+  assert.equal(requestsValue(), "5");
+  // requests が欠測した描画も採用する（更新は進む）。値は直前から持ち越す。
+  h.tick();
+  h.request(1).resolve({
+    ...snapshot("v2"),
+    at: "2026-10-06T01:00:05Z",
+    measurements: { thinking: { value: 9 } },
+  });
+  await setImmediate();
+  assert.equal(h.state.version, "psl v2");
+  assert.equal(requestsValue(), "5");
+  assert.match(h.state.updated, /欠測1件は直前の値を表示/u);
+  // 値がそろった描画で持ち越しが終わり、注記も消える。
+  h.tick();
+  h.request(2).resolve({
+    ...snapshot("v3"),
+    measurements: { requests: { value: 6 }, thinking: { value: 1 } },
+  });
+  await setImmediate();
+  assert.equal(h.state.version, "psl v3");
+  assert.equal(requestsValue(), "6");
+  assert.doesNotMatch(h.state.updated, /持ち越し|直前の値/u);
+});
+
 test("通信失敗時に最後の取得値を保持し、次回成功で復帰する", async () => {
   const h = harness();
   h.model.start();

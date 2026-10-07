@@ -160,10 +160,11 @@ inside Claude Code.
 a poster with the three numbers that matter most (context, the Claude windows, today's
 spend), then every category in the status line's order, grouped into its six bands —
 alerts, limits, money, where the work stands, metrics and the surroundings. A warning
-blinks in red, and the alerts band points at the categories in warning. Below the fold,
-a RESEARCH band draws all 49 research-based measurements on the same page — distribution
-dots on a shared scale, outcome compositions, Wilson-interval ladders, ratio rings and
-count columns — so none of them needs a separate screen.
+blinks in red, and the alerts band points at the categories in warning. The 49
+research-based measurements are absorbed into the panels that share their subject —
+distribution dots on a shared scale, outcome compositions, Wilson-interval ladders,
+ratio rings and count columns — so the whole page fits one screen and none of them
+needs a separate view.
 
 ```bash
 psl dashboard                      # http://localhost:4646/ until Ctrl-C
@@ -171,7 +172,10 @@ psl dashboard --addr 127.0.0.1:5000
 ```
 
 The page shows the session that drew the status line last, refreshed every five seconds
-(paused while the tab is hidden). It only reads: the rate limits, the activity and the
+(paused while the tab is hidden). A refresh never turns a value on screen into "—":
+every render is adopted, and a measurement the new render lacks carries its previous
+value forward, with a note beside the update time saying how many are carried.
+It only reads: the rate limits, the activity and the
 sessions shown are those the status line remembered, and nothing is recorded or posted for
 other tools. While the last render is more than two minutes old the page says so, shows
 the remembered limits with their time, and makes no forecast from them.

@@ -32,6 +32,7 @@ import { historyPoints, codexSeries, type Point } from "./series.ts";
 import { parseRoute } from "./routes.ts";
 import {
   MEASUREMENTS,
+  MEASUREMENT_KEYS,
   measurementNumber,
   measurementText,
   measurementSource,
@@ -59,6 +60,38 @@ export interface DashboardState {
   readonly hiddenSeries?: readonly string[];
   readonly focusedPanel?: string | undefined;
   readonly revision?: number;
+  /** 直前の描画から持ち越した集計値の数。0件なら全値がこの描画の実測。 */
+  readonly carried?: number;
+}
+
+/**
+ * 新しい描画を採用しつつ、表示できていた集計値が「—」へ消える鍵だけ
+ * 直前の値を持ち越す。描画・時刻・グラフは止めない（更新は毎回進む）。
+ * 複数セッションが交互に描く環境では指標の集合が描画ごとに違うため、
+ * スナップショット単位の保留は画面を永久に止める（実測で確認）。
+ * 持ち越しは、記憶したレート制限を表示する既存の方式と同型で、
+ * 件数を更新表示に明示する。
+ */
+export function retainMeasurements(
+  previous: Snapshot | undefined,
+  incoming: Snapshot,
+): { readonly snapshot: Snapshot; readonly carried: number } {
+  if (!previous) return { snapshot: incoming, carried: 0 };
+  const kept = MEASUREMENT_KEYS.filter(
+    (key) =>
+      measurementNumber(previous, key) !== undefined &&
+      measurementNumber(incoming, key) === undefined,
+  );
+  if (kept.length === 0) return { snapshot: incoming, carried: 0 };
+  const measurements = { ...incoming.measurements };
+  for (const key of kept) {
+    const entry = previous.measurements[key];
+    if (entry) measurements[key] = entry;
+  }
+  return {
+    snapshot: { ...incoming, measurements },
+    carried: kept.length,
+  };
 }
 
 export interface MetricVM {
@@ -838,7 +871,9 @@ export function presentDashboard(state: DashboardState): DashboardVM {
     freshnessClass: `freshness${state.offline ? " is-offline" : s && !s.live ? " is-stale" : ""}`,
     detailFreshness: `${fresh}${!state.offline && s?.limitsAt ? ` レート記録 ${dateTime(s.limitsAt)}。` : ""}`,
     updated: s
-      ? `更新 ${clock(s.at, { seconds: true })} · ${state.paused ? "一時停止中" : "5秒ごと"}`
+      ? `更新 ${clock(s.at, { seconds: true })} · ${state.paused ? "一時停止中" : "5秒ごと"}${
+          state.carried ? ` · 欠測${state.carried}件は直前の値を表示` : ""
+        }`
       : state.paused
         ? "一時停止中"
         : "更新待ち",
