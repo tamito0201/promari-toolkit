@@ -92,39 +92,35 @@ svg {
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-weight: 800;
-  letter-spacing: 1.1px;
-  font-size: 16px;
+  gap: 8px;
   flex-shrink: 0;
 }
 .brand small {
   display: block;
   font-weight: 500;
   font-size: 6px;
-  letter-spacing: 2px;
-  margin-top: 3px;
+  letter-spacing: 2.4px;
+  margin-top: 2px;
+  color: var(--ink);
 }
+/* promari.jp と同じ分子マークとワードマーク（紫→ピンクのグラデーション）。 */
 .brand-mark {
-  width: 28px;
-  height: 30px;
-  background: var(--ink);
-  color: var(--paper);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 24px;
-  font-weight: 750;
-  letter-spacing: -3px;
-  position: relative;
-  padding-right: 4px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
 }
-.brand-mark > span {
-  font-size: 12px;
-  color: var(--mint);
-  position: absolute;
-  right: 2px;
-  bottom: 3px;
+.brand-word {
+  display: block;
+  font:
+    800 19px/1 "Hiragino Maru Gothic ProN",
+    "Arial Rounded MT Bold",
+    Arial,
+    sans-serif;
+  letter-spacing: 0.4px;
+  background: linear-gradient(90deg, #7b318e, #9a46a5 55%, #d33278);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .breadcrumb {
   display: flex;
@@ -212,9 +208,9 @@ main {
 .overview-page {
   min-height: calc(100dvh - 89px);
   display: grid;
-  /* パネル行は内容準拠(auto)。49指標を吸収しても1画面に収まる詰め幅。 */
-  grid-template-rows: 38px 20px 72px auto 22px;
-  gap: 6px;
+  /* パネル行は内容準拠(auto)。見出しは読める余白を取り、超過は自動フィットが吸収。 */
+  grid-template-rows: 46px 22px 72px auto 22px;
+  gap: 8px;
 }
 .page-heading {
   display: flex;
@@ -258,10 +254,10 @@ main {
 }
 .heading-title h1 {
   font:
-    750 26px/0.98 Arial,
+    750 26px/1.08 Arial,
     sans-serif;
   letter-spacing: -1px;
-  margin-top: 5px;
+  margin-top: 7px;
 }
 .heading-title h1 > span {
   color: var(--blue);
@@ -1153,10 +1149,13 @@ footer .local-dot {
   padding: 0 7px;
   color: #b0b6b5;
 }
+.footer-copyright {
+  letter-spacing: 0.4px;
+}
 @media (min-width: 1650px) {
   .overview-page {
-    grid-template-rows: 32px 16px 72px auto 18px;
-    gap: 3px;
+    grid-template-rows: 48px 22px 72px auto 20px;
+    gap: 6px;
   }
   .stat-value {
     font-size: 33px;

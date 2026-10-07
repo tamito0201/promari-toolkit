@@ -9,9 +9,10 @@
       content="制限、費用、トークン、作業、品質、環境。セッションの主要指標を一画面で把握し、必要な指標の詳細へ。"
     />
     <link rel="stylesheet" href="app.css" />
+    <!-- promari.jp と同じ分子マーク。タブで見分けがつくよう背景だけ黒にする。 -->
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23202633'/%3E%3Cpath d='M8 24V8h9a5 5 0 010 10h-9' fill='none' stroke='%239dc1b4' stroke-width='3'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23111318'/%3E%3Cg fill='none' stroke='%237b318e' stroke-width='3' stroke-linecap='round' opacity='.9'%3E%3Cpath d='M40 14 28 27 20 41 29 55 40 68'/%3E%3Cpath d='M40 14 52 27 40 41'/%3E%3C/g%3E%3Cg stroke='%23111318' stroke-width='1.5'%3E%3Ccircle cx='40' cy='14' r='7' fill='%237b318e'/%3E%3Ccircle cx='28' cy='27' r='7' fill='%239a46a5'/%3E%3Ccircle cx='52' cy='27' r='7' fill='%23d33278'/%3E%3Ccircle cx='20' cy='41' r='7' fill='%237b318e'/%3E%3Ccircle cx='40' cy='41' r='7' fill='%23d33278'/%3E%3Ccircle cx='29' cy='55' r='7' fill='%239a46a5'/%3E%3Ccircle cx='40' cy='68' r='7' fill='%237b318e'/%3E%3C/g%3E%3C/svg%3E"
     />
     <script type="module" src="app.js"></script>
   </head>
@@ -19,8 +20,30 @@
     <a class="skip-link" href="#main">ダッシュボードへ移動</a>
     <header class="masthead">
       <a href="#overview" class="brand" aria-label="Promari ダッシュボード"
-        ><span class="brand-mark">P<span>↗</span></span
-        ><span>PROMARI<small>SESSION OBSERVATORY</small></span></a
+        ><svg class="brand-mark" viewBox="0 0 80 80" aria-hidden="true">
+          <g
+            fill="none"
+            stroke="#7b318e"
+            stroke-width="3"
+            stroke-linecap="round"
+            opacity=".9"
+          >
+            <path d="M40 14 28 27 20 41 29 55 40 68" />
+            <path d="M40 14 52 27 40 41" />
+          </g>
+          <g stroke="#f4f3ef" stroke-width="1.5">
+            <circle cx="40" cy="14" r="7" fill="#7b318e" />
+            <circle cx="28" cy="27" r="7" fill="#9a46a5" />
+            <circle cx="52" cy="27" r="7" fill="#d33278" />
+            <circle cx="20" cy="41" r="7" fill="#7b318e" />
+            <circle cx="40" cy="41" r="7" fill="#d33278" />
+            <circle cx="29" cy="55" r="7" fill="#9a46a5" />
+            <circle cx="40" cy="68" r="7" fill="#7b318e" />
+          </g></svg
+        ><span class="brand-text"
+          ><span class="brand-word">promari</span
+          ><small>SESSION OBSERVATORY</small></span
+        ></a
       >
       <nav class="breadcrumb" aria-label="現在の画面">
         <a href="#overview">Dashboard</a><span>/</span
@@ -75,9 +98,6 @@
         </div>
         <div class="overview-status">
           <p id="freshness" class="freshness">読み取り専用 · 5秒ごとに更新</p>
-          <a class="all-link" href="#detail/research"
-            >研究に基づく指標 ↗</a
-          >
           <a class="all-link" href="#detail/all"
             >全指標を詳しく見る <span>↗</span></a
           >
@@ -139,6 +159,8 @@
         <span class="footer-separator">/</span> 読み取り専用
         <span class="footer-separator">/</span>
         <span id="version">psl</span></span
+      ><span class="footer-copyright"
+        >Copyright © Purple Mariage Co., Ltd. All Rights Reserved.</span
       ><span id="updated">更新待ち</span>
     </footer>
   </body>

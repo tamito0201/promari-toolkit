@@ -77,7 +77,6 @@ export function createDashboardView(actions: DashboardActions): {
       ...data.categories.map((c) =>
         link(c.label, c.href, c.alarm ? "alert" : ""),
       ),
-      link("全指標 ↗", "#detail/all", "category-all"),
     );
     drawDetail(data);
     preview.render(data.preview);
