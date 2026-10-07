@@ -9,11 +9,7 @@ export type Route =
 /** リンク先になれる画面。解析できなかった位置（missing）へのリンクは作らない。 */
 export type LinkedRoute = Exclude<Route, { readonly kind: "missing" }>;
 
-const OVERVIEW_HASHES: ReadonlySet<string> = new Set([
-  "",
-  "#overview",
-  "#main",
-]);
+const OVERVIEW_HASHES: ReadonlySet<string> = new Set(["", "#overview", "#main"]);
 const KEYED_ROUTE = /^#(?<kind>detail|category|metric)\/(?<key>[^/]+)$/u;
 const KEYED_KINDS = ["detail", "category", "metric"] as const;
 type KeyedKind = (typeof KEYED_KINDS)[number];

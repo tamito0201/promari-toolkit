@@ -270,7 +270,7 @@ test("集計値は表示チップがなくてもゼロを保持し、算出不�
   assert.equal(measurementNumber(s, "changed"), 0);
   assert.equal(measurementText(s, "changed"), "0");
   assert.equal(measurementNumber(s, "focus"), undefined);
-  assert.equal(measurementText(s, "focus"), "1分観測待ち");
+  assert.equal(measurementText(s, "focus"), "1分稼働待ち");
   assert.equal(measurementText(s, "blockCost"), "稼働枠なし");
   assert.equal(measurementText(s, "turnP50"), "完了記録待ち");
   assert.equal(measurementText(s, "costLine"), "追加行待ち");
@@ -282,5 +282,5 @@ test("集計値は表示チップがなくてもゼロを保持し、算出不�
   assert.equal(measurementText(s, "cacheHit"), "0%");
   assert.equal(measurementText(s, "commitStreak"), "14d");
   assert.equal(measurementText(s, "cpuLoad"), "1.3");
-  assert.equal(measurementText(s, "requests"), "観測待ち");
+  assert.equal(measurementText(s, "requests"), "—");
 });

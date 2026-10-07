@@ -46,7 +46,7 @@ function meter(item: InstrumentVM, compact = false): HTMLElement {
         el(
           "span",
           "",
-          item.value === undefined ? "観測待ち" : item.maximumText,
+          item.value === undefined ? "—" : item.maximumText,
         ),
       ),
     );
@@ -376,8 +376,10 @@ function quantileRange(data: VisualVM): HTMLElement {
   const width = 170,
     left = 14,
     right = 156;
+  // 行数に合わせて高さを決める。2行で従来と同じ80になる。
+  const height = 46 + Math.max(0, data.items.length - 1) * 34;
   const graphic = svg("svg", {
-    viewBox: `0 0 ${width} 80`,
+    viewBox: `0 0 ${width} ${height}`,
     class: "quantile-plot",
     "aria-hidden": "true",
   });
@@ -460,7 +462,7 @@ export function renderHeatmap(data: HeatmapVM): HTMLElement {
   const root = el("div", "rate-heatmap");
   root.setAttribute(
     "aria-label",
-    "時間帯別レート使用率。区間内の実測最大値。斜線は観測なし。",
+    "時間帯別レート使用率。区間内の実測最大値。斜線は記録なし。",
   );
   for (const row of data.rows) {
     const cells = el("div", "heatmap-cells");
@@ -478,7 +480,7 @@ export function renderHeatmap(data: HeatmapVM): HTMLElement {
         String(peak === undefined ? 0 : Math.max(0, Math.min(1, peak / 100))),
       );
       if (cell.critical) button.classList.add("is-critical");
-      button.title = `${row.label} · ${dateTime(new Date(cell.from).toISOString())}–${clock(cell.until, { seconds: true })} · ${peak === undefined ? "観測なし" : `最大 ${peak}% · ${cell.count}観測`}`;
+      button.title = `${row.label} · ${dateTime(new Date(cell.from).toISOString())}–${clock(cell.until, { seconds: true })} · ${peak === undefined ? "記録なし" : `最大 ${peak}% · ${cell.count}回`}`;
       button.setAttribute("aria-label", button.title);
       return button;
     });

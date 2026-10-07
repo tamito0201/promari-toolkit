@@ -139,7 +139,7 @@ func note(b model.Basis) string {
 	case model.BasisObserved:
 		text = scope(b.Scope, b.Window) + " · n=" + strconv.Itoa(b.N)
 	case model.BasisWaiting:
-		text = "観測 " + strconv.Itoa(b.N) + " / 必要 " + strconv.Itoa(b.Required) + " 件"
+		text = "記録 " + strconv.Itoa(b.N) + " / 必要 " + strconv.Itoa(b.Required) + " 件"
 	case model.BasisNoBlock:
 		text = "稼働枠なし"
 	case model.BasisTooManyKinds:

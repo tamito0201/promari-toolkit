@@ -35,7 +35,7 @@ func TestNoteWordsEveryBasis(t *testing.T) {
 	}{
 		{model.Basis{Kind: model.BasisCounted}, ""},
 		{model.Basis{Kind: model.BasisObserved, Scope: model.ScopeNone, N: 3}, " · n=3"},
-		{model.Basis{Kind: model.BasisWaiting, N: 4, Required: 20}, "観測 4 / 必要 20 件"},
+		{model.Basis{Kind: model.BasisWaiting, N: 4, Required: 20}, "記録 4 / 必要 20 件"},
 		{model.Basis{Kind: model.BasisNoBlock}, "稼働枠なし"},
 		{model.Basis{Kind: model.BasisTooManyKinds, Limit: 128}, "ツール種類数が追跡上限128を超過"},
 	} {

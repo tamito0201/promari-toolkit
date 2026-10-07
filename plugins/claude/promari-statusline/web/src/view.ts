@@ -112,10 +112,30 @@ export function createDashboardView(actions: DashboardActions): {
         new CustomEvent("restore-observation", { detail: chartFocus }),
       );
     }
+    if (data.overview) fitOverview();
     if (lastRoute !== data.hash) {
       window.scrollTo(0, 0);
       if (!data.overview) byId("detail-title").focus({ preventScroll: true });
       lastRoute = data.hash;
+    }
+  }
+  // 概観は1画面に収める。中身の高さは実測値で揺れるため、描画のたびに測り、
+  // はみ出した比率ぶんだけ縮める（下限0.8倍。ズームは再レイアウトを伴うので2回で寄せる）。
+  function fitOverview(): void {
+    const page = byId("overview-page");
+    page.style.removeProperty("zoom");
+    const root = document.documentElement;
+    for (
+      let i = 0;
+      i < 2 && root.scrollHeight > root.clientHeight && root.clientHeight > 0;
+      i += 1
+    ) {
+      const current = Number(page.style.getPropertyValue("zoom") || 1);
+      const ratio = root.clientHeight / root.scrollHeight;
+      page.style.setProperty(
+        "zoom",
+        String(Math.max(0.8, current * ratio)),
+      );
     }
   }
   function drawDetail(data: DashboardVM): void {

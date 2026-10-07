@@ -8,6 +8,7 @@ import {
   instrument,
   percentageInstrument,
   compareMetrics,
+  compositionMetrics,
   rings,
   tokenComposition,
   gitBalance,
@@ -37,7 +38,10 @@ import {
   type MeasurementKey,
 } from "./measurements.ts";
 import { DETAILS, metricDetail } from "./detail-catalog.ts";
-import { RESEARCH_PANELS as RESEARCH_PANEL_DEFINITIONS } from "./research-panels.ts";
+import {
+  RESEARCH_PANELS as RESEARCH_PANEL_DEFINITIONS,
+  type ResearchVisual,
+} from "./research-panels.ts";
 
 // ViewModel の内部状態。ここから表示用の値を純粋関数で導出する。
 export interface DashboardState {
@@ -194,10 +198,10 @@ const categoryLink = (c: Category): LinkVM => ({
 });
 const pct = (value: number | undefined): string =>
   value === undefined ? "—" : `${Math.round(value)}%`;
-const metrics = (items: MetricVM[]): BlockVM => ({
+const metrics = (items: MetricVM[], two = false): BlockVM => ({
   kind: "metrics",
   items,
-  two: false,
+  two,
 });
 
 function reading(s: Snapshot, key: MeasurementKey, tone: Tone = ""): MetricVM {
@@ -486,8 +490,9 @@ const PANELS: readonly PanelProjector[] = [
           reading(s, "requests"),
           reading(s, "thinking"),
         ]),
+        ...researchBlocks(s, "Budget"),
       ],
-      "small-panel token-panel",
+      "small-panel token-panel is-fused",
     ),
   ({ s }) =>
     panel(
@@ -497,17 +502,9 @@ const PANELS: readonly PanelProjector[] = [
       "06",
       [
         rings(s, ["focus", "toolErrors"], "Focus & errors"),
-        {
-          ...compareMetrics(
-            s,
-            ["turnP50", "turnP90"],
-            "Latency",
-            "完了ターンの応答時間",
-          ),
-          layout: "range",
-        },
+        ...researchBlocks(s, "Latency"),
       ],
-      "small-panel performance-panel",
+      "small-panel performance-panel is-fused",
     ),
   ({ s }) =>
     panel(
@@ -515,8 +512,8 @@ const PANELS: readonly PanelProjector[] = [
       "WORK ACTIVITY",
       "work",
       "07",
-      [activityColumns(s)],
-      "small-panel work-panel",
+      [activityColumns(s), ...researchBlocks(s, "Tools")],
+      "small-panel work-panel is-fused",
     ),
   ({ s, cats }) =>
     panel(
@@ -545,8 +542,8 @@ const PANELS: readonly PanelProjector[] = [
       "QUALITY SIGNALS",
       "quality",
       "09",
-      [qualityTiles(s)],
-      "small-panel quality-panel",
+      [qualityTiles(s), ...researchBlocks(s, "Evidence")],
+      "small-panel quality-panel is-fused",
     ),
   ({ s }) =>
     panel(
@@ -565,8 +562,9 @@ const PANELS: readonly PanelProjector[] = [
           layout: "lollipop",
         },
         metrics([reading(s, "autonomy"), reading(s, "intervention")]),
+        ...researchBlocks(s, "Diversity"),
       ],
-      "small-panel agent-panel",
+      "small-panel agent-panel is-fused",
     ),
   ({ s }) =>
     panel(
@@ -587,7 +585,49 @@ const PANELS: readonly PanelProjector[] = [
     ),
 ];
 
-// 既存の概観を保ち、研究指標の画面では単位と母数の揃う組だけを比較する。
+// 研究パネルの図は宣言（form×keys）から組み立てる。単位と母数の揃う組だけを
+// 同じ図に載せ、どの図にも出ない指標は2列の数値で全部並べる。
+function researchVisual(s: Snapshot, visual: ResearchVisual): BlockVM {
+  switch (visual.form) {
+    case "rings":
+      return { ...rings(s, visual.keys, visual.title), note: visual.note };
+    case "composition":
+      return compositionMetrics(s, visual.keys, visual.title, visual.note);
+    case "bars":
+      return compareMetrics(
+        s,
+        visual.keys,
+        visual.title,
+        visual.note,
+        visual.sharedScale,
+      );
+    default:
+      return {
+        ...compareMetrics(s, visual.keys, visual.title, visual.note, true),
+        layout: visual.form,
+      };
+  }
+}
+// 研究の群は、同じ主題の観測パネル（05〜10）が図ごと吸収して1枚目に出す。
+// 図に出ない指標は2列の数値で続け、群の全指標がどちらかに必ず出る。
+function researchBlocks(s: Snapshot, group: string): BlockVM[] {
+  const definition = RESEARCH_PANEL_DEFINITIONS.find(
+    (seed) => seed.group === group,
+  );
+  if (!definition) return [];
+  const readings = definition.readings.map((key) => reading(s, key));
+  // 概観の半幅の枠では縦長の分布点SVGが縮んで読めないため、同じ共通目盛の
+  // 点表示をHTMLのレール行（lollipop）で描く。SVGの分布点は詳細ページが持つ。
+  return [
+    ...definition.visuals.map((visual) =>
+      researchVisual(
+        s,
+        visual.form === "range" ? { ...visual, form: "lollipop" } : visual,
+      ),
+    ),
+    ...(readings.length ? [metrics(readings, true)] : []),
+  ];
+}
 const RESEARCH_PANELS: readonly PanelProjector[] = RESEARCH_PANEL_DEFINITIONS.map(
   (definition) =>
     ({ s }) =>
@@ -597,17 +637,19 @@ const RESEARCH_PANELS: readonly PanelProjector[] = RESEARCH_PANEL_DEFINITIONS.ma
         definition.id,
         definition.number,
         [
-          compareMetrics(
-            s,
-            definition.comparison.keys,
-            definition.comparison.title,
-            definition.comparison.note,
-            definition.comparison.sharedScale,
+          ...definition.visuals.map((visual) => researchVisual(s, visual)),
+          metrics(
+            definition.readings.map((key) => reading(s, key)),
+            true,
           ),
-          metrics(definition.readings.map((key) => reading(s, key))),
         ],
-        "small-panel research-panel",
+        `small-panel research-panel${definition.wide ? " is-wide" : ""}`,
       ),
+);
+
+/** 研究パネルの経路。詳細の絞り込みも帯の表示もこの集合から決める。 */
+const RESEARCH_ROUTES: ReadonlySet<string> = new Set(
+  RESEARCH_PANEL_DEFINITIONS.map((definition) => definition.id),
 );
 
 function detail(state: DashboardState, all: readonly Section[]): DetailVM {
@@ -700,13 +742,7 @@ function detail(state: DashboardState, all: readonly Section[]): DetailVM {
               (route.key === "all" ||
                 panel.route === route.key ||
                 (route.key === "research" &&
-                  [
-                    "latency",
-                    "tooling",
-                    "diversity",
-                    "budget",
-                    "evidence",
-                  ].includes(panel.route ?? ""))),
+                  RESEARCH_ROUTES.has(panel.route ?? ""))),
           )
           .map((panel) => ({ ...panel, route: undefined }))
       : [];
@@ -800,7 +836,7 @@ export function presentDashboard(state: DashboardState): DashboardVM {
     status,
     freshness: fresh,
     freshnessClass: `freshness${state.offline ? " is-offline" : s && !s.live ? " is-stale" : ""}`,
-    detailFreshness: `${fresh}${!state.offline && s?.limitsAt ? ` レート観測 ${dateTime(s.limitsAt)}。` : ""}`,
+    detailFreshness: `${fresh}${!state.offline && s?.limitsAt ? ` レート記録 ${dateTime(s.limitsAt)}。` : ""}`,
     updated: s
       ? `更新 ${clock(s.at, { seconds: true })} · ${state.paused ? "一時停止中" : "5秒ごと"}`
       : state.paused

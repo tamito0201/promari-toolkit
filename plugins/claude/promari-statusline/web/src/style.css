@@ -210,11 +210,11 @@ main {
   padding: 12px 22px 0;
 }
 .overview-page {
-  height: calc(100dvh - 89px);
-  min-height: 600px;
+  min-height: calc(100dvh - 89px);
   display: grid;
-  grid-template-rows: 42px 21px 78px minmax(0, 1fr) 25px;
-  gap: 9px;
+  /* パネル行は内容準拠(auto)。49指標を吸収しても1画面に収まる詰め幅。 */
+  grid-template-rows: 38px 20px 72px auto 22px;
+  gap: 6px;
 }
 .page-heading {
   display: flex;
@@ -385,8 +385,9 @@ main {
 .overview {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.96fr);
-  gap: 9px;
+  /* 行の高さは内容準拠。研究の指標を吸収したパネルだけが伸び、空白の行を作らない。 */
+  grid-auto-rows: minmax(140px, auto);
+  gap: 5px;
   min-height: 0;
 }
 .panel {
@@ -1154,8 +1155,8 @@ footer .local-dot {
 }
 @media (min-width: 1650px) {
   .overview-page {
-    grid-template-rows: 48px 24px 92px minmax(0, 1fr) 28px;
-    gap: 12px;
+    grid-template-rows: 32px 16px 72px auto 18px;
+    gap: 3px;
   }
   .stat-value {
     font-size: 33px;
@@ -1247,7 +1248,7 @@ footer .local-dot {
 }
 @media (max-height: 800px) and (min-width: 1101px) {
   .overview-page {
-    grid-template-rows: 38px 19px 74px minmax(0, 1fr) 22px;
+    grid-template-rows: 38px 19px 74px auto 22px;
     gap: 8px;
   }
   .heading-title h1 {
@@ -1857,12 +1858,6 @@ footer .local-dot {
   align-items: center;
   gap: 12px;
 }
-.performance-panel .gauge-group {
-  flex-direction: column;
-}
-.performance-panel .gauge-group > a {
-  display: block;
-}
 .performance-panel .gauge {
   display: flex;
   align-items: center;
@@ -1870,14 +1865,24 @@ footer .local-dot {
   text-align: left;
 }
 .performance-panel .gauge-svg {
-  width: 54px;
-  height: 48px;
+  width: 96px;
+  height: 86px;
   flex-shrink: 0;
   margin: 0;
 }
 .performance-panel .gauge-label {
-  font-size: 8px;
+  font-size: 11px;
   margin: 0;
+}
+/* 応答時間の分布点は固定高さだと横に縮む。パネルの余白を使い、縦横比のまま拡大。 */
+.performance-panel .quantile-plot {
+  height: auto;
+  max-width: 300px;
+  margin: 0 auto;
+}
+.performance-panel .quantile small {
+  font-size: 9px;
+  text-align: center;
 }
 .balance-values {
   display: flex;
@@ -2752,6 +2757,33 @@ footer .local-dot {
 #overview .panel {
   container-type: size;
 }
+/* 研究の群を吸収したパネルは中身の高さで行を伸ばす。size コンテナは内在サイズが
+  0 と数えられ、行が最小値へ潰れて中身が隠れるため、幅だけをコンテナ化する。 */
+#overview .is-fused {
+  container-type: inline-size;
+}
+/* 1行目（折れ線と警告）は図の軸ラベルと分類一覧が入る最低限の高さを保つ。 */
+#overview .rate-panel,
+#overview .context-panel,
+#overview .alert-panel {
+  min-height: 182px;
+}
+/* 2〜3行目の狭い枠（span2）も内容の高さを行へ伝え、中身を切らない。
+  収まり切らないぶんは概観全体の自動フィット（view.ts）が吸収する。 */
+#overview .cost-panel,
+#overview .git-panel,
+#overview .system-readings {
+  container-type: inline-size;
+}
+#overview .system-readings .visual-value {
+  font-size: 10px;
+}
+#overview .system-readings .visual-label {
+  font-size: 8px;
+}
+#overview .system-readings .visual-bars {
+  gap: 4px;
+}
 .panel-expand {
   margin-left: 2px;
   padding: 0 3px;
@@ -3341,4 +3373,158 @@ footer .local-dot {
 }
 .detail-charts .research-panel {
   min-height: 320px;
+}
+
+/* 研究の群を吸収したパネル。図を多列に敷き、高さを幅に変換して1画面へ寄せる。
+  flex-basis を auto にして内容の高さをグリッド行へ伝える（0% だと行が伸びない）。 */
+#overview .is-fused .panel-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  align-content: start;
+  align-items: center;
+  padding: 6px 10px;
+  overflow: visible;
+}
+/* 広い枠（span4）の吸収パネルは内部3列。 */
+#overview .work-panel .panel-body,
+#overview .quality-panel .panel-body,
+#overview .agent-panel .panel-body {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* 吸収パネルへ幅を回す列配分。1行目(01-03)はそのまま、
+  2行目 04(2)+05(3)+06(3)+07(4)、3行目 08(2)+09(4)+10(4)+11(2)。 */
+#overview .cost-panel,
+#overview .git-panel,
+#overview .system-readings {
+  grid-column: span 2;
+}
+#overview .work-panel,
+#overview .quality-panel,
+#overview .agent-panel {
+  grid-column: span 4;
+}
+#overview .is-fused .quantile-plot {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 240px;
+  max-height: 80px;
+  margin: 0 auto;
+}
+#overview .is-fused .quantile small {
+  font-size: 9px;
+  text-align: center;
+}
+/* 観測待ちの柱は、数字用の級数のままだと縦に折り返して崩れる。 */
+#overview .is-fused .column-item:has(.is-missing) .column-value {
+  font-size: 10px;
+  font-weight: 600;
+}
+/* 1画面へ収めるためのコンパクト活字。短いカード向けのコンテナクエリ縮小と同じ語彙。
+  注記の全文は各詳細ページとプレビューが持つ。 */
+#overview .is-fused .metric-value {
+  font-size: 15px;
+}
+#overview .is-fused .metric-label {
+  font-size: 7px;
+}
+#overview .is-fused .visual-value {
+  font-size: 10px;
+}
+#overview .is-fused .visual-label {
+  font-size: 8px;
+}
+#overview .is-fused .visual-note {
+  display: none;
+}
+#overview .is-fused .visual-bars {
+  gap: 4px;
+}
+#overview .is-fused .lollipop-bars {
+  gap: 6px;
+}
+#overview .is-fused .composition-ring {
+  width: 56px;
+}
+#overview .is-fused .column-chart {
+  height: 80px;
+  gap: 10px;
+}
+#overview .is-fused .column-value {
+  font-size: 13px;
+}
+#overview .is-fused .column-label {
+  font-size: 7px;
+}
+/* 研究のリングは小さめ、06の主役ゲージ(Focus/Tool errors)は80pxを保つ。 */
+#overview .is-fused .gauge-svg {
+  width: 52px;
+  height: 47px;
+}
+#overview .is-fused .gauge-label {
+  font-size: 9px;
+}
+#overview .performance-panel .gauge-group .gauge-svg {
+  width: 80px;
+  height: 72px;
+}
+#overview .performance-panel .gauge-group .gauge-label {
+  font-size: 10px;
+}
+/* 3列パネルの数値格子は3列で2行に収める。 */
+#overview .work-panel .metric-grid.two,
+#overview .quality-panel .metric-grid.two,
+#overview .agent-panel .metric-grid.two {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+#overview .is-fused .waffle-cell {
+  height: 9px;
+}
+#overview .is-fused .waffle-heading strong {
+  font-size: 18px;
+}
+#overview .is-fused .waffle-grid {
+  gap: 6px 10px;
+}
+#overview .is-fused .composition {
+  gap: 8px;
+}
+#overview .is-fused .composition-items {
+  gap: 2px;
+}
+.research-panel .metric-value {
+  font-size: 20px;
+}
+/* 分布点の図は固定高さだと行数ぶん横へ縮む。帯の中では縦横比のまま大きく描く。 */
+.research-panel .quantile-plot {
+  display: block;
+  height: auto;
+  max-width: 280px;
+  margin: 0 auto;
+}
+.research-panel .quantile small {
+  font-size: 9px;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  #overview .is-fused .panel-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 49指標を1画面へ収めるため、サマリ行も詰める。リングの余白(右)は保つ。 */
+.stat {
+  padding: 7px 62px 6px 12px;
+}
+@media (min-width: 1650px) {
+  .stat-value {
+    font-size: 26px;
+  }
+}
+
+.stat-label,
+.stat-note {
+  font-size: 9px;
 }

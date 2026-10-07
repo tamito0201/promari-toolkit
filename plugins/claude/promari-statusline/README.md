@@ -70,8 +70,12 @@ research, the source is named in the code beside it; the list is in
 完了時間のp95・p99、ツール結果のエラー率とWilson区間、観測の欠損、ツール利用の偏り、
 プロンプトごとの消費分布、テスト・ビルド実行結果を確認できる。
 
-`psl dashboard` 起動後、[研究に基づく49指標](http://localhost:4646/#detail/research) を開くと、
-5図表と全数値・単位・分母・算出条件・一次情報リンクを表示する。既存分と合わせて104数値。
+`psl dashboard` では、49指標を同じ主題の観測パネル（05 トークン、06 性能、07 作業、
+09 品質、10 エージェント）が吸収し、概観の1画面にスクロールなしで全数値を表示する
+（展開操作も別画面もない。詳細は各パネルの拡大と `#detail/research`）。49指標のうち38は図——
+共通目盛の分布点（Min/P50/Mean/P95/P99/Max）、結果の構成比ドーナツ、Wilson区間の点つき棒、
+割合のリング、件数の柱——で、残りは2列の数値。各指標の単位・分母・算出条件・一次情報リンクは
+詳細ページが持つ。既存分と合わせて104数値。
 p95は20観測、p99は100観測から表示し、未取得と実測0を区別する。
 ログ上の往復時間には許可待ちを含み、ツールの実行時間やTTFTではない。
 エラー率や多様性は記述統計であり、タスク成功率・生産性のスコアには変換しない。
@@ -156,7 +160,10 @@ inside Claude Code.
 a poster with the three numbers that matter most (context, the Claude windows, today's
 spend), then every category in the status line's order, grouped into its six bands —
 alerts, limits, money, where the work stands, metrics and the surroundings. A warning
-blinks in red, and the alerts band points at the categories in warning.
+blinks in red, and the alerts band points at the categories in warning. Below the fold,
+a RESEARCH band draws all 49 research-based measurements on the same page — distribution
+dots on a shared scale, outcome compositions, Wilson-interval ladders, ratio rings and
+count columns — so none of them needs a separate screen.
 
 ```bash
 psl dashboard                      # http://localhost:4646/ until Ctrl-C

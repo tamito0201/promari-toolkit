@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Group, Snapshot } from "./model.ts";
 import { MEASUREMENTS } from "./measurements.ts";
+import { RESEARCH_MEASUREMENTS } from "./research.ts";
 import {
   presentDashboard,
   type DashboardState,
@@ -119,7 +120,7 @@ test("研究画面は49指標と5図表に観測数・算出根拠・一次情�
   const s = snapshot({
     measurements: {
       toolErrorRate: { value: 0, note: "主会話の対応済み結果 · n=10" },
-      turnP99: { note: "観測 20 / 必要 100 件" },
+      turnP99: { note: "記録 20 / 必要 100 件" },
     },
   });
   const view = presentDashboard(
@@ -297,7 +298,7 @@ test("古い入力・初回待ち・接続断を区別し、観測時刻を表�
   assert.equal(view.status.kind, "idle");
   assert.match(view.freshness, /古い入力から予測は行いません/u);
   assert.match(view.freshnessClass, /is-stale/u);
-  assert.match(view.detailFreshness, /レート観測/u);
+  assert.match(view.detailFreshness, /レート記録/u);
   assert.equal(view.detail.bands[0]?.cards[0]?.state, "● RECORDED");
   const { inputAt: _inputAt, ...withoutInput } = s;
   assert.match(
@@ -322,7 +323,7 @@ test("古い入力・初回待ち・接続断を区別し、観測時刻を表�
   );
   assert.doesNotMatch(
     presentDashboard(state({ offline: true })).detailFreshness,
-    /レート観測/u,
+    /レート記録/u,
   );
 });
 
@@ -417,7 +418,7 @@ test("拡大表示は選択した図と全数値・算出理由を投影し、�
   );
   assert.ok(
     view.preview?.detail.measurements.some(
-      (item) => item.key === "focus" && item.value === "1分観測待ち",
+      (item) => item.key === "focus" && item.value === "1分稼働待ち",
     ),
   );
   assert.equal(
@@ -430,4 +431,22 @@ test("拡大表示は選択した図と全数値・算出理由を投影し、�
     ).preview,
     undefined,
   );
+});
+
+test("研究の49指標は同じ主題の観測パネルが吸収し、1枚目に全部出す", () => {
+  const s = snapshot();
+  const view = presentDashboard(state({ snapshot: s }));
+  // 研究の専用パネルを足さず、既存の11パネルの図と数値だけで全指標を被覆する。
+  assert.equal(view.panels.length, 11);
+  const listed = new Set<string>();
+  for (const panel of view.panels) {
+    for (const block of panel.blocks) {
+      if (block.kind === "metrics")
+        for (const item of block.items) if (item.key) listed.add(item.key);
+      if (block.kind === "visual")
+        for (const item of block.items) listed.add(item.key);
+    }
+  }
+  for (const key of Object.keys(RESEARCH_MEASUREMENTS))
+    assert.ok(listed.has(key), `概観に出ない研究指標: ${key}`);
 });

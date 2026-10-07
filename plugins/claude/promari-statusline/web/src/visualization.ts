@@ -246,11 +246,45 @@ export function tokenComposition(s: Snapshot): VisualVM {
         total === 0
           ? "入出力ともに0"
           : total === undefined
-            ? "内訳の観測待ち"
+            ? "—"
             : "入出力合計に対する構成比",
     })),
   };
 }
+/** 任意の組の構成比。全員の値が観測できたときだけ合計を1として割る。 */
+export function compositionMetrics(
+  s: Snapshot,
+  keys: readonly MeasurementKey[],
+  title: string,
+  note: string,
+): VisualVM {
+  const items = keys.map((key) => instrument(s, key));
+  const complete = items.every(
+    (item) => item.value !== undefined && item.value >= 0,
+  );
+  const total = complete
+    ? items.reduce((sum, item) => sum + item.value!, 0)
+    : undefined;
+  return {
+    kind: "visual",
+    layout: "composition",
+    title,
+    note,
+    total: total === undefined ? undefined : axisNumber(total),
+    items: items.map((item) => ({
+      ...item,
+      fraction:
+        total === undefined || total === 0 ? undefined : item.value! / total,
+      basis:
+        total === 0
+          ? "全部が0"
+          : total === undefined
+            ? "—"
+            : "合計に対する構成比",
+    })),
+  };
+}
+
 export function gitBalance(s: Snapshot): VisualVM {
   const comparison = compareMetrics(
     s,

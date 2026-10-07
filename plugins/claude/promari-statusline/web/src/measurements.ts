@@ -409,7 +409,7 @@ const TINY = 0.01;
 // 算出条件を満たさない間の理由。API が理由を返した場合はそちらを優先する。
 const PENDING_NOTES: Partial<Readonly<Record<MeasurementKey, string>>> = {
   costLine: "追加行待ち",
-  focus: "1分観測待ち",
+  focus: "1分稼働待ち",
   linesHour: "15分稼働待ち",
   turnP50: "完了記録待ち",
   turnP90: "完了記録待ち",
@@ -484,7 +484,8 @@ export function measurementText(
   key: MeasurementKey,
 ): string {
   const value = measurementNumber(s, key);
+  // 理由（API の note か既知の算出条件）があればそれを、なければ「—」。
   if (value === undefined)
-    return s.measurements[key]?.note ?? PENDING_NOTES[key] ?? "観測待ち";
+    return s.measurements[key]?.note ?? PENDING_NOTES[key] ?? "—";
   return formatValue(DEFINITIONS[key].unit, value);
 }
