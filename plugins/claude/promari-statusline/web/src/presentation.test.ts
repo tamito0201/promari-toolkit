@@ -433,10 +433,10 @@ test("拡大表示は選択した図と全数値・算出理由を投影し、�
   );
 });
 
-test("研究の49指標は同じ主題の観測パネルが吸収し、1枚目に全部出す", () => {
+test("全計測値は概観11パネルの図か数値に必ず出す（未表示を残さない）", () => {
   const s = snapshot();
   const view = presentDashboard(state({ snapshot: s }));
-  // 研究の専用パネルを足さず、既存の11パネルの図と数値だけで全指標を被覆する。
+  // 専用パネルを足さず、既存の11パネルの図と数値だけで全計測値を被覆する。
   assert.equal(view.panels.length, 11);
   const listed = new Set<string>();
   for (const panel of view.panels) {
@@ -447,6 +447,6 @@ test("研究の49指標は同じ主題の観測パネルが吸収し、1枚目�
         for (const item of block.items) listed.add(item.key);
     }
   }
-  for (const key of Object.keys(RESEARCH_MEASUREMENTS))
-    assert.ok(listed.has(key), `概観に出ない研究指標: ${key}`);
+  for (const key of Object.keys(MEASUREMENTS))
+    assert.ok(listed.has(key), `概観に出ない計測値: ${key}`);
 });

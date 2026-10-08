@@ -118,23 +118,67 @@ export function createDashboardView(actions: DashboardActions): {
       lastRoute = data.hash;
     }
   }
-  // 概観は1画面に収める。中身の高さは実測値で揺れるため、描画のたびに測り、
-  // はみ出した比率ぶんだけ縮める（下限0.8倍。ズームは再レイアウトを伴うので2回で寄せる）。
+  // 概観は1画面に収める。縮小は zoom ではなく transform で行う——zoom は縮小側の
+  // レイアウト幅が flex/grid の親へ素の値のまま伝わる実装があり、ヘッダーとフッターが
+  // 画面の外へ引き伸ばされる（2026-10-08 実機で確認）。transform は内箱
+  // (#overview-fit) に掛け、外箱 (#overview-page) を縮小後の実寸へ切り抜く——
+  // 負のマージン方式は transform 元のレイアウト箱がスクロール領域に残る。
+  // 縦横の両方を監視し、はみ出した比率ぶん縮め、余るときは拡大して埋める
+  // （縮小の下限0.75倍・拡大の上限1.5倍＝2026-10-08「もっと拡大していい」指示）。
+  // 幅が変わると内部の列数も変わって高さが動くため、3回まで反復して寄せる。
   function fitOverview(): void {
     const page = byId("overview-page");
-    page.style.removeProperty("zoom");
+    const fit = byId("overview-fit");
     const root = document.documentElement;
-    for (
-      let i = 0;
-      i < 2 && root.scrollHeight > root.clientHeight && root.clientHeight > 0;
-      i += 1
-    ) {
-      const current = Number(page.style.getPropertyValue("zoom") || 1);
-      const ratio = root.clientHeight / root.scrollHeight;
-      page.style.setProperty(
-        "zoom",
-        String(Math.max(0.8, current * ratio)),
-      );
+    fit.style.removeProperty("transform");
+    fit.style.removeProperty("width");
+    // 素の内容の高さを測るため、CSS の 100dvh 最小値を一時的に外す
+    fit.style.minHeight = "auto";
+    page.style.removeProperty("height");
+    if (root.clientHeight === 0 || root.clientWidth === 0) {
+      fit.style.removeProperty("min-height");
+      return;
+    }
+    // scrollHeight はビューポート未満にならず、不足（拡大の余地）を検知できない。
+    // 実際の使用高さは最下部要素＝フッターの下端で測る。
+    const footer = document.querySelector("footer");
+    const measure = (k: number): number => {
+      fit.style.width = `${100 / k}%`;
+      fit.style.transformOrigin = "0 0";
+      fit.style.transform = `scale(${k})`;
+      page.style.height = `${fit.getBoundingClientRect().height}px`;
+      const used = footer
+        ? footer.getBoundingClientRect().bottom + window.scrollY
+        : root.scrollHeight;
+      const vertical = used / root.clientHeight;
+      // scrollWidth はビューポート未満にならない（常に1以上）。横は超過の
+      // ときだけ採用する（そのまま max に入れると拡大の余地を 1.0 が覆い隠す）。
+      const horizontal = root.scrollWidth / root.clientWidth;
+      return horizontal > 1.002 ? Math.max(vertical, horizontal) : vertical;
+    };
+    // 内容の高さは内部列数の段差で跳ぶため、比率の追い込みは発振して
+    // 収束しない（0.85→1.10→0.95→1.06 を実測）。描画高さは倍率に対して
+    // 単調なので、二分法で「収まる最大の倍率」を探す。
+    let lo = 0.75;
+    let hi = 1.5;
+    if (measure(hi) <= 1.002) {
+      lo = hi;
+    } else if (measure(lo) > 1.002) {
+      hi = lo;
+    } else {
+      for (let i = 0; i < 6; i += 1) {
+        const mid = (lo + hi) / 2;
+        if (measure(mid) <= 1.002) lo = mid;
+        else hi = mid;
+      }
+    }
+    const landed = measure(lo);
+    // 列数の段差で「収まる最大の倍率」でも下に薄く余ることがある。
+    // 残りは min-height で頁へ戻し、行間へ等配する（反復中に 100dvh を
+    // 混ぜると測定が汚染されるため、確定後にだけ掛ける——実測）。
+    if (landed < 0.998) {
+      fit.style.minHeight = `calc((100dvh - 89px) / ${lo})`;
+      page.style.height = `${fit.getBoundingClientRect().height}px`;
     }
   }
   function drawDetail(data: DashboardVM): void {

@@ -215,7 +215,7 @@ func TestCompose(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "develop", Changed: 2, Ahead: 1, Behind: 16, Stashes: 3, LastCommit: now.Add(-21*time.Hour - 28*time.Minute)}),
 				Pull: model.Some(model.PullRequest{Number: 2996, Passed: 10, Failed: 2, Pending: 1, Review: model.ReviewChangesRequested}),
 			}},
-			[]string{"🌿 Git: develop | 📝 2 Files | 🔼 1 Ahead | 🔽 16 Behind | 📚 3 Stash | 📅 Cmt 21h28m", "🔀 PR: #2996 CI ❌ 2 changes", env, system},
+			[]string{env, system, "🔀 PR: #2996 CI ❌ 2 changes", "🌿 Git: develop | 📝 2 Files | 🔼 1 Ahead | 🔽 16 Behind | 📚 3 Stash | 📅 Cmt 21h28m"},
 		},
 		{
 			"git: a clean branch with a pending, unreviewed pull request",
@@ -223,7 +223,7 @@ func TestCompose(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "main"}),
 				Pull: model.Some(model.PullRequest{Number: 7, Passed: 3, Pending: 1, Review: model.ReviewRequired}),
 			}},
-			[]string{"🌿 Git: main", "🔀 PR: #7 CI ⏳ 1 review", env, system},
+			[]string{env, system, "🔀 PR: #7 CI ⏳ 1 review", "🌿 Git: main"},
 		},
 		{
 			"git: an approved pull request with green checks, and one without checks",
@@ -231,12 +231,12 @@ func TestCompose(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "main"}),
 				Pull: model.Some(model.PullRequest{Number: 8, Passed: 3, Review: model.ReviewApproved}),
 			}},
-			[]string{"🌿 Git: main", "🔀 PR: #8 CI ✅ 3 approved", env, system},
+			[]string{env, system, "🔀 PR: #8 CI ✅ 3 approved", "🌿 Git: main"},
 		},
 		{
 			"git: a pull request with nothing to say but its number",
 			View{Facts: model.Facts{Git: model.Some(model.Git{Branch: "main"}), Pull: model.Some(model.PullRequest{Number: 9})}},
-			[]string{"🌿 Git: main", "🔀 PR: #9", env, system},
+			[]string{env, system, "🔀 PR: #9", "🌿 Git: main"},
 		},
 		{
 			"no branch, no git group",

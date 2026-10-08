@@ -205,19 +205,29 @@ svg {
 main {
   padding: 12px 22px 0;
 }
+/* 外箱は縮小後の実寸に切り抜く（高さは view.ts が毎描画で設定）。 */
 .overview-page {
+  overflow: hidden;
+}
+/* 内箱が実レイアウト。自動フィットはこの箱だけを transform で縮める。 */
+.overview-fit {
   min-height: calc(100dvh - 89px);
   display: grid;
-  /* パネル行は内容準拠(auto)。見出しは読める余白を取り、超過は自動フィットが吸収。 */
-  grid-template-rows: 46px 22px 72px auto 22px;
+  /* 4行構成（見出し・サマリ・パネル・分類）。見出しと状態は1行に統合済み（2026-10-08）。
+    パネル行は 1fr（最小は内容）で、窓が高いときは余りを引き取り空白の帯を作らない。
+    超過は自動フィットが吸収。 */
+  grid-template-rows: auto 72px minmax(auto, 1fr) 22px;
   gap: 8px;
 }
+/* タイトルと状態・全指標リンクを1行に束ね、見出し右の遊休帯をなくす（2026-10-08 指示）。 */
 .page-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
   min-width: 0;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
 }
 .metric.unavailable .metric-value {
   font-size: 12px;
@@ -264,12 +274,10 @@ main {
 }
 .overview-status {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 5px;
+  align-items: baseline;
+  gap: 16px;
   min-width: 0;
+  flex-shrink: 0;
 }
 .freshness {
   font-size: 9px;
@@ -381,8 +389,10 @@ main {
 .overview {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  /* 行の高さは内容準拠。研究の指標を吸収したパネルだけが伸び、空白の行を作らない。 */
+  /* 行の高さは内容準拠（1fr 系はすべての行を等分へ寄せ、背の高いパネルを切る——実測）。
+    窓が高いときの余りは行間へ等配し、最下段の下だけに空白の帯を作らない（2026-10-08 指示）。 */
   grid-auto-rows: minmax(140px, auto);
+  align-content: space-between;
   gap: 5px;
   min-height: 0;
 }
@@ -1153,8 +1163,8 @@ footer .local-dot {
   letter-spacing: 0.4px;
 }
 @media (min-width: 1650px) {
-  .overview-page {
-    grid-template-rows: 48px 22px 72px auto 20px;
+  .overview-fit {
+    grid-template-rows: auto 72px minmax(auto, 1fr) 20px;
     gap: 6px;
   }
   .stat-value {
@@ -1246,8 +1256,8 @@ footer .local-dot {
   }
 }
 @media (max-height: 800px) and (min-width: 1101px) {
-  .overview-page {
-    grid-template-rows: 38px 19px 74px auto 22px;
+  .overview-fit {
+    grid-template-rows: auto 74px minmax(auto, 1fr) 22px;
     gap: 8px;
   }
   .heading-title h1 {
@@ -2767,6 +2777,15 @@ footer .local-dot {
 #overview .alert-panel {
   min-height: 182px;
 }
+/* 背の低いパネルはブロックを縦へ等間隔に配り、下の空きを分散する。 */
+#overview .panel-body {
+  justify-content: space-between;
+}
+/* 警告の分類一覧はウィンドウ幅で折り返し数が変わる。内容の高さを行へ伝え、
+  どの寸法でも切れないようにする（超過は自動フィットが吸収）。 */
+#overview .alert-panel {
+  container-type: inline-size;
+}
 /* 2〜3行目の狭い枠（span2）も内容の高さを行へ伝え、中身を切らない。
   収まり切らないぶんは概観全体の自動フィット（view.ts）が吸収する。 */
 #overview .cost-panel,
@@ -3381,19 +3400,61 @@ footer .local-dot {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px 14px;
-  align-content: start;
+  /* 縦の余りは行の前後を含む均等な隙間へ（space-between は実質2行の面で
+    中央に大穴を、1fr 等分は短い行の上下に大穴を作る——いずれも実測）。
+    横はセル左詰めの格子で整列を保ち、余りは下の列数適応が幅へ変換する。 */
+  align-content: space-evenly;
   align-items: center;
   padding: 6px 10px;
   overflow: visible;
 }
-/* 広い枠（span4）の吸収パネルは内部3列。 */
-#overview .work-panel .panel-body,
+/* 計測値は箱ごとではなく1個ずつパネルの格子へ流し込む。箱のまま列へ置くと
+  末尾の行だけ左に寄って右が空き、全幅の1行にすると項目2個の行が間延びする
+  （いずれも実測）。display: contents で格子の正規のリズム（約200px）に乗せる。 */
+#overview .is-fused .panel-body > .metric-grid {
+  display: contents;
+}
+/* 内部の列数はパネル幅に追従させる（ブロックは実測 170px 前後で成立）。
+  幅が広いほど多列になり、中身が面を埋めて縦の余白を幅へ変換する。 */
+@container (min-width: 520px) {
+  #overview .is-fused .panel-body {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container (min-width: 700px) {
+  #overview .is-fused .panel-body {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@container (min-width: 900px) {
+  #overview .is-fused .panel-body {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+@container (min-width: 1100px) {
+  #overview .is-fused .panel-body {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+/* 品質(08)・エージェント(09)はブロック数が少なく、固定列だと空の列が右へ残る。
+  auto-fit は中身の無い列を畳んで、在るブロックだけを全幅へ均等に伸ばす
+  （2026-10-08 指示）。上の幅別ルールより後に置き、同詳細度の後勝ちで優先させる。 */
 #overview .quality-panel .panel-body,
 #overview .agent-panel .panel-body {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+/* 品質パネルは面積に余裕がある。環ゲージをひと回り大きく描いて読みやすくする
+  （2026-10-08「もっと大きくして」指示。viewBox 比例で数字も一緒に拡大される）。 */
+#overview .quality-panel .gauge-svg {
+  width: 150px;
+  height: 134px;
+}
+#overview .quality-panel .gauge-label {
+  font-size: 11px;
 }
 /* 吸収パネルへ幅を回す列配分。1行目(01-03)はそのまま、
-  2行目 04(2)+05(3)+06(3)+07(4)、3行目 08(2)+09(4)+10(4)+11(2)。 */
+  2行目 04(2)+05(3)+06(3)+07(4)、3行目 08(4)+09(4)+10(2)+11(2)。
+  Git(11) はコンソールと同じく最下段の末尾（重要度の低い順に下へ）。 */
 #overview .cost-panel,
 #overview .git-panel,
 #overview .system-readings {
@@ -3425,6 +3486,24 @@ footer .local-dot {
   注記の全文は各詳細ページとプレビューが持つ。 */
 #overview .is-fused .metric-value {
   font-size: 15px;
+}
+/* 「リスト待ち」などの理由文は数字の級数だと省略される。小さく全文を出す。 */
+#overview .is-fused .metric.unavailable .metric-value {
+  font-size: 10px;
+}
+/* 概観は全22計測値を1画面に出す密度優先の面。計測セルは詳細ページより
+  一段小さく組み、行の背を約3割詰める（2026-10-08 全表示指示）。 */
+#overview .metric-value {
+  font-size: 14px;
+  letter-spacing: -0.3px;
+  margin-top: 2px;
+}
+#overview .metric-grid {
+  gap: 5px 8px;
+}
+/* コスト・稼働の補助計測は値が短い（$・時間）ので3列で畳む。 */
+#overview .cost-panel .metric-grid.two {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 #overview .is-fused .metric-label {
   font-size: 7px;
@@ -3471,6 +3550,61 @@ footer .local-dot {
 }
 #overview .performance-panel .gauge-group .gauge-label {
   font-size: 10px;
+}
+/* 品質パネル(08)の環は主役。研究リングの縮小（上の 52px）と同詳細度では
+  後勝ちで潰されるため、.gauge-group を挟んで詳細度を上げてここに置く。 */
+#overview .quality-panel .gauge-group .gauge-svg,
+#overview .agent-panel .gauge-group .gauge-svg {
+  /* 環は 2×2 で大きく描く（2026-10-08 本人確認済みの採用形）。09 も同じ処方。
+    150px 固定は行を押し広げて却下。幅はセルに追従し、高さは比率で決める。 */
+  width: min(95px, 100%);
+  height: auto;
+  aspect-ratio: 76 / 68;
+}
+/* 2×2 への折り返し。横1列の flex 等分ではセル幅の4等分に潰される。 */
+#overview .quality-panel .gauge-group,
+#overview .agent-panel .gauge-group {
+  flex-wrap: wrap;
+}
+#overview .quality-panel .gauge-group > a,
+#overview .agent-panel .gauge-group > a {
+  flex: 1 1 45%;
+}
+#overview .quality-panel .gauge-group .gauge-label,
+#overview .agent-panel .gauge-group .gauge-label {
+  font-size: 11px;
+}
+/* 09 の操作量スライダーと多様性バーは枠に対して小さい。文字と軌道を
+  一回り大きくして面を使う（2026-10-08 指示）。行3の高さは 08 の環が
+  決めるため、この拡大で行は伸びない。 */
+#overview .agent-panel .visual-label {
+  font-size: 12px;
+}
+#overview .agent-panel .visual-value {
+  font-size: 16px;
+}
+#overview .agent-panel .instrument-rail {
+  height: 8px;
+}
+#overview .agent-panel .visual-bars {
+  gap: 12px;
+}
+/* 09 の計測値（Autonomy・Intervention・Entropy・Transitions）はスライダー列の
+  背が決める広いセルに小さな数字で浮く。大判の数字にして面を使う（2026-10-08 指示）。 */
+#overview .agent-panel .panel-body .metric .metric-value {
+  font-size: 26px;
+  letter-spacing: -0.8px;
+}
+#overview .agent-panel .panel-body .metric .metric-label {
+  font-size: 11px;
+}
+/* 09 の計測値は対のまま1セルに置く（Autonomy|Intervention・Entropy|Transitions）。
+  1個ずつ格子へ散らすと Autonomy が隣列の中腹へ浮く（2026-10-08 指摘）。
+  display: contents の全体規則より後に置き、後勝ちで戻す。 */
+#overview .agent-panel .panel-body > .metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
 }
 /* 3列パネルの数値格子は3列で2行に収める。 */
 #overview .work-panel .metric-grid.two,

@@ -108,14 +108,14 @@ func TestComposeMetrics(t *testing.T) {
 				})},
 			},
 			[]string{
-				"🌿 Git: develop | WT feature-x | REBASE in progress | Conflict ×1 | 📝 4 Files | ➕ 1 Staged | ❓ 1 New | Diff +1,200 -30 | 📅 Cmt 1h00m (×3 today)",
 				env, system,
+				"🌿 Git: develop | WT feature-x | REBASE in progress | Conflict ×1 | 📝 4 Files | ➕ 1 Staged | ❓ 1 New | Diff +1,200 -30 | 📅 Cmt 1h00m (×3 today)",
 			},
 		},
 		{
 			"a linked git worktree outside a worktree session",
 			View{Session: model.Session{GitWorktree: "linked"}, Facts: model.Facts{Git: model.Some(model.Git{Branch: "x"})}},
-			[]string{"🌿 Git: x | WT linked", env, system},
+			[]string{env, system, "🌿 Git: x | WT linked"},
 		},
 		{
 			"a pull request with its size, age, draft and conflicts",
@@ -123,7 +123,7 @@ func TestComposeMetrics(t *testing.T) {
 				Git:  model.Some(model.Git{Branch: "x"}),
 				Pull: model.Some(model.PullRequest{Number: 9, Draft: true, Conflicts: true, Additions: 300, Deletions: 200, Files: 7, Created: now.Add(-50 * time.Hour)}),
 			}},
-			[]string{"🌿 Git: x", "🔀 PR: #9 draft | conflicts | Size +300 -200 7f | Age 2d2h", env, system},
+			[]string{env, system, "🔀 PR: #9 draft | conflicts | Size +300 -200 7f | Age 2d2h", "🌿 Git: x"},
 		},
 		{
 			"the pull request Claude Code found when gh found none",
@@ -131,7 +131,7 @@ func TestComposeMetrics(t *testing.T) {
 				Session: model.Session{PR: model.Some(model.SessionPR{Number: 4, ReviewState: "changes_requested", MergeRequest: true})},
 				Facts:   model.Facts{Git: model.Some(model.Git{Branch: "x"})},
 			},
-			[]string{"🌿 Git: x", "🔀 PR: !4 changes", env, system},
+			[]string{env, system, "🔀 PR: !4 changes", "🌿 Git: x"},
 		},
 		{
 			"env: agent, vim, a session that moved and added directories",
@@ -172,7 +172,7 @@ func TestPullRequestStatesFromTheSession(t *testing.T) {
 			Session: model.Session{PR: model.Some(model.SessionPR{Number: 1, ReviewState: state})},
 			Facts:   model.Facts{Git: model.Some(model.Git{Branch: "x"})},
 		}
-		if got := render(Compose(&view))[1]; got != "🔀 PR: "+want {
+		if got := render(Compose(&view))[2]; got != "🔀 PR: "+want {
 			t.Errorf("state %q: %s", state, got)
 		}
 	}

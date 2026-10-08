@@ -507,6 +507,18 @@ const PANELS: readonly PanelProjector[] = [
           "セッション費用 / 本日・全セッション",
         ),
         timeAllocation(s),
+        metrics(
+          [
+            reading(s, "blockCost"),
+            reading(s, "blockEstimate"),
+            reading(s, "burnRate"),
+            reading(s, "sessionBurn"),
+            reading(s, "wall"),
+            reading(s, "costTurn"),
+            reading(s, "costLine"),
+          ],
+          true,
+        ),
       ],
       "small-panel cost-panel",
     ),
@@ -522,6 +534,8 @@ const PANELS: readonly PanelProjector[] = [
           reading(s, "cacheHit", "good"),
           reading(s, "requests"),
           reading(s, "thinking"),
+          reading(s, "cacheSaved"),
+          reading(s, "cacheWrite"),
         ]),
         ...researchBlocks(s, "Budget"),
       ],
@@ -536,6 +550,15 @@ const PANELS: readonly PanelProjector[] = [
       [
         rings(s, ["focus", "toolErrors"], "Focus & errors"),
         ...researchBlocks(s, "Latency"),
+        metrics(
+          [
+            reading(s, "parallel"),
+            reading(s, "turnP90"),
+            reading(s, "deep"),
+            reading(s, "longest"),
+          ],
+          true,
+        ),
       ],
       "small-panel performance-panel is-fused",
     ),
@@ -545,37 +568,33 @@ const PANELS: readonly PanelProjector[] = [
       "WORK ACTIVITY",
       "work",
       "07",
-      [activityColumns(s), ...researchBlocks(s, "Tools")],
-      "small-panel work-panel is-fused",
-    ),
-  ({ s, cats }) =>
-    panel(
-      "Git・プルリクエスト",
-      "CODE DELIVERY",
-      "git",
-      "08",
       [
-        {
-          kind: "text",
-          style: "branch",
-          text:
-            cats
-              .find((c) => c.name === "Git")
-              ?.chips[0]?.spans.map((span) => span.text)
-              .join("") ?? "ブランチ未取得",
-        },
-        gitBalance(s),
-        metrics([reading(s, "changed"), reading(s, "staged")]),
+        activityColumns(s),
+        ...researchBlocks(s, "Tools"),
+        // 3列×2行の最後のセルを空けない。未表示だった作業系の計測値で埋める。
+        metrics(
+          [
+            reading(s, "todoDone", "good"),
+            reading(s, "todoTotal"),
+            reading(s, "exploreEdit"),
+            reading(s, "linesHour"),
+          ],
+          true,
+        ),
       ],
-      "small-panel git-panel",
+      "small-panel work-panel is-fused",
     ),
   ({ s }) =>
     panel(
       "品質・開発習慣",
       "QUALITY SIGNALS",
       "quality",
-      "09",
-      [qualityTiles(s), ...researchBlocks(s, "Evidence")],
+      "08",
+      [
+        qualityTiles(s),
+        ...researchBlocks(s, "Evidence"),
+        metrics([reading(s, "rulesUnchecked")], true),
+      ],
       "small-panel quality-panel is-fused",
     ),
   ({ s }) =>
@@ -583,7 +602,7 @@ const PANELS: readonly PanelProjector[] = [
       "エージェント・セッション",
       "AGENT ACTIVITY",
       "agents",
-      "10",
+      "09",
       [
         {
           ...compareMetrics(
@@ -604,7 +623,7 @@ const PANELS: readonly PanelProjector[] = [
       "端末・環境",
       "SYSTEM RESOURCES",
       "environment",
-      "11",
+      "10",
       [
         compareMetrics(
           s,
@@ -613,8 +632,36 @@ const PANELS: readonly PanelProjector[] = [
           "Load / 空き容量 / バッテリー",
           false,
         ),
+        metrics([reading(s, "cores")], true),
       ],
       "small-panel system-readings",
+    ),
+  ({ s, cats }) =>
+    panel(
+      "Git・プルリクエスト",
+      "CODE DELIVERY",
+      "git",
+      "11",
+      [
+        {
+          kind: "text",
+          style: "branch",
+          text:
+            cats
+              .find((c) => c.name === "Git")
+              ?.chips[0]?.spans.map((span) => span.text)
+              .join("") ?? "ブランチ未取得",
+        },
+        gitBalance(s),
+        metrics([
+          reading(s, "changed"),
+          reading(s, "staged"),
+          reading(s, "commitsToday"),
+          reading(s, "commitStreak"),
+          reading(s, "conventional"),
+        ]),
+      ],
+      "small-panel git-panel",
     ),
 ];
 

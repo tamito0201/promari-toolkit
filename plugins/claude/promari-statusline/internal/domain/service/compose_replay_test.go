@@ -121,7 +121,6 @@ func TestComposeReplaysTheProductionScreen(t *testing.T) {
 		": 🤖 Codex 7d █████ 100% 🔄 済 💳 Bal $68 (10/1)",
 		"💰 Cost: Sess $4.41 | Today $375.33 | Blk $128.68 (残 1h53m) | Est $207",
 		"🔥 Burn: $41.54/h | ⏰ 5m (API 1m) | Active 1m | Streak 1m",
-		"🌿 Git: develop | 📝 9 Files | ❓ 9 New | 📅 Cmt 1h44m (×51 today)",
 		"🔧 Work: Turns ×1 | Tools ×9 Bash4/Read4/Skill1 | Hooks ×11",
 		"⏰ Due: Overdue ×39 (#85 617d) | Urgent >48h ×4 | Due 7d ×1 | Stale 14d+ ×101 | Undated 69/109 | WIP 1 PR | Lead p50 5m ×100+/14d | Abandoned ×1/14d",
 		"🔖 Session: Claideプラグインテストカバレッジ実装",
@@ -137,6 +136,7 @@ func TestComposeReplaysTheProductionScreen(t *testing.T) {
 		"🧭 Env: Fable 5 | Mode high·think | 📂 example-portal | Style Explanatory | Perm auto",
 		"💻 System: 🕐 11:06 | CPU 24.5/10c | 🧮 Mem 5.4G | 💾 Disk 27G | 🔌 Bat 100%",
 		"🧾 Meta: ⛵ Proc ×9 | 👤 business.someone | v2.1.289",
+		"🌿 Git: develop | 📝 9 Files | ❓ 9 New | 📅 Cmt 1h44m (×51 today)",
 	}
 	if got := render(Compose(&view)); !slices.Equal(got, want) {
 		t.Errorf("Compose() =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))

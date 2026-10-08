@@ -61,17 +61,21 @@ type section struct {
 
 // sections lists the categories in display order, one line each, from the
 // top: what needs action now, then what is glanced at most often, then the
-// details read only when something looks off. The order is fixed (2026-10-06):
+// details read only when something looks off. The order is fixed (2026-10-08):
 //
 //  1. Alerts — outages and exhaustion, shown only when they happen.
 //  2. Limits — context and the Claude and Codex windows: whether the session
 //     can go on at all.
 //  3. Money — what it costs and how fast it burns.
-//  4. Where the work stands — branch, pull request, the session's own work,
-//     what is due, and the session and its peers.
+//  4. Where the work stands — the session's own work, what is due, and the
+//     session and its peers.
 //  5. How well it goes — KPI, performance, cache, tokens, agents, quality,
 //     rules, trace and habits.
 //  6. Surroundings — environment, machine, meta and music.
+//  7. Git and the pull request — the branch context changes least often, so
+//     it anchors the bottom, Git on the very last line (2026-10-08 指示).
+//     They stay in the WORK band: the position is about reading order, not
+//     about which question they answer.
 //
 // A new category is one more entry here, in the band it belongs to.
 func sections() []section {
@@ -87,8 +91,6 @@ func sections() []section {
 		{model.BandMoney, "💰 Cost", model.ToneMoney, costChips},
 		{model.BandMoney, "🔥 Burn", model.ToneDanger, burnChips},
 		// 4. Where the work stands
-		{model.BandWork, "🌿 Git", model.ToneGood, gitChips},
-		{model.BandWork, "🔀 PR", model.ToneInfo, pullChips},
 		{model.BandWork, "🔧 Work", model.ToneNote, workChips},
 		{model.BandWork, "⏰ Due", model.ToneCaution, dueChips},
 		{model.BandWork, "🔖 Session", model.ToneNote, sessionChips},
@@ -114,6 +116,9 @@ func sections() []section {
 		{model.BandSurroundings, "💻 System", model.ToneInfo, systemChips},
 		{model.BandSurroundings, "🧾 Meta", model.ToneMuted, metaChips},
 		{model.BandSurroundings, "🎵 Music", model.ToneAccent, musicChips},
+		// 7. Git last (PR just above it)
+		{model.BandWork, "🔀 PR", model.ToneInfo, pullChips},
+		{model.BandWork, "🌿 Git", model.ToneGood, gitChips},
 	}
 }
 
