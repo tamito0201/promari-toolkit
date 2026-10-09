@@ -99,7 +99,7 @@ web/src/
     repository/    ShareDestinationRepository インターフェース
     gateway/       ClipboardGateway・NativeShareGateway・ShareWindowGateway・NewTabGateway・SharedPageGateway・
                    ShareActivityPublisher インターフェースと、それらをまとめた ShareGateways
-  application/     ユースケース（BuildShareBarUseCase・HandleShareClickUseCase）、ShareButtonCatalog、ShareSettings
+  application/     ユースケース（BuildShareBarUseCase・PerformShareActionUseCase）、ShareButtonCatalog、ShareSettings
   infrastructure/  domainのインターフェースの実装（InMemoryShareDestinationRepository・BrowserClipboard・
                    BrowserNativeShare・BrowserPopupWindow・BrowserNewTab・BrowserSharedPage・CustomEventShareActivityPublisher）
   presentation/    PromariSnsShareElement、ShareSettingsAttributeReader、ShareBarView・CircularShareBarView・
@@ -132,7 +132,8 @@ flowchart TB
 コピーを実行するとき、処理はapplicationからinfrastructureの実装へ進むが、
 applicationが知っているのはdomainの`ClipboardGateway`だけで、ブラウザの実装はimportしない。
 
-クリックのユースケースは、画面へ何を出すかを決めない。`HandleShareClickUseCase.execute()`は
+共有の操作のユースケースは、画面へ何を出すかを決めない。ユースケースは画面の出来事（クリック）ではなく、domainの語彙（`ShareAction`）で
+名付ける（4.2.3で`HandleShareClickUseCase`から改名）。`PerformShareActionUseCase.execute()`は
 `copied`・`copy-fallback`・`shared`・`share-dismissed`・`composed`・`compose-copy-failed`・`popup`・`follow`のいずれかを返し、
 presentationが結果に応じて画面内の通知を描く。書き込みの完了前に成功を名乗らない順序は、
 戻り値を待つことで保つ。同じシェア先を複数置いても、表示層が操作ごとの識別子で押された要素を区別する。
@@ -163,7 +164,7 @@ URLで送れる（アメブロ）。ページの説明と画像はinfrastructure
 下書きを送る`open`は投稿画面を開くので、小窓にしないことを`ShareActionPolicy.canOpenInPopup()`の1か所で決める。
 コードに共有先の名前は無く、表示層は`action`を読まない（成功の知らせに足す`composeHint`もビューモデルの値として渡す）。
 
-クリックの分岐（`HandleShareClickUseCase`の`switch`）は、戦略（Strategy）へ分けず、閉じた集合への
+操作の分岐（`PerformShareActionUseCase`の`switch`）は、戦略（Strategy）へ分けず、閉じた集合への
 網羅的な分岐のままにした。操作の種類を増やすことは共有先の追加（TOMLを1つ足す）と違い、ADR-0002・0003で
 別の判断として扱うと決めている。`never`による網羅検査があるので、増やしたときは書き漏れがコンパイルで止まる。
 
@@ -193,8 +194,8 @@ presentation layer without rewriting the domain logic.
 1. index.tsが`ShareContainer.create()`でコンテナを作る。compositionがリポジトリとゲートウェイのブラウザ実装をdomainのインターフェースへ結び付け、ユースケースと組み合わせた依存を`PromariSnsShareElement.define()`へ渡す。
 2. presentationが`ShareSettingsAttributeReader`で属性を設定として読み取り、`BuildShareBarUseCase.execute()`へ渡す。
 3. `BuildShareBarUseCase`がdomainの選択・URL規則と表示用メタデータを合わせてビューモデルを返す。
-4. presentationがShadow DOMへ描画し、クリックを`HandleShareClickUseCase.execute()`へ渡す。
-5. `HandleShareClickUseCase`が`ShareActionPolicy.decide()`の判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
+4. presentationがShadow DOMへ描画し、クリックを`PerformShareActionUseCase.execute()`へ渡す。
+5. `PerformShareActionUseCase`が`ShareActionPolicy.decide()`の判断を使い、ゲートウェイを呼んで結果を返す。操作の通知は
    ゲートウェイの実装がホスト要素からイベントとして送出し、画面内通知はpresentationが描く。
 
 ### Security and performance

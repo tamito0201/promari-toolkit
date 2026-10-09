@@ -13,7 +13,7 @@ HTML page, or install the WordPress plugin to place it and load the pinned bundl
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v4.2.2/plugins/wordpress/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v4.2.3/plugins/wordpress/promari-sns-share/dist/promari-sns-share.min.js"></script>
 <promari-sns-share></promari-sns-share>
 ```
 
@@ -41,7 +41,7 @@ and less loading overhead.
 ### A. Any website: Web Components and CDN
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v4.2.2/plugins/wordpress/promari-sns-share/dist/promari-sns-share.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/tamito0201/promari-toolkit@promari-sns-share-v4.2.3/plugins/wordpress/promari-sns-share/dist/promari-sns-share.min.js"></script>
 
 <!-- Defaults: Facebook / X / LINE plus five secondary channels -->
 <promari-sns-share></promari-sns-share>
@@ -56,7 +56,7 @@ and less loading overhead.
 <promari-sns-share config='{"text":{"hashtags":["promari"],"via":"promari_jp"},"utm":{"enabled":true},"behavior":{"popup":false}}'></promari-sns-share>
 ```
 
-Pin `@promari-sns-share-v4.2.2` to select this component's release independently.
+Pin `@promari-sns-share-v4.2.3` to select this component's release independently.
 Release tags are immutable. Each release's notes include an installation snippet
 with the matching Subresource Integrity (SRI) hash. jsDelivr serves the script.
 

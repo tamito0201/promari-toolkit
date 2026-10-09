@@ -11,7 +11,7 @@
  */
 import { Container, ContainerModule } from 'inversify';
 import { BuildShareBarUseCase } from '../application/BuildShareBarUseCase.ts';
-import { HandleShareClickUseCase } from '../application/HandleShareClickUseCase.ts';
+import { PerformShareActionUseCase } from '../application/PerformShareActionUseCase.ts';
 import { ShareButtonCatalog, type ShareDestinationDefinition } from '../application/ShareButtonCatalog.ts';
 import type { ShareSettings } from '../application/ShareSettings.ts';
 import { BrowserClipboard } from '../infrastructure/BrowserClipboard.ts';
@@ -22,7 +22,7 @@ import { BrowserSharedPage } from '../infrastructure/BrowserSharedPage.ts';
 import { CustomEventShareActivityPublisher } from '../infrastructure/CustomEventShareActivityPublisher.ts';
 import { InMemoryShareDestinationRepository } from '../infrastructure/InMemoryShareDestinationRepository.ts';
 import {
-  TOKENS, type InjectionToken, type HandleShareClickUseCaseFactory, type ShareActivityPublisherFactory,
+  TOKENS, type InjectionToken, type PerformShareActionUseCaseFactory, type ShareActivityPublisherFactory,
 } from './InjectionTokens.ts';
 import { TypedBinding } from './TypedBinding.ts';
 
@@ -60,21 +60,21 @@ export class ShareContainer {
         (repository, definitions) => new ShareButtonCatalog(repository, definitions));
       provide(bind, TOKENS.BuildShareBarUseCase, [TOKENS.ShareButtonCatalog], catalog => new BuildShareBarUseCase(catalog));
       // Each element publishes activity under its own name, so the click use case is made per element.
-      provide(bind, TOKENS.HandleShareClickUseCaseFactory,
+      provide(bind, TOKENS.PerformShareActionUseCaseFactory,
         [TOKENS.ClipboardGateway, TOKENS.NativeShareGateway, TOKENS.ShareWindowGateway, TOKENS.NewTabGateway,
           TOKENS.ShareActivityPublisherFactory],
-        (clipboard, nativeShare, popup, newTab, publish): HandleShareClickUseCaseFactory => (element, eventName) =>
-          new HandleShareClickUseCase({ clipboard, nativeShare, popup, newTab, activity: publish(element, eventName) }));
+        (clipboard, nativeShare, popup, newTab, publish): PerformShareActionUseCaseFactory => (element, eventName) =>
+          new PerformShareActionUseCase({ clipboard, nativeShare, popup, newTab, activity: publish(element, eventName) }));
       provide(bind, TOKENS.ShareElementDependencies,
         [TOKENS.BuildShareBarUseCase, TOKENS.DefaultShareSettings, TOKENS.SharedPageGateway, TOKENS.NativeShareGateway,
-          TOKENS.HandleShareClickUseCaseFactory],
-        (buildShareBar, defaults, page, nativeShare, clickUseCase) => ({
+          TOKENS.PerformShareActionUseCaseFactory],
+        (buildShareBar, defaults, page, nativeShare, shareActionUseCase) => ({
           buildShareBar,
           defaults,
           connect: element => ({
             pageContext: () => page.read(),
             canNativeShare: () => nativeShare.available,
-            clickUseCase: eventName => clickUseCase(element, eventName),
+            shareActionUseCase: eventName => shareActionUseCase(element, eventName),
           }),
         }));
     });

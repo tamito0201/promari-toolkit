@@ -56,8 +56,8 @@ describe('ShareContainer', () => {
     const deps = ShareContainer.get(ShareContainer.create(CATALOG, DEFAULTS, fakeInfrastructure(calls, published)), TOKENS.ShareElementDependencies);
     const bar = deps.buildShareBar.execute({ ...DEFAULTS, secondary: ['copy'] }, { url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', placement: 'inline', canNativeShare: false });
     const copy = bar.secondary.find(button => button.key === 'copy')!;
-    const top = deps.connect(element('top')).clickUseCase('share-top');
-    const bottom = deps.connect(element('bottom')).clickUseCase('share-bottom');
+    const top = deps.connect(element('top')).shareActionUseCase('share-top');
+    const bottom = deps.connect(element('bottom')).shareActionUseCase('share-bottom');
     assert.notEqual(top, bottom);
     assert.equal(await top.execute({ button: copy, placement: 'article_top', preventDefault: () => undefined }), 'copied');
     await bottom.execute({ button: copy, placement: 'article_bottom', preventDefault: () => undefined });
@@ -71,7 +71,7 @@ describe('ShareContainer', () => {
     const deps = ShareContainer.get(ShareContainer.create(CATALOG, DEFAULTS, fakeInfrastructure(calls, [])), TOKENS.ShareElementDependencies);
     const bar = deps.buildShareBar.execute({ ...DEFAULTS, destinations: ['qiita'], secondary: [] }, { url: 'https://a.jp/post/', title: 'Hello', site: 'Promari', placement: 'inline', canNativeShare: false });
     const qiita = bar.primary[0]!;
-    const outcome = await deps.connect(element('a')).clickUseCase('share').execute({ button: qiita, placement: 'inline', preventDefault: () => undefined });
+    const outcome = await deps.connect(element('a')).shareActionUseCase('share').execute({ button: qiita, placement: 'inline', preventDefault: () => undefined });
     assert.equal(outcome, 'composed');
     assert.deepEqual(calls.map(call => call.split(':')[0]), ['copy', 'tab']);
     assert.equal(calls[1], `tab:${qiita.href}`);

@@ -2,6 +2,16 @@
 
 This component follows [Semantic Versioning](https://semver.org/).
 
+## 4.2.3
+
+### Changed
+
+- Rename the share use case after the domain's vocabulary instead of the click that triggers it:
+  `HandleShareClickUseCase` is now `PerformShareActionUseCase`, with `ShareActionCommand` and
+  `ShareActionResult` (were `ShareClickCommand` and `ShareClickResult`). The click belongs to
+  presentation; the application layer names what it does with the domain's `ShareAction`. The result
+  values (`copied`, `popup`, ...), the custom element, its attributes and its events are unchanged.
+
 ## 4.2.2
 
 ### Changed

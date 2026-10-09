@@ -4,7 +4,7 @@
  * through gateways implemented in infrastructure and passed in at startup.
  */
 import type { BuildShareBarUseCase, ShareButtonViewModel, Placement } from '../application/BuildShareBarUseCase.ts';
-import type { HandleShareClickUseCase, ShareClickResult } from '../application/HandleShareClickUseCase.ts';
+import type { PerformShareActionUseCase, ShareActionResult } from '../application/PerformShareActionUseCase.ts';
 import type { ShareSettings } from '../application/ShareSettings.ts';
 import { ShareSettingsAttributeReader } from './ShareSettingsAttributeReader.ts';
 import { CircularShareBarView } from './CircularShareBarView.ts';
@@ -14,13 +14,13 @@ import { ShareBarView } from './ShareBarView.ts';
 import { ToastNotifier } from './ToastNotifier.ts';
 
 /** Outcomes that show an in-page notice, and the configured message for each. */
-const MESSAGES: Readonly<Partial<Record<ShareClickResult, 'copied' | 'composed' | 'compose_failed'>>> = {
+const MESSAGES: Readonly<Partial<Record<ShareActionResult, 'copied' | 'composed' | 'compose_failed'>>> = {
   copied: 'copied',
   composed: 'composed',
   'compose-copy-failed': 'compose_failed',
 };
 /** Destination-specific text appended to a notice, such as how to turn a pasted URL into a card. */
-const HINTS: Readonly<Partial<Record<ShareClickResult, (button: ShareButtonViewModel) => string>>> = {
+const HINTS: Readonly<Partial<Record<ShareActionResult, (button: ShareButtonViewModel) => string>>> = {
   composed: (button) => button.composeHint,
 };
 
@@ -32,7 +32,7 @@ export interface ShareElementEnvironment {
   pageContext(): { readonly url: string; readonly title: string; readonly site: string; readonly description: string; readonly image: string };
   canNativeShare(): boolean;
   /** The click use case with gateways whose activity events use this name. */
-  clickUseCase(eventName: string): HandleShareClickUseCase;
+  shareActionUseCase(eventName: string): PerformShareActionUseCase;
 }
 /**
  * The like state the host page confirms. `count: null` means the count is not known yet
@@ -151,7 +151,7 @@ export class PromariSnsShareElement extends HTMLElement {
       panel.style.transform = `translateX(${shift}px)`;
     });
     this.#buttons = new Map([...vm.primary, ...vm.secondary].map((b) => [b.key, b]));
-    const clickUseCase = this.#environment.clickUseCase(config.tracking.event_name);
+    const shareActionUseCase = this.#environment.shareActionUseCase(config.tracking.event_name);
     const notifier = new ToastNotifier(root);
     root.querySelector(circle ? '.circle' : '.w')?.addEventListener('click', (event) => {
       const anchor = event.composedPath().find((n): n is HTMLAnchorElement | HTMLButtonElement => n instanceof HTMLAnchorElement || n instanceof HTMLButtonElement);
@@ -163,7 +163,7 @@ export class PromariSnsShareElement extends HTMLElement {
         // 同じ共有先が複数ある場合も、押された要素を識別する。
         const notificationTarget = String(++this.#notificationSequence);
         anchor.dataset['notificationTarget'] = notificationTarget;
-        void clickUseCase.execute({ button, placement, preventDefault: () => event.preventDefault() }).then((outcome) => {
+        void shareActionUseCase.execute({ button, placement, preventDefault: () => event.preventDefault() }).then((outcome) => {
           const message = MESSAGES[outcome];
           if (message) notifier.notify([config.messages[message], HINTS[outcome]?.(button) ?? ''].filter(Boolean).join(' '), notificationTarget);
         });

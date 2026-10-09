@@ -1,19 +1,21 @@
 /**
- * Use case: handle a share click. The domain decides the action; gateways defined by the
- * domain perform side effects. The outcome is returned, and presentation decides how to show it.
+ * Use case: perform the share action for a button (copy, native share, compose, popup, or follow).
+ * The domain decides the action; gateways defined by the domain perform side effects. The outcome is
+ * returned, and presentation decides how to show it. Named after the domain's ShareAction, not the
+ * click that triggers it: the click belongs to presentation.
  */
 import type { ShareGateways } from '../domain/gateway/ShareGateways.ts';
 import { ShareActionPolicy } from '../domain/service/ShareActionPolicy.ts';
 import type { ShareButtonViewModel } from './BuildShareBarUseCase.ts';
 
-export interface ShareClickCommand {
+export interface ShareActionCommand {
   readonly button: ShareButtonViewModel;
   readonly placement: string;
   preventDefault(): void;
 }
 
 /**
- * What the click achieved, as far as this page can observe.
+ * What the share action achieved, as far as this page can observe.
  * - copied: the clipboard accepted the text
  * - copy-fallback: writing failed, so the fallback was offered
  * - shared / share-dismissed: the native share sheet finished or was dismissed
@@ -22,22 +24,22 @@ export interface ShareClickCommand {
  * - popup: a share window opened
  * - follow: the browser follows the link (including a blocked popup)
  */
-export type ShareClickResult = 'copied' | 'copy-fallback' | 'shared' | 'share-dismissed' | 'composed' | 'compose-copy-failed' | 'popup' | 'follow';
+export type ShareActionResult = 'copied' | 'copy-fallback' | 'shared' | 'share-dismissed' | 'composed' | 'compose-copy-failed' | 'popup' | 'follow';
 
-export class HandleShareClickUseCase {
+export class PerformShareActionUseCase {
   readonly #gateways: ShareGateways;
 
   constructor(gateways: ShareGateways) {
     this.#gateways = gateways;
   }
 
-  async execute(context: ShareClickCommand): Promise<ShareClickResult> {
+  async execute(context: ShareActionCommand): Promise<ShareActionResult> {
     const outcome = await this.#perform(context);
     this.#gateways.activity.publish({ destination: context.button.key, url: context.button.url, placement: context.placement });
     return outcome;
   }
 
-  async #perform({ button, preventDefault }: ShareClickCommand): Promise<ShareClickResult> {
+  async #perform({ button, preventDefault }: ShareActionCommand): Promise<ShareActionResult> {
     const decision = ShareActionPolicy.decide(button);
     switch (decision) {
       case 'copy': {

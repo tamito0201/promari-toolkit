@@ -88,7 +88,7 @@ describe('レイヤード＋DDDの依存境界', () => {
   });
   it('禁止した境界を越える型・再export・動的読み込みを検出する', () => {
     for (const [layer, text] of [
-      ['domain', "import type { X } from '../application/HandleShareClickUseCase.ts';"],
+      ['domain', "import type { X } from '../application/PerformShareActionUseCase.ts';"],
       ['infrastructure', "import type { ShareSettings } from '../application/ShareSettings.ts';"],
       ['presentation', "import type { ShareDestination } from '../domain/model/ShareDestination.ts';"],
       ['application', "export { x } from '../infrastructure/BrowserClipboard.ts';"],

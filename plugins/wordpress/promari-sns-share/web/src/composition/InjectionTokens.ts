@@ -4,7 +4,7 @@
  * layers receive their dependencies through constructors and never see the container.
  */
 import type { BuildShareBarUseCase } from '../application/BuildShareBarUseCase.ts';
-import type { HandleShareClickUseCase } from '../application/HandleShareClickUseCase.ts';
+import type { PerformShareActionUseCase } from '../application/PerformShareActionUseCase.ts';
 import type { ShareButtonCatalog, ShareDestinationDefinition } from '../application/ShareButtonCatalog.ts';
 import type { ShareSettings } from '../application/ShareSettings.ts';
 import type { ClipboardGateway } from '../domain/gateway/ClipboardGateway.ts';
@@ -25,7 +25,7 @@ const token = <T>(description: string): InjectionToken<T> => Symbol(description)
 export type ShareActivityPublisherFactory = (element: HTMLElement, eventName: string) => ShareActivityPublisher;
 
 /** Creates the click use case for one element. Activity events go to that element under the given name. */
-export type HandleShareClickUseCaseFactory = (element: HTMLElement, eventName: string) => HandleShareClickUseCase;
+export type PerformShareActionUseCaseFactory = (element: HTMLElement, eventName: string) => PerformShareActionUseCase;
 
 export const TOKENS = Object.freeze({
   // Generated input from tools/config.py.
@@ -42,7 +42,7 @@ export const TOKENS = Object.freeze({
   // application.
   ShareButtonCatalog: token<ShareButtonCatalog>('ShareButtonCatalog'),
   BuildShareBarUseCase: token<BuildShareBarUseCase>('BuildShareBarUseCase'),
-  HandleShareClickUseCaseFactory: token<HandleShareClickUseCaseFactory>('HandleShareClickUseCaseFactory'),
+  PerformShareActionUseCaseFactory: token<PerformShareActionUseCaseFactory>('PerformShareActionUseCaseFactory'),
   // presentation.
   ShareElementDependencies: token<ShareElementDependencies>('ShareElementDependencies'),
 });

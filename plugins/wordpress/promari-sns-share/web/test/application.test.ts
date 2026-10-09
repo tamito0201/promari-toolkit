@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { BuildShareBarUseCase } from '../src/application/BuildShareBarUseCase.ts';
 import { ShareButtonCatalog } from '../src/application/ShareButtonCatalog.ts';
-import { HandleShareClickUseCase } from '../src/application/HandleShareClickUseCase.ts';
+import { PerformShareActionUseCase } from '../src/application/PerformShareActionUseCase.ts';
 import type { ShareActivity } from '../src/domain/gateway/ShareActivityPublisher.ts';
 import type { ShareGateways } from '../src/domain/gateway/ShareGateways.ts';
 import { ShareSettingsAttributeReader } from '../src/presentation/ShareSettingsAttributeReader.ts';
@@ -58,7 +58,7 @@ describe('BuildShareBarUseCase', () => {
   });
 });
 
-describe('HandleShareClickUseCase', () => {
+describe('PerformShareActionUseCase', () => {
   const gateways = (overrides: Partial<ShareGateways> = {}) => {
     const calls: string[] = [];
     const tracked: ShareActivity[] = [];
@@ -78,7 +78,7 @@ describe('HandleShareClickUseCase', () => {
     const { calls, tracked, gateways: g } = gateways();
     let prevented = false;
     const b = button('copy').secondary.find((x) => x.key === 'copy')!;
-    const outcome = await new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+    const outcome = await new PerformShareActionUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
     assert.equal(outcome, 'copied');
     assert.deepEqual(calls, ['copy:https://a.jp/post/']);
     assert.equal(prevented, true);
@@ -89,7 +89,7 @@ describe('HandleShareClickUseCase', () => {
     const outcomes: string[] = [];
     const { gateways: g } = gateways({ clipboard: { write: () => new Promise<void>(resolve => { finish = resolve; }) } });
     const b = button('copy').secondary.find(x => x.key === 'copy')!;
-    const pending = new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => undefined }).then((o) => { outcomes.push(o); });
+    const pending = new PerformShareActionUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => undefined }).then((o) => { outcomes.push(o); });
     await Promise.resolve();
     assert.deepEqual(outcomes, []);
     finish();
@@ -99,7 +99,7 @@ describe('HandleShareClickUseCase', () => {
   it('clipboard が失敗したら fallback を出し、copied とは返さない', async () => {
     const { calls, gateways: g } = gateways({ clipboard: { write: async () => { throw new Error('denied'); }, fallback: (t) => calls.push(`fallback:${t}`) } });
     const b = button('copy').secondary.find((x) => x.key === 'copy')!;
-    const outcome = await new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => undefined });
+    const outcome = await new PerformShareActionUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => undefined });
     assert.equal(outcome, 'copy-fallback');
     assert.deepEqual(calls, ['fallback:https://a.jp/post/']);
   });
@@ -108,7 +108,7 @@ describe('HandleShareClickUseCase', () => {
       const { gateways: g, tracked } = gateways({ nativeShare: { available: true, share: async () => { if (reject) throw new Error('cancel'); } } });
       let prevented = false;
       const b = button('native').secondary.find(x => x.key === 'native')!;
-      const outcome = await new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+      const outcome = await new PerformShareActionUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
       assert.equal(outcome, reject ? 'share-dismissed' : 'shared');
       assert.equal(prevented, true);
       assert.deepEqual(tracked, [{ destination: 'native', url: input.url, placement: 'inline' }]);
@@ -118,13 +118,13 @@ describe('HandleShareClickUseCase', () => {
     const { gateways: g } = gateways({ popup: { open: () => false } });
     let prevented = false;
     const b = button('x').primary.find((x) => x.key === 'x')!;
-    const outcome = await new HandleShareClickUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
+    const outcome = await new PerformShareActionUseCase(g).execute({ button: b, placement: 'inline', preventDefault: () => { prevented = true; } });
     assert.equal(outcome, 'follow');
     assert.equal(prevented, false);
   });
 });
 
-describe('HandleShareClickUseCase（compose）', () => {
+describe('PerformShareActionUseCase（compose）', () => {
   const recording = (write: (text: string) => Promise<void>) => {
     const calls: string[] = [];
     const tracked: ShareActivity[] = [];
@@ -150,21 +150,21 @@ describe('HandleShareClickUseCase（compose）', () => {
   it('クリップボードへの書き込みと新しいタブを、最初の await より前に同期で始める', () => {
     const { calls, g } = recording(() => new Promise<void>(() => undefined)); // never settles
     let prevented = false;
-    void new HandleShareClickUseCase(g).execute({ button: qiita(), placement: 'inline', preventDefault: () => { prevented = true; } });
+    void new PerformShareActionUseCase(g).execute({ button: qiita(), placement: 'inline', preventDefault: () => { prevented = true; } });
     // execute() の呼び出しから戻った時点（マイクロタスクを一度も回していない）で、両方が済んでいる。
     assert.deepEqual(calls, ['copy:Hello\nhttps://a.jp/post/?utm_source=qiita&utm_medium=social&utm_campaign=share', 'tab:https://qiita.com/drafts/new']);
     assert.equal(prevented, true);
   });
   it('書き込みが成功したら composed を返し、操作を一度だけ通知する', async () => {
     const { tracked, g } = recording(async () => undefined);
-    const outcome = await new HandleShareClickUseCase(g).execute({ button: qiita(), placement: 'inline', preventDefault: () => undefined });
+    const outcome = await new PerformShareActionUseCase(g).execute({ button: qiita(), placement: 'inline', preventDefault: () => undefined });
     assert.equal(outcome, 'composed');
     assert.deepEqual(tracked, [{ destination: 'qiita', url: input.url, placement: 'inline' }]);
   });
   it('書き込みが拒否されても・同期で投げても投稿画面は開き、compose-copy-failed を返す（prompt は出さない）', async () => {
     for (const write of [async () => { throw new Error('denied'); }, () => { throw new Error('sync'); }]) {
       const { calls, g } = recording(write as (t: string) => Promise<void>);
-      const outcome = await new HandleShareClickUseCase(g).execute({ button: qiita(), placement: 'inline', preventDefault: () => undefined });
+      const outcome = await new PerformShareActionUseCase(g).execute({ button: qiita(), placement: 'inline', preventDefault: () => undefined });
       assert.equal(outcome, 'compose-copy-failed');
       assert.ok(calls.includes('tab:https://qiita.com/drafts/new'));
       assert.equal(calls.some((c) => c.startsWith('fallback:') || c.startsWith('popup:')), false);
